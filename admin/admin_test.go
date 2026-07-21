@@ -36,12 +36,15 @@ func TestAdminDashboardContainsOnlyOperationalLinks(t *testing.T) {
 	rr := httptest.NewRecorder()
 	AdminHandler(rr, req)
 	body := rr.Body.String()
-	for _, want := range []string{"/admin/env", "/admin/server", "/admin/log"} {
+	for _, want := range []string{
+		"/admin/console", "/admin/env", "/admin/server", "/admin/log", "/admin/diagnostics",
+		"/admin/email", "/admin/api", "/admin/usage", "/admin/delete", "/admin/blocklist", "/admin/spam",
+	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("dashboard missing %s", want)
 		}
 	}
-	for _, forbidden := range []string{"Users", "Invites", "Moderation", "Blocklist", "/admin/users", "/admin/invite"} {
+	for _, forbidden := range []string{"Users", "Invites", "Moderation", "/admin/users", "/admin/invite", "/admin/moderate"} {
 		if strings.Contains(body, forbidden) {
 			t.Errorf("dashboard contains %q", forbidden)
 		}
@@ -72,9 +75,21 @@ func TestBlocklistRowsEscapeValues(t *testing.T) {
 	}
 }
 
-func TestUserActionsDoNotRenderDeleteForm(t *testing.T) {
-	actions := userActions(&auth.Account{ID: "member"}, "owner", "all")
-	if strings.Contains(actions, `name="action" value="delete"`) {
-		t.Fatalf("rendered obsolete delete action: %s", actions)
+func TestConsoleRejectsLocalAccountCommands(t *testing.T) {
+	for _, command := range []string{
+		"users", "user member", "approve member", "unapprove member", "approve-old",
+		"ban member", "unban member", "clear-status member", "wallet member", "credit member 1", "invites",
+	} {
+		if got := runCommand(command); !strings.HasPrefix(got, "Unknown:") {
+			t.Errorf("runCommand(%q) = %q, want unknown command", command, got)
+		}
+	}
+}
+
+func TestConsoleRetainsOperationalCommands(t *testing.T) {
+	for _, command := range []string{"search nothing", "delete post missing", "flags", "stats", "types", "help"} {
+		if got := runCommand(command); strings.HasPrefix(got, "Unknown:") {
+			t.Errorf("runCommand(%q) = %q, want operational command", command, got)
+		}
 	}
 }

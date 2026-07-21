@@ -2,6 +2,8 @@ package main
 
 import (
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	"mu/internal/auth"
@@ -28,6 +30,23 @@ func TestIsServerMode(t *testing.T) {
 				t.Fatalf("isServerMode(%v) = %v, want %v", tt.args, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAdminRoutesExcludeLocalUserManagement(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, route := range []string{"/admin/users", "/admin/moderate"} {
+		if strings.Contains(string(source), route) {
+			t.Errorf("main route registration retains %s", route)
+		}
+	}
+	for _, route := range []string{"/admin/blocklist", "/admin/spam", "/admin/console", "/admin/delete"} {
+		if !strings.Contains(string(source), route) {
+			t.Errorf("main route registration is missing %s", route)
+		}
 	}
 }
 

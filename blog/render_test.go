@@ -1,6 +1,7 @@
 package blog
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -15,6 +16,18 @@ func TestLinkifyProtectsCurrencyDollarsFromMathRendering(t *testing.T) {
 	for _, want := range []string{"$\u20601 billion", "$\u206094,000"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("Linkify() missing protected currency %q in %q", want, got)
+		}
+	}
+}
+
+func TestBlogDoesNotLinkToRemovedModeration(t *testing.T) {
+	source, err := os.ReadFile("blog.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"/admin/moderate", "GetNewAccountBlogPosts"} {
+		if strings.Contains(string(source), forbidden) {
+			t.Fatalf("blog retains removed account moderation surface %q", forbidden)
 		}
 	}
 }

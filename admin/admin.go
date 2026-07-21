@@ -4,16 +4,13 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	"sort"
-	"strings"
-	"time"
 
 	"mu/internal/app"
 	"mu/internal/auth"
 	"mu/mail"
 )
 
-// AdminHandler shows the admin page with user management
+// AdminHandler shows operational owner controls.
 func AdminHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if user is admin
 	_, _, err := auth.RequireAdmin(r)
@@ -23,123 +20,21 @@ func AdminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	content := `<div class="admin-links">
+		<a href="/admin/console">Console</a>
 		<a href="/admin/usage">API Usage</a>
 		<a href="/admin/api">API Log</a>
 		<a href="/admin/env">Environment</a>
 		<a href="/admin/email">Mail Log</a>
 		<a href="/admin/server">Server</a>
+		<a href="/admin/blocklist">Mail Blocklist</a>
 		<a href="/admin/spam">Spam Filter</a>
 		<a href="/admin/log">System Log</a>
+		<a href="/admin/diagnostics">Diagnostics</a>
+		<a href="/admin/delete">Delete Content</a>
 	</div>`
 
 	html := app.RenderHTMLForRequest("Admin", "Admin Dashboard", content, r)
 	w.Write([]byte(html))
-}
-
-// UsersHandler shows and manages users with tabs: All, Banned, New.
-func UsersHandler(w http.ResponseWriter, r *http.Request) {
-	_, acc, err := auth.RequireAdmin(r)
-	if err != nil {
-		app.Forbidden(w, r, "Admin access required")
-		return
-	}
-	if r.Method == "POST" {
-		r.ParseForm()
-		action := r.FormValue("action")
-		userID := r.FormValue("user_id")
-		if userID == "" {
-			app.BadRequest(w, r, "User ID required")
-			return
-		}
-		switch action {
-		case "toggle_admin":
-			if u, err := auth.GetAccount(userID); err == nil {
-				u.Admin = !u.Admin
-				auth.UpdateAccount(u)
-			}
-		case "ban":
-			auth.BanAccount(userID)
-		case "unban":
-			auth.UnbanAccount(userID)
-		case "approve":
-			auth.ApproveAccount(userID)
-		}
-		tab := r.FormValue("tab")
-		redir := "/admin/users"
-		if tab != "" {
-			redir += "?tab=" + tab
-		}
-		http.Redirect(w, r, redir, http.StatusSeeOther)
-		return
-	}
-	users := auth.GetAllAccounts()
-	sort.Slice(users, func(i, j int) bool { return users[i].Created.After(users[j].Created) })
-	tab := r.URL.Query().Get("tab")
-	if tab == "" {
-		tab = "all"
-	}
-	var sb strings.Builder
-	sb.WriteString(`<p><a href="/admin">← Admin</a></p><h2>Users</h2>`)
-	sb.WriteString(`<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">`)
-	for _, t := range []struct{ id, label string }{{"all", "All"}, {"banned", "Banned"}, {"new", "New (24h)"}} {
-		style := "padding:4px 14px;border-radius:14px;font-size:13px;text-decoration:none;color:#555"
-		if t.id == tab {
-			style = "padding:4px 14px;border-radius:14px;font-size:13px;text-decoration:none;background:#000;color:#fff"
-		}
-		sb.WriteString(fmt.Sprintf(`<a href="/admin/users?tab=%s" style="%s">%s</a>`, t.id, style, t.label))
-	}
-	sb.WriteString(`</div>`)
-	var filtered []*auth.Account
-	for _, u := range users {
-		switch tab {
-		case "banned":
-			if u.Banned {
-				filtered = append(filtered, u)
-			}
-		case "new":
-			if time.Since(u.Created) < 24*time.Hour {
-				filtered = append(filtered, u)
-			}
-		default:
-			filtered = append(filtered, u)
-		}
-	}
-	sb.WriteString(fmt.Sprintf(`<p class="text-muted text-sm">%d users</p>`, len(filtered)))
-	sb.WriteString(`<table class="admin-table"><thead><tr><th>Username</th><th>Name</th><th class="created-col">Created</th><th>Status</th><th class="center">Actions</th></tr></thead><tbody>`)
-	for _, u := range filtered {
-		created := u.Created.Format("2006-01-02")
-		var badges []string
-		if u.Admin {
-			badges = append(badges, `<span style="background:#000;color:#fff;padding:1px 6px;border-radius:8px;font-size:11px">admin</span>`)
-		}
-		if u.Banned {
-			badges = append(badges, `<span style="background:#c00;color:#fff;padding:1px 6px;border-radius:8px;font-size:11px">banned</span>`)
-		}
-		if u.EmailVerified {
-			badges = append(badges, `<span style="background:#22c55e;color:#fff;padding:1px 6px;border-radius:8px;font-size:11px">verified</span>`)
-		}
-		if u.Approved {
-			badges = append(badges, `<span style="background:#06b;color:#fff;padding:1px 6px;border-radius:8px;font-size:11px">approved</span>`)
-		}
-		statusHTML := strings.Join(badges, " ")
-		if statusHTML == "" {
-			statusHTML = `<span class="text-muted" style="font-size:12px">—</span>`
-		}
-		sb.WriteString(fmt.Sprintf(`<tr><td><strong><a href="/@%s">%s</a></strong></td><td>%s</td><td class="created-col">%s</td><td>%s</td><td class="center" style="white-space:nowrap">%s</td></tr>`, u.ID, u.ID, u.Name, created, statusHTML, userActions(u, acc.ID, tab)))
-	}
-	sb.WriteString(`</tbody></table>`)
-	html := app.RenderHTMLForRequest("Admin", "Users", sb.String(), r)
-	w.Write([]byte(html))
-}
-
-func userActions(user *auth.Account, currentUserID, tab string) string {
-	if user.ID == currentUserID {
-		return ""
-	}
-	if user.Banned {
-		return fmt.Sprintf(`<form method="POST" class="d-inline"><input type="hidden" name="action" value="unban"><input type="hidden" name="user_id" value="%s"><input type="hidden" name="tab" value="%s"><button type="submit" style="font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid #22c55e;background:#fff;color:#22c55e;cursor:pointer">Unban</button></form>`, user.ID, tab)
-	}
-	return fmt.Sprintf(`<form method="POST" class="d-inline"><input type="hidden" name="action" value="ban"><input type="hidden" name="user_id" value="%s"><input type="hidden" name="tab" value="%s"><button type="submit" style="font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid #c00;background:#fff;color:#c00;cursor:pointer" onclick="return confirm('Ban %s?')">Ban</button></form>`, user.ID, tab, user.ID)
 }
 
 // BlocklistHandler shows and manages the mail blocklist

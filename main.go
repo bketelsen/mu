@@ -388,10 +388,6 @@ func main() {
 		return result
 	}
 
-	// Wire admin → blog callbacks (avoids blog importing admin)
-	admin.GetNewAccountBlog = blog.GetNewAccountBlogPosts
-	admin.RefreshBlogCache = blog.RefreshCache
-
 	// Enable indexing after all content is loaded
 	// This allows the priority queue to process new items first
 	data.StartIndexing()
@@ -1162,12 +1158,6 @@ func main() {
 
 	// admin dashboard
 	http.HandleFunc("/admin", admin.AdminHandler)
-
-	// admin user management
-	http.HandleFunc("/admin/users", admin.UsersHandler)
-
-	// moderation queue
-	http.HandleFunc("/admin/moderate", admin.ModerateHandler)
 
 	// mail blocklist management
 	http.HandleFunc("/admin/blocklist", admin.BlocklistHandler)

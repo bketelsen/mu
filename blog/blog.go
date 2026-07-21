@@ -298,34 +298,6 @@ func (d *postDeleter) Get(id string) interface{} {
 	}
 }
 
-// GetNewAccountBlogPosts returns blog posts from new accounts for the moderation page.
-func GetNewAccountBlogPosts() []flag.PostContent {
-	mutex.RLock()
-	defer mutex.RUnlock()
-
-	var result []flag.PostContent
-	for _, post := range posts {
-		// Skip flagged/hidden posts
-		if flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
-			continue
-		}
-
-		// Only include posts from new accounts
-		if post.AuthorID != "" && auth.IsNewAccount(post.AuthorID) {
-			result = append(result, flag.PostContent{
-				ID:        post.ID,
-				Title:     post.Title,
-				Content:   post.Content,
-				Author:    post.Author,
-				AuthorID:  post.AuthorID,
-				CreatedAt: post.CreatedAt,
-			})
-		}
-	}
-
-	return result
-}
-
 func (d *postDeleter) RefreshCache() {
 	updateCache()
 }
@@ -925,10 +897,9 @@ func handleGetBlog(w http.ResponseWriter, r *http.Request) {
 		var actions string
 		_, acc := auth.TrySession(r)
 		if acc != nil && acc.Admin {
-			// Admin: show write and moderate links
+			// Owners can write posts.
 			actions = `<div class="mb-4">
 				<a href="/blog?write=true" class="btn">+ Write</a>
-				<a href="/admin/moderate" class="text-muted text-sm ml-4">Moderate</a>
 			</div>`
 		} else if acc != nil {
 			// Regular user: show only write link
