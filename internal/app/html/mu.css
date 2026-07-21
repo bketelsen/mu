@@ -3317,30 +3317,6 @@ a.btn-secondary:hover, .btn-secondary:hover {
   border-left: 3px solid var(--accent-color, #000);
 }
 
-/* Market card */
-.card-market {
-  display: inline-block;
-  padding: 10px 14px;
-  min-width: 100px;
-}
-.card-market .card-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-.card-market .card-symbol {
-  font-weight: 600;
-}
-.card-market .card-price {
-  font-family: monospace;
-}
-.card-market .card-change {
-  font-size: 13px;
-  margin-top: 4px;
-}
-.card-market .card-up { color: var(--success-color, #28a745); }
-.card-market .card-down { color: var(--error-color, #dc3545); }
-
 /* Chat card */
 .card-chat {
   padding: 12px;
