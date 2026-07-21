@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -20,6 +19,7 @@ import (
 	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/service"
+	"mu/internal/settings"
 	"mu/internal/snapshot"
 
 	"mu/wallet"
@@ -66,18 +66,22 @@ type Result struct {
 	Thumbnail   string    `json:"thumbnail,omitempty"`
 }
 
-var Key = os.Getenv("YOUTUBE_API_KEY")
+var Key string
 
 var Client *youtube.Service
 
-func init() {
+// initClient builds the YouTube client from the configured key. Runs from
+// Load rather than package init so a key saved via /admin/env (available
+// once settings.Load has run at startup) is honoured, not just the env var.
+func initClient() {
+	Key = settings.Get("YOUTUBE_API_KEY")
 	var err error
 	Client, err = youtube.NewService(context.TODO(), option.WithAPIKey(Key))
 	if err != nil {
 		app.Log("video", "Failed to initialize YouTube client: %v", err)
 	}
 	if Key == "" {
-		app.Log("video", "WARNING: YOUTUBE_API_KEY environment variable not set")
+		app.Log("video", "WARNING: YOUTUBE_API_KEY not set (env or /admin/env)")
 	}
 }
 
@@ -282,6 +286,8 @@ func loadChannels() {
 
 // Load videos
 func Load() {
+	initClient()
+
 	if err := service.Register("video", new(Server)); err != nil {
 		app.Log("video", "service register failed: %v", err)
 	}

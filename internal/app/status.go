@@ -262,14 +262,14 @@ func buildStatus() StatusResponse {
 	}
 
 	// Check YouTube API
-	youtubeConfigured := os.Getenv("YOUTUBE_API_KEY") != ""
+	youtubeConfigured := settings.IsSet("YOUTUBE_API_KEY")
 	services = append(services, StatusCheck{
 		Name:   "YouTube API",
 		Status: youtubeConfigured,
 	})
 
 	// Check Google Places API
-	googleConfigured := os.Getenv("GOOGLE_API_KEY") != ""
+	googleConfigured := settings.IsSet("GOOGLE_API_KEY")
 	services = append(services, StatusCheck{
 		Name:   "Google Places API",
 		Status: googleConfigured,
