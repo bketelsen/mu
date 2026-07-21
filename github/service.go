@@ -277,10 +277,3 @@ func truncateText(text string) string {
 	}
 	return text[:end]
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

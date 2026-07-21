@@ -75,6 +75,37 @@ func TestKeywordRouteGitHub(t *testing.T) {
 	}
 }
 
+func TestKeywordRouteGitHubRepositoryCoordinates(t *testing.T) {
+	tests := []struct {
+		name   string
+		prompt string
+		want   []string
+	}{
+		{name: "coordinate after in", prompt: "show issues in micro/mu", want: []string{"github"}},
+		{name: "coordinate after for", prompt: "show issues for octo-org/hello_world", want: []string{"github"}},
+		{name: "coordinate after on", prompt: "show issues on team/repo-2", want: []string{"github"}},
+		{name: "coordinate with trailing punctuation", prompt: "show issues in micro/mu.", want: []string{"github"}},
+		{name: "ci cd", prompt: "CI/CD issues", want: nil},
+		{name: "tcp ip", prompt: "TCP/IP issues", want: nil},
+		{name: "read write", prompt: "read/write issues", want: nil},
+		{name: "and or", prompt: "and/or issues", want: nil},
+		{name: "not applicable", prompt: "N/A issue", want: nil},
+		{name: "date", prompt: "06/13 issue", want: nil},
+		{name: "always", prompt: "24/7 issues", want: nil},
+		{name: "too many segments", prompt: "show issues in micro/mu/extra", want: nil},
+		{name: "missing owner", prompt: "show issues in /mu", want: nil},
+		{name: "missing repository", prompt: "show issues in micro/", want: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := keywordRoute(tt.prompt); !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("keywordRoute(%q) = %v, want %v", tt.prompt, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStripAddress(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -77,12 +77,15 @@ func TestHandlerParsesBoundedQueryState(t *testing.T) {
 		if r.URL.Path != "/user/repos" {
 			t.Fatalf("unexpected upstream request %s", r.URL.String())
 		}
-		_, _ = io.WriteString(w, `{"items":[]}`)
+		_, _ = io.WriteString(w, `[]`)
 	}))
 	defer ts.Close()
 	w := httptest.NewRecorder()
 	newHandler(NewServer(NewClient(ts.Client(), ts.URL, testToken)), allowAdmin).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/github?tab=bad&state=nope&page=-1&number=-5", nil))
 	body := w.Body.String()
+	if strings.Contains(body, "GitHub workspace unavailable") {
+		t.Fatalf("repository response did not decode successfully: %s", body)
+	}
 	for _, want := range []string{`name="tab" value="issues"`, `name="state" value="open"`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("normalized state missing %q: %s", want, body)

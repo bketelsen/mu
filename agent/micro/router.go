@@ -164,15 +164,23 @@ func keywordRoute(prompt string) []string {
 }
 
 func containsRepositoryCoordinate(prompt string) bool {
-	for _, field := range strings.FieldsFunc(prompt, func(r rune) bool {
-		return !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '/' || r == '-' || r == '_' || r == '.')
-	}) {
+	fields := strings.Fields(prompt)
+	for i, field := range fields {
+		if i == 0 || !isRepositoryCoordinatePreposition(fields[i-1]) {
+			continue
+		}
+		field = strings.Trim(field, `.,:;!?()[]{}<>"'`)
 		parts := strings.Split(field, "/")
 		if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
 			return true
 		}
 	}
 	return false
+}
+
+func isRepositoryCoordinatePreposition(field string) bool {
+	field = strings.Trim(strings.ToLower(field), `.,:;!?()[]{}<>"'`)
+	return field == "in" || field == "for" || field == "on"
 }
 
 func containsAnyRouteTerm(prompt string, terms ...string) bool {
