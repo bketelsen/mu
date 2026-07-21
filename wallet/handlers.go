@@ -320,7 +320,7 @@ func PublicWalletPage() string {
 	sb.WriteString(`<div class="card">`)
 	sb.WriteString(`<h3>Credits &amp; Pricing</h3>`)
 	sb.WriteString(`<p>Browsing is included. AI and search features use credits. Top up and pay as you go — no subscription required.</p>`)
-	sb.WriteString(`<p><a href="/login" class="btn">Login to view your balance</a>&nbsp;<a href="/signup" class="btn btn-secondary">Sign up</a></p>`)
+	sb.WriteString(`<p><a href="/login" class="btn">Login to view your balance</a>&nbsp;<a href="/setup" class="btn btn-secondary">First-time setup</a></p>`)
 	sb.WriteString(`</div>`)
 
 	// Credit costs
@@ -353,7 +353,7 @@ func PublicWalletPage() string {
 		sb.WriteString(`<li><strong>Card</strong> — secure payment via Stripe</li>`)
 	}
 	sb.WriteString(`</ul>`)
-	sb.WriteString(`<p><a href="/login">Login</a> or <a href="/signup">sign up</a> to top up.</p>`)
+	sb.WriteString(`<p><a href="/login">Login</a> or run <a href="/setup">first-time setup</a> to top up.</p>`)
 	sb.WriteString(`</div>`)
 
 	// Crypto payments note

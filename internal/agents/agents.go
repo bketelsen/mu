@@ -42,10 +42,10 @@ per request with <a href="https://x402.org" style="color:#111">x402</a> stableco
     <li><b>You pay the operator</b> running this instance, directly, wallet-to-wallet. No middleman.</li>
   </ol>
   <p class="pnote">Prefer prepaid credits and a dashboard instead of a wallet?
-  <a href="` + base + `/signup">Create an account →</a> — one account for the whole platform.</p>
+   <a href="` + base + `/login">Log in →</a> — use the owner account for the whole platform.</p>
 </div>
 
-<div style="margin-top:26px"><a class="pcta" href="` + base + `/signup">Create an account &amp; get keys →</a></div>
+<div style="margin-top:26px"><a class="pcta" href="` + base + `/login">Log in &amp; get keys →</a></div>
 
 <style>
 .pcards{display:flex;flex-wrap:wrap;gap:14px;max-width:760px;justify-content:center}

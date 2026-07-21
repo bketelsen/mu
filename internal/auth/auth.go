@@ -402,7 +402,7 @@ func GetSession(r *http.Request) (*Session, error) {
 			}, nil
 		}
 
-		// Try as session token (returned by login/signup MCP tools)
+		// Try as a session token returned by the MCP login tool.
 		sess, err := ParseToken(token)
 		if err == nil {
 			mutex.Lock()

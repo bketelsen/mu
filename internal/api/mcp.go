@@ -123,7 +123,7 @@ type Tool struct {
 var QuotaCheck func(r *http.Request, op string) (bool, int, error)
 
 // ToolGuard is called before executing any tool — used for tool-specific
-// pre-checks (e.g. signup rate limiting per IP). Returning an error blocks
+// pre-checks. Returning an error blocks
 // the call and the error message is returned to the caller. Set by main.go.
 var ToolGuard func(r *http.Request, toolName string) error
 

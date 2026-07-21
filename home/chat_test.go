@@ -13,7 +13,7 @@ func TestGuestChatFirstRunGuidance(t *testing.T) {
 		"No account needed for your first 3 questions.",
 		"Give me a morning brief",
 		"What is moving in markets?",
-		`href="/signup"`,
+		`href="/setup"`,
 		`href="/login?redirect=/agent"`,
 	}
 	for _, want := range checks {

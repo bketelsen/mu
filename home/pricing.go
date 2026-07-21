@@ -53,7 +53,7 @@ func PricingHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<li>&#10003; Web search &amp; images</li>`)
 	b.WriteString(`<li>&#10003; Build apps with AI</li>`)
 	b.WriteString(`</ul>`)
-	b.WriteString(`<a href="/signup" class="btn" style="display:block">Get started</a>`)
+	b.WriteString(`<a href="/setup" class="btn" style="display:block">Run first-time setup</a>`)
 	b.WriteString(`</div>`)
 
 	// Pro plan
@@ -66,7 +66,7 @@ func PricingHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<li>&#10003; More credits per month</li>`)
 	b.WriteString(`<li>&#10003; Priority AI models</li>`)
 	b.WriteString(`</ul>`)
-	b.WriteString(`<a href="/signup" class="btn" style="display:block">Get started</a>`)
+	b.WriteString(`<a href="/setup" class="btn" style="display:block">Run first-time setup</a>`)
 	b.WriteString(`</div>`)
 
 	b.WriteString(`</div>`)

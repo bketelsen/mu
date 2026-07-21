@@ -63,7 +63,7 @@ func TestGuestChatAuthNoticeExplainsLoginAndAgentFallback(t *testing.T) {
 		"/agent",
 		"Try Mu without an account",
 		"/login?redirect=/chat",
-		"/signup?redirect=/chat",
+		"/setup",
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("guest chat auth notice missing %q in %s", want, html)

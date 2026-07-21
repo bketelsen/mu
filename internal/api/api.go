@@ -783,7 +783,7 @@ func init() {
 		Name:        "MCP Server",
 		Path:        "/mcp",
 		Method:      "POST",
-		Description: "Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, markets, login, and signup. Metered tools (chat: 5 credits, news_search: 1 credit, video_search: 2 credits, mail_send: 4 credits, weather_forecast: 1 credit + optional 1 credit for pollen data) use the same wallet credit system as the REST API. Pay per call via x402 or top up your account to pay with credits.",
+		Description: "Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, markets, and login. Metered tools (chat: 5 credits, news_search: 1 credit, video_search: 2 credits, mail_send: 4 credits, weather_forecast: 1 credit + optional 1 credit for pollen data) use the same wallet credit system as the REST API. Pay per call via x402 or top up your account to pay with credits.",
 		Params: []*Param{
 			{
 				Name:        "jsonrpc",
@@ -874,7 +874,7 @@ func Markdown() string {
 	data += "```\nAuthorization: Bearer YOUR_TOKEN\n```\n\n"
 	data += "Two ways to obtain a token:\n\n"
 	data += "1. **Personal Access Token (PAT)** — create one at `/token` after logging in.\n"
-	data += "2. **Signup / Login tools** — the agent can call the `signup` or `login` MCP tool to obtain a session token programmatically.\n\n"
+	data += "2. **Login tool** — the owner can call the `login` MCP tool to obtain a session token programmatically.\n\n"
 	data += "---\n\n"
 	data += "## Endpoints\n\n"
 

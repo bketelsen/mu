@@ -468,19 +468,6 @@ func main() {
 		api.PaymentRequiredResponse = wallet.WritePaymentRequired
 	}
 
-	// Wire tool-specific guards. Currently rate-limits the signup tool by IP
-	// to defend against bulk account creation via MCP.
-	api.ToolGuard = func(r *http.Request, toolName string) error {
-		if toolName == "signup" {
-			ip := app.ClientIP(r)
-			if !app.SignupRateLimit(ip) {
-				app.Log("auth", "MCP signup rate limit hit for IP: %s", ip)
-				return fmt.Errorf("too many sign-ups from your network. Please try again later")
-			}
-		}
-		return nil
-	}
-
 	// Wire email sending for verification mails. Uses the platform's own
 	// SMTP relay so verification mails come from no-reply@<MAIL_DOMAIN>.
 	// Only enabled when MAIL_DOMAIN is configured to a real domain —
@@ -502,52 +489,6 @@ func main() {
 	}
 
 	// Register MCP auth tools
-	api.RegisterTool(api.Tool{
-		Name:        "signup",
-		Description: "Create a new account and return a session token. When invite-only mode is enabled, a valid invite code is required.",
-		Params: []api.ToolParam{
-			{Name: "id", Type: "string", Description: "Username (4-24 chars, lowercase, starts with letter)", Required: true},
-			{Name: "secret", Type: "string", Description: "Password (minimum 6 characters)", Required: true},
-			{Name: "name", Type: "string", Description: "Display name (optional, defaults to username)", Required: false},
-			{Name: "invite", Type: "string", Description: "Invite code (required when instance is invite-only)", Required: false},
-		},
-		Handle: func(args map[string]any) (string, error) {
-			id, _ := args["id"].(string)
-			secret, _ := args["secret"].(string)
-			name, _ := args["name"].(string)
-			invite, _ := args["invite"].(string)
-			if id == "" || secret == "" {
-				return "username and password are required", fmt.Errorf("missing fields")
-			}
-			if len(secret) < 6 {
-				return "password must be at least 6 characters", fmt.Errorf("short password")
-			}
-			if reason := auth.ValidateUsername(id); reason != "" {
-				return reason, fmt.Errorf("banned username")
-			}
-			if auth.InviteOnly() {
-				if err := auth.ValidateInvite(invite); err != nil {
-					return err.Error(), err
-				}
-			}
-			if name == "" {
-				name = id
-			}
-			if err := auth.Create(&auth.Account{
-				ID: id, Secret: secret, Name: name, Created: time.Now(),
-			}); err != nil {
-				return err.Error(), err
-			}
-			if invite != "" {
-				auth.ConsumeInvite(invite, id)
-			}
-			sess, err := auth.Login(id, secret)
-			if err != nil {
-				return "account created but login failed", err
-			}
-			return fmt.Sprintf(`{"token":"%s"}`, sess.Token), nil
-		},
-	})
 	api.RegisterTool(api.Tool{
 		Name:        "login",
 		Description: "Log in and return a session token for use in Authorization header",
@@ -1258,7 +1199,6 @@ func main() {
 	// admin console
 	http.HandleFunc("/admin/console", admin.ConsoleHandler)
 	http.HandleFunc("/admin/diagnostics", admin.DiagnosticsHandler)
-	http.HandleFunc("/admin/invite", admin.InviteHandler)
 
 	// wallet - credits and payments
 	http.HandleFunc("/wallet", wallet.Handler)
@@ -1358,9 +1298,6 @@ func main() {
 	// auth
 	http.HandleFunc("/login", app.Login)
 	http.HandleFunc("/logout", app.Logout)
-	http.HandleFunc("/signup", app.Signup)
-	http.HandleFunc("/request-invite", app.RequestInvite)
-	http.HandleFunc("/invite", app.InviteHandler)
 	http.HandleFunc("/account", app.Account)
 	http.HandleFunc("/verify", app.Verify)
 	http.HandleFunc("/session", app.Session)
@@ -1547,9 +1484,8 @@ func main() {
 				isMCP := r.URL.Path == "/mcp"
 				// Skip CSRF for Stripe webhooks
 				isWebhook := r.URL.Path == "/wallet/stripe/webhook"
-				// Skip CSRF for login/signup (no session yet)
-				isAuth := r.URL.Path == "/login" || r.URL.Path == "/signup" ||
-					r.URL.Path == "/request-invite" ||
+				// Skip CSRF for login and other unauthenticated auth endpoints.
+				isAuth := r.URL.Path == "/login" ||
 					strings.HasPrefix(r.URL.Path, "/passkey/") ||
 					strings.HasPrefix(r.URL.Path, "/oauth/")
 				// Skip CSRF for SMTP/ActivityPub inbound

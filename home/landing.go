@@ -22,7 +22,7 @@ no tracking. Use it hosted here, or self-host the single binary — same product
 
 <div class="lctas">
   <a class="lcta" href="/">Open Mu →</a>
-  <a class="lcta lcta-alt" href="/signup">Create your account</a>
+   <a class="lcta lcta-alt" href="/setup">Run first-time setup</a>
 </div>
 
 <p class="lagents">Building agents? Every capability is also an API.

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -18,116 +17,6 @@ import (
 	"mu/user"
 	"mu/wallet"
 )
-
-// InviteHandler serves the admin invite page at /admin/invite.
-func InviteHandler(w http.ResponseWriter, r *http.Request) {
-	sess, _, err := auth.RequireAdmin(r)
-	if err != nil {
-		app.Forbidden(w, r, "Admin access required")
-		return
-	}
-
-	if r.Method == "POST" {
-		r.ParseForm()
-		action := r.FormValue("action")
-		email := strings.TrimSpace(r.FormValue("email"))
-		if email == "" {
-			app.BadRequest(w, r, "Email is required")
-			return
-		}
-		if action == "reject" {
-			auth.DeleteInviteRequest(email)
-			http.Redirect(w, r, "/admin/invite", http.StatusSeeOther)
-			return
-		}
-		code, err := auth.CreateInvite(email, sess.Account)
-		if err != nil {
-			app.ServerError(w, r, "Failed to create invite: "+err.Error())
-			return
-		}
-		base := app.PublicURL()
-		link := base + "/signup?invite=" + code
-
-		emailSent := false
-		if app.EmailSender != nil {
-			plain := fmt.Sprintf("You've been invited to join Mu.\n\nSign up here: %s\n\nThis link is single-use.", link)
-			html := fmt.Sprintf(`<p>You've been invited to join Mu.</p><p><a href="%s">Sign up here</a></p><p>This link is single-use.</p>`, link)
-			if err := app.EmailSender(email, "You're invited to Mu", plain, html); err != nil {
-				app.Log("admin", "Failed to email invite to %s: %v", email, err)
-			} else {
-				emailSent = true
-			}
-		}
-		// Mark any pending request as fulfilled.
-		auth.MarkInviteRequestSent(email)
-
-		emailedMsg := `<p class="text-muted text-sm">Mail is not configured — copy the link above and send it manually.</p>`
-		if emailSent {
-			emailedMsg = `<p class="text-muted text-sm">Link has been emailed to them. Single use.</p>`
-		}
-		content := fmt.Sprintf(`<div class="card">
-<h4>Invite sent</h4>
-<p>Invite created for <strong>%s</strong></p>
-<p><a href="%s">%s</a></p>
-%s
-<p><a href="/admin/invite">Back to invites →</a></p>
-</div>`, email, link, link, emailedMsg)
-		w.Write([]byte(app.RenderHTML("Invite Sent", "Invite sent", content)))
-		return
-	}
-
-	// GET: show pending requests + ad-hoc invite form.
-	var sb strings.Builder
-	sb.WriteString(`<p><a href="/admin">← Admin</a></p>`)
-
-	requests := auth.ListInviteRequests()
-	pending := 0
-	for _, req := range requests {
-		if !req.Invited {
-			pending++
-		}
-	}
-
-	sb.WriteString(fmt.Sprintf(`<div class="card"><h4>Invite requests (%d pending)</h4>`, pending))
-	if len(requests) == 0 {
-		sb.WriteString(`<p class="text-muted">No requests yet.</p>`)
-	} else {
-		for _, req := range requests {
-			reason := ""
-			if req.Reason != "" {
-				reason = fmt.Sprintf(`<p style="font-size:13px;color:#666;margin:4px 0">%s</p>`, req.Reason)
-			}
-			status := `<span style="color:#c90;font-size:12px">pending</span>`
-			if req.Invited {
-				status = fmt.Sprintf(`<span style="color:#22c55e;font-size:12px">invited %s</span>`, req.InvitedAt.Format("2 Jan"))
-			}
-			actions := ""
-			if !req.Invited {
-				actions = fmt.Sprintf(
-					`<div style="display:flex;gap:6px;margin-top:6px"><form method="POST"><input type="hidden" name="email" value="%s"><button type="submit" style="font-size:12px;padding:4px 10px;border-radius:4px;border:1px solid #22c55e;background:#fff;color:#22c55e;cursor:pointer">Send invite</button></form><form method="POST" onsubmit="return confirm('Reject?')"><input type="hidden" name="action" value="reject"><input type="hidden" name="email" value="%s"><button type="submit" style="font-size:12px;padding:4px 10px;border-radius:4px;border:1px solid #c00;background:#fff;color:#c00;cursor:pointer">Reject</button></form></div>`,
-					req.Email, req.Email)
-			} else {
-				actions = fmt.Sprintf(
-					`<div style="margin-top:6px"><form method="POST" onsubmit="return confirm('Resend?')"><input type="hidden" name="email" value="%s"><button type="submit" style="font-size:12px;padding:4px 10px">Resend</button></form></div>`,
-					req.Email)
-			}
-			sb.WriteString(fmt.Sprintf(`<div style="padding:10px 0;border-bottom:1px solid #f0f0f0"><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><strong style="font-size:14px">%s</strong>%s<span style="color:#bbb;font-size:12px">%s</span></div>%s%s</div>`,
-				req.Email, status, req.RequestedAt.Format("2 Jan 15:04"), reason, actions))
-		}
-	}
-	sb.WriteString(`</div>`)
-
-	sb.WriteString(`<div class="card" style="margin-top:16px">
-<h4>Invite someone directly</h4>
-<p class="text-sm">Enter an email — they'll get a single-use signup link.</p>
-<form method="POST" action="/admin/invite" class="mt-4">
-	<input type="email" name="email" placeholder="user@example.com" required class="form-input">
-	<button type="submit" class="mt-2">Send invite</button>
-</form>
-</div>`)
-
-	w.Write([]byte(app.RenderHTML("Invites", "Invite requests and send invites", sb.String())))
-}
 
 // ConsoleHandler provides an admin console.
 func ConsoleHandler(w http.ResponseWriter, r *http.Request) {
@@ -381,40 +270,6 @@ func runCommand(cmd string) string {
 		}
 		user.ClearStatusHistory(arg(1))
 		return fmt.Sprintf("Cleared all status history for %s", arg(1))
-
-	case "invite":
-		if arg(1) == "" {
-			return "usage: invite <email>"
-		}
-		email := arg(1)
-		// Use "admin" as the admin ID for console-created invites
-		code, err := auth.CreateInvite(email, "admin")
-		if err != nil {
-			return "invite failed: " + err.Error()
-		}
-		url := ""
-		if v := os.Getenv("PUBLIC_URL"); v != "" {
-			url = v
-		} else if v := os.Getenv("MAIL_DOMAIN"); v != "" {
-			url = "https://" + v
-		}
-		link := url + "/signup?invite=" + code
-		return fmt.Sprintf("Invite created for %s\nCode: %s\nLink: %s", email, code, link)
-
-	case "invites":
-		list := auth.ListInvites()
-		if len(list) == 0 {
-			return "No invites"
-		}
-		var sb strings.Builder
-		for _, inv := range list {
-			used := "unused"
-			if inv.UsedBy != "" {
-				used = "used by " + inv.UsedBy
-			}
-			sb.WriteString(fmt.Sprintf("  %s → %s (%s, %s)\n", inv.Code[:8]+"...", inv.Email, used, inv.CreatedAt.Format("2 Jan 15:04")))
-		}
-		return sb.String()
 
 	// --- Wallet ---
 	case "wallet":
