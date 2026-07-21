@@ -226,7 +226,7 @@ func defaultArgKey(tool string) (string, bool) {
 	switch tool {
 	case "chat", "agent", "apps_build":
 		return "prompt", true
-	case "news_search", "video_search", "social_search", "quran_search":
+	case "news_search", "video_search", "social_search":
 		return "query", true
 	case "web_search", "search", "places_search":
 		return "q", true

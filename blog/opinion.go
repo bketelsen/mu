@@ -11,7 +11,6 @@ import (
 	"mu/internal/app"
 	"mu/markets"
 	"mu/news"
-	"mu/reminder"
 	"mu/search"
 	"mu/video"
 )
@@ -243,7 +242,7 @@ func generateOpinion(category string) (string, string, error) {
 
 Your task: Write today's analysis piece for the **%s** category.
 
-Today's Islamic reminder (verse, hadith) is provided as context — let it inform your moral framing where relevant, but don't force it. You have been given web research with full article content from multiple sources — use this to provide a well-rounded, informed perspective.
+You have been given web research with full article content from multiple sources — use this to provide a well-rounded, informed perspective.
 
 What you produce:
 - An informative, thoughtful piece focused on %s that helps the reader understand what's happening and why it matters
@@ -305,8 +304,8 @@ Rules:
 	return title, body, nil
 }
 
-// gatherCategoryContext builds context focused on a specific category,
-// with supporting market data and Islamic reminder.
+// gatherCategoryContext builds context focused on a specific category with
+// supporting market data.
 func gatherCategoryContext(category string) string {
 	var sb strings.Builder
 
@@ -393,20 +392,6 @@ func gatherCategoryContext(category string) string {
 			sb.WriteString(fmt.Sprintf("- %s by %s\n", v.Title, v.Channel))
 		}
 		sb.WriteString("\n")
-	}
-
-	rd := reminder.GetReminderData()
-	if rd != nil {
-		sb.WriteString("## Today's Islamic Reminder\n\n")
-		if rd.Message != "" {
-			sb.WriteString(rd.Message + "\n\n")
-		}
-		if rd.Verse != "" {
-			sb.WriteString("Verse: " + rd.Verse + "\n\n")
-		}
-		if rd.Hadith != "" {
-			sb.WriteString("Hadith: " + rd.Hadith + "\n\n")
-		}
 	}
 
 	return sb.String()

@@ -9,18 +9,10 @@
       "icon": "/post.png"
     },
     {
-      "id": "reminder",
-      "title": "Islam",
-      "type": "reminder",
-      "position": 1,
-      "link": "/islam",
-      "icon": "/reminder.svg"
-    },
-    {
       "id": "news",
       "title": "News",
       "type": "news",
-      "position": 2,
+      "position": 1,
       "link": "/news",
       "icon": "/news.png"
     }

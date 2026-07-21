@@ -50,7 +50,7 @@ type Account struct {
 // card introduced afterwards (images, and future cards) defaults to visible
 // instead of being silently hidden by the HomeCards allowlist.
 var preHomeCardsSeen = map[string]bool{
-	"blog": true, "news": true, "markets": true, "reminder": true,
+	"blog": true, "news": true, "markets": true,
 	"social": true, "video": true, "mail": true, "web": true,
 }
 

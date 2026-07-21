@@ -287,7 +287,6 @@ var Template = `
     <link rel="preload" href="/video.png?` + Version + `" as="image">
     <link rel="preload" href="/account.png?` + Version + `" as="image">
     <link rel="preload" href="/weather.png?` + Version + `" as="image">
-    <link rel="preload" href="/reminder.svg?` + Version + `" as="image">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&display=swap" rel="stylesheet">
@@ -327,7 +326,6 @@ var Template = `
           <a href="/images"><img src="/images.svg?` + Version + `"><span class="label">Images</span></a>
           <a href="/search"><img src="/search.svg?` + Version + `"><span class="label">Search</span></a>
           <a href="/places"><img src="/places.svg?` + Version + `"><span class="label">Places</span></a>
-          <a href="/islam"><img src="/reminder.svg?` + Version + `"><span class="label">Islam</span></a>
           <a href="/app/saved"><img src="/saved.svg?` + Version + `"><span class="label">Saved</span></a>
           <a href="/apps"><img src="/apps.svg?` + Version + `"><span class="label">Apps</span></a>
           <a id="nav-wallet" href="/wallet"><img src="/wallet.png?` + Version + `"><span class="label">Wallet</span></a>
@@ -367,7 +365,7 @@ var Template = `
 // introduced later can default to visible instead of being hidden by the
 // HomeCards allowlist. Keep in sync with the panels and home/cards.json.
 var homeCardUniverse = []string{
-	"blog", "news", "markets", "reminder", "social", "video", "images", "mail", "web",
+	"blog", "news", "markets", "social", "video", "images", "mail", "web",
 }
 
 var CardTemplate = `
@@ -1011,7 +1009,7 @@ func Account(w http.ResponseWriter, r *http.Request) {
 
 	// Home card preferences
 	allCards := []struct{ id, label string }{
-		{"reminder", "Islam"}, {"blog", "Blog"}, {"news", "News"},
+		{"blog", "Blog"}, {"news", "News"},
 		{"markets", "Markets"}, {"social", "Social"}, {"video", "Video"},
 		{"images", "Images"}, {"mail", "Mail"}, {"web", "Search"},
 	}

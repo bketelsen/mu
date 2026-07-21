@@ -4,7 +4,7 @@ A personal home server
 
 ## Overview
 
-A personal home server. One Go binary runs a set of everyday services — news, mail, markets, weather, search, images, video, blog, social, places, reminders — behind a [Go Micro](https://github.com/micro/go-micro) registry, with an LLM agent that calls them as tools. The same services are reachable as a web app, a REST API, an MCP server, an A2A endpoint, and a CLI.
+A personal home server. One Go binary runs a set of everyday services — news, mail, markets, weather, search, images, video, blog, social, places — behind a [Go Micro](https://github.com/micro/go-micro) registry, with an LLM agent that calls them as tools. The same services are reachable as a web app, a REST API, an MCP server, an A2A endpoint, and a CLI.
 
 Use it hosted at [micro.mu](https://micro.mu), or self-host the single binary — same product either way. Open source, AGPL-3.0.
 
@@ -31,7 +31,6 @@ Each is reachable in the web app and directly over REST, MCP, A2A, or the CLI. T
 - **Images** — Generate images from a prompt, plus a daily nature / mindful image
 - **Search** — Search the web without tracking, with a clean reader view
 - **Places** — Search places and nearby results with configured providers and open-data fallbacks
-- **Islam** — A daily Islamic reminder (verse, hadith, reflection), also an MCP tool
 - **Apps** — Build and use small, useful tools (like **Saved**, a built-in read-later list) — pin any app to the top of your home screen
 - **Stream** — Public event feed for agents and tools to subscribe to
 

@@ -189,31 +189,6 @@ func TestFormatVideoResult_Empty(t *testing.T) {
 	}
 }
 
-func TestFormatReminderResult_WithData(t *testing.T) {
-	result := `{"verse":"In the name of Allah","name":"Al-Rahman","hadith":"Narrated Abu Hurairah","message":"Be mindful of Allah"}`
-	got := formatReminderResult(result)
-	if !strings.Contains(got, "Daily Islamic reminder") {
-		t.Errorf("expected header, got %q", got)
-	}
-	if !strings.Contains(got, "Al-Rahman") {
-		t.Errorf("expected name of Allah, got %q", got)
-	}
-	if !strings.Contains(got, "In the name of Allah") {
-		t.Errorf("expected verse, got %q", got)
-	}
-	if !strings.Contains(got, "Be mindful of Allah") {
-		t.Errorf("expected message, got %q", got)
-	}
-}
-
-func TestFormatReminderResult_Empty(t *testing.T) {
-	result := `{"verse":"","name":"","hadith":"","message":""}`
-	got := formatReminderResult(result)
-	if got != "Reminder data unavailable." {
-		t.Errorf("expected 'Reminder data unavailable.', got %q", got)
-	}
-}
-
 func TestFormatSearchResult_HTML(t *testing.T) {
 	result := `<html><body><div class="card"><a href="/news?id=1">Bitcoin price today</a><p>BTC analysis</p></div></body></html>`
 	got := formatSearchResult(result)

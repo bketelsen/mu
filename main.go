@@ -49,7 +49,6 @@ import (
 	"mu/news/digest"
 	"mu/places"
 	"mu/recall"
-	"mu/reminder"
 	"mu/search"
 	"mu/social"
 	"mu/stream"
@@ -138,9 +137,8 @@ func main() {
 	// load weather
 	weather.Load()
 
-	// load markets, reminder, wallet
+	// load markets, images, wallet
 	markets.Load()
-	reminder.Load()
 	images.Load()
 	wallet.Load()
 	app.DiscordLinkCodeFunc = discord.GenerateLinkCode
@@ -922,7 +920,6 @@ func main() {
 	api.SetCard("social_list", "Social", social.CardHTML)
 	api.SetCard("video_list", "Videos", video.Latest)
 	api.SetCard("blog_list", "Blog", blog.Preview)
-	api.SetCard("reminder", "Reminder", reminder.ReminderHTML)
 
 	// Register apps MCP tools
 	api.RegisterTool(api.Tool{
@@ -1171,7 +1168,6 @@ func main() {
 		"/home":                  false, // Public viewing
 		"/blog":                  false, // Public viewing, auth for posting
 		"/markets":               false, // Public viewing
-		"/islam":                 false, // Public daily verse, hadith and names
 		"/about":                 false, // Public "what is Mu" pitch
 		"/oauth2/google":         false, // Google sign-in start (no session yet)
 		"/oauth2/google/connect": true,  // Link Google to the current account
@@ -1394,13 +1390,6 @@ func main() {
 	// Stream (console) routes
 	http.HandleFunc("/stream", stream.Handler)
 	http.HandleFunc("/stream/fragment", stream.FragmentHandler)
-
-	// redirect /reminder to reminder.dev
-	http.HandleFunc("/islam", reminder.Handler)
-	// Back-compat: the page used to live at /reminder.
-	http.HandleFunc("/reminder", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/islam", http.StatusMovedPermanently)
-	})
 
 	// serve places page
 	http.HandleFunc("/places", places.Handler)

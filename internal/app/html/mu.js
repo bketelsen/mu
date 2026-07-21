@@ -2,7 +2,7 @@
 // SERVICE WORKER CONFIGURATION
 // ============================================
 var APP_PREFIX = 'mu_';
-var VERSION = 'v149';
+var VERSION = 'v150';
 var CACHE_NAME = APP_PREFIX + VERSION;
 
 // Minimal caching - only icons
@@ -19,7 +19,6 @@ var STATIC_CACHE = [
   '/places.svg',
   '/weather.png',
   '/markets.svg',
-  '/reminder.svg',
   '/account.png',
   '/logout.png',
   '/icon-192.png',
@@ -1422,7 +1421,6 @@ function applyHiddenCards() {
 // Available cards that can be shown/hidden
 const availableCards = [
   { id: 'news', title: 'News' },
-  { id: 'reminder', title: 'Reminder' },
   { id: 'markets', title: 'Markets' },
   { id: 'blog', title: 'Blog' },
   { id: 'video', title: 'Video' }

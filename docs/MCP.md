@@ -77,7 +77,7 @@ Metered tools are priced at **1 credit = $0.01 USD** via x402:
 | `apps_build` | $0.03 |
 | `apps_run` | $0.03 |
 
-Included tools (news, blog_list, blog_read, video, markets, social, search, quran, hadith, reminder, etc.) don't require payment.
+Included tools (news, blog_list, blog_read, video, markets, social, search, etc.) don't require payment.
 
 ## Account-Based Authentication
 
@@ -149,10 +149,6 @@ Accounts can top up credits with a card via Stripe.
 | `wallet_balance` | Get wallet credit balance | Included |
 | `wallet_topup` | Get wallet topup payment methods | Included |
 | `markets_list` | Get live market prices | Included |
-| `reminder` | Get the daily Islamic reminder | Included |
-| `quran` | Look up a Quran chapter or verse | Included |
-| `hadith` | Look up hadith from Sahih Al Bukhari | Included |
-| `quran_search` | Semantic search across Quran and Hadith | Included |
 | `weather_forecast` | Get the weather forecast for a location | 1 credit |
 | `web_search` | Search the web for current information | 5 credits |
 | `web_fetch` | Fetch a web page and return cleaned readable content | 3 credits |

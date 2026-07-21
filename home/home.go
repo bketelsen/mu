@@ -21,7 +21,6 @@ import (
 	"mu/mail"
 	"mu/markets"
 	"mu/news"
-	"mu/reminder"
 	"mu/social"
 	"mu/video"
 	"mu/weather"
@@ -119,17 +118,16 @@ func Load() {
 
 	// Map of card types to their content functions
 	cardFunctions := map[string]func() string{
-		"agent":    AgentCard,
-		"blog":     blog.Preview,
-		"chat":     ChatCard,
-		"news":     newsCard,
-		"markets":  markets.MarketsHTML,
-		"reminder": reminder.ReminderHTML,
-		"video":    video.Latest,
-		"apps":     apps.Preview,
-		"social":   social.CardHTML,
-		"weather":  weather.CardHTML,
-		"images":   images.CardHTML,
+		"agent":   AgentCard,
+		"blog":    blog.Preview,
+		"chat":    ChatCard,
+		"news":    newsCard,
+		"markets": markets.MarketsHTML,
+		"video":   video.Latest,
+		"apps":    apps.Preview,
+		"social":  social.CardHTML,
+		"weather": weather.CardHTML,
+		"images":  images.CardHTML,
 	}
 
 	// Build Cards array from config
@@ -189,12 +187,6 @@ func Load() {
 	}()
 	go func() {
 		sub := event.Subscribe("social_updated")
-		for range sub.Chan {
-			ForceRefresh()
-		}
-	}()
-	go func() {
-		sub := event.Subscribe("reminder_updated")
 		for range sub.Chan {
 			ForceRefresh()
 		}
@@ -509,7 +501,7 @@ function fetchW(la,lo){
 	// Inline card preferences panel
 	if viewerAcc != nil {
 		allCardDefs := []struct{ id, label string }{
-			{"reminder", "Islam"}, {"blog", "Blog"}, {"news", "News"},
+			{"blog", "Blog"}, {"news", "News"},
 			{"markets", "Markets"}, {"social", "Social"}, {"video", "Video"},
 			{"images", "Images"}, {"mail", "Mail"}, {"web", "Search"},
 		}
@@ -603,12 +595,11 @@ function fetchW(la,lo){
 	}
 
 	tooltips := map[string]string{
-		"blog":     "Microblog posts with daily AI-generated digests",
-		"news":     "Headlines from RSS feeds, sorted by time",
-		"markets":  "Live crypto, futures, and commodity prices",
-		"reminder": "Daily Islamic reminder with verse and hadith",
-		"social":   "Public discussion threads",
-		"video":    "Latest videos from curated channels",
+		"blog":    "Microblog posts with daily AI-generated digests",
+		"news":    "Headlines from RSS feeds, sorted by time",
+		"markets": "Live crypto, futures, and commodity prices",
+		"social":  "Public discussion threads",
+		"video":   "Latest videos from curated channels",
 	}
 
 	var leftHTML, rightHTML []string
