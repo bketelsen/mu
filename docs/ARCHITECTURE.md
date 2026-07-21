@@ -21,7 +21,6 @@ mu/
 ├── docs/                   # Documentation pages
 ├── home/                   # Home screen cards (composition layer)
 ├── mail/                   # Email inbox, SMTP server, DKIM, spam filtering
-├── markets/                # Crypto/stock market data
 ├── news/                   # RSS feed aggregation
 │   └── digest/             # Daily news digest (composition layer)
 ├── places/                 # Map and location search
@@ -70,7 +69,6 @@ Building blocks are **features**. Each building block:
 | `chat`      | `/chat`                  | `ai`, `app`, `auth`, `data`, `moderation` |
 | `docs`      | `/docs`, `/about`        | `app`                               |
 | `mail`      | `/mail`                  | `app`, `auth`, `data`               |
-| `markets`   | `/markets`               | `app`, `auth`, `data`               |
 | `news`      | `/news`                  | `app`, `auth`, `data`               |
 | `places`    | `/places`                | `app`, `auth`, `data`               |
 | `search`    | `/search`, `/web`        | `ai`, `app`, `auth`, `data`         |
@@ -87,16 +85,16 @@ Most building blocks also import `wallet` for quota checking on metered operatio
 Some packages act as **composition layers** that aggregate content from multiple
 building blocks to render combined views:
 
-- **`home/`** — renders home screen cards by importing `blog`, `news`, `markets`,
-  `social`, `video`, `agent`. This is intentional: home is a
+- **`home/`** — renders home screen cards by importing `blog`, `news`, `social`,
+  `video`, `agent`. This is intentional: home is a
   read-only aggregation view.
 
-- **`news/digest/`** — generates a daily news digest by pulling from `news`,
-  `markets`, `video`. This is a scheduled background job that stores its own
+- **`news/digest/`** — generates a daily news digest by pulling from `news` and
+  `video`. This is a scheduled background job that stores its own
   `digests.json` — it is a news summary, not a blog post.
 
-- **`blog/opinion.go`** — generates a daily opinion piece using `news`, `markets`,
-  `search`, `video` as context. The opinion is published as a blog
+- **`blog/opinion.go`** — generates a daily opinion piece using `news`, `search`,
+  `video` as context. The opinion is published as a blog
   post. The editorial memory system (`opinion_memory.go`) tracks stances,
   directives, and topic history so the agent evolves its perspective over time.
 
@@ -124,7 +122,6 @@ blog.Load()       // Blog posts + comments
 mail.Load()       // SMTP + DKIM
 places.Load()     // (no-op)
 weather.Load()    // (no-op)
-markets.Load()    // Market data
 wallet.Load()     // Credit balances
 apps.Load()       // User apps
 social.Load()     // Social feeds

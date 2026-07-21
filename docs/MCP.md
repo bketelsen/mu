@@ -2,7 +2,7 @@
 
 Mu includes an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server that allows AI assistants and tools to interact with Mu services programmatically.
 
-The MCP server exposes 30+ tools — news, search, video, weather, places, mail, blog, apps, markets — that any MCP-compatible client can use. It implements the [MCP specification](https://spec.modelcontextprotocol.io) using the Streamable HTTP transport at a single endpoint.
+The MCP server exposes 30+ tools — news, search, video, weather, places, mail, blog, apps — that any MCP-compatible client can use. It implements the [MCP specification](https://spec.modelcontextprotocol.io) using the Streamable HTTP transport at a single endpoint.
 
 **Endpoint:** `POST /mcp`
 
@@ -77,7 +77,7 @@ Metered tools are priced at **1 credit = $0.01 USD** via x402:
 | `apps_build` | $0.03 |
 | `apps_run` | $0.03 |
 
-Included tools (news, blog_list, blog_read, video, markets, social, search, etc.) don't require payment.
+Included tools (news, blog_list, blog_read, video, social, search, etc.) don't require payment.
 
 ## Account-Based Authentication
 
@@ -148,7 +148,6 @@ Accounts can top up credits with a card via Stripe.
 | `search` | Search across all content | Included |
 | `wallet_balance` | Get wallet credit balance | Included |
 | `wallet_topup` | Get wallet topup payment methods | Included |
-| `markets_list` | Get live market prices | Included |
 | `weather_forecast` | Get the weather forecast for a location | 1 credit |
 | `web_search` | Search the web for current information | 5 credits |
 | `web_fetch` | Fetch a web page and return cleaned readable content | 3 credits |
@@ -158,7 +157,7 @@ Accounts can top up credits with a card via Stripe.
 | `apps_edit` | Edit an existing app | Included |
 | `apps_build` | Build a small app (tracker, checklist, counter) from a description | 3 credits |
 | `apps_run` | Run JavaScript code in a sandbox | 3 credits |
-| `agent` | Ask the AI agent a question — searches news, markets, web, and more | 7 credits |
+| `agent` | Ask the AI agent a question — searches news, the web, and more | 7 credits |
 | `image_generate` | Generate an image from a text prompt (Atlas Cloud nano-banana) | 15 credits |
 | `image_search` | Search the public image stock pool by description | Included |
 | `stream` | Read the public event stream — system events, user posts, agent responses | Included |

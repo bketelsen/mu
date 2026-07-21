@@ -20,18 +20,14 @@ The application currently has inconsistent patterns for publishing data to the U
 var html string              // Full page HTML
 var newsBodyHtml string      // Body HTML without wrapper
 var headlinesHtml string     // Headlines HTML
-var marketsHtml string       // Markets data HTML
 var feed []*Post             // Structured feed data
 
 // Methods exposed to home page
 func Headlines() string      // Returns fresh HTML with current timestamps
-func Markets() string        // Returns cached marketsHtml
 ```
 
 **Issues**:
 - `Headlines()` generates fresh HTML on every call (recalculates `TimeAgo()` each time)
-- `Markets()` returns pre-cached HTML
-- Inconsistent behavior between methods
 - No structured data format - returns raw HTML strings
 
 #### Blog Package (`blog/blog.go`)
@@ -308,7 +304,7 @@ updateTimestamps(); // Initial call
 1. Implement `GetCards()` method in news
 2. Update internal functions to call `updateCards()` on changes
 3. Publish events when content updates
-4. Keep existing `Headlines()` and `Markets()` working
+4. Keep existing `Headlines()` working
 
 ### Phase 3: Migrate Blog Package
 1. Implement `GetCards()` method

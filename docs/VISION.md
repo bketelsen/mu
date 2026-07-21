@@ -4,13 +4,13 @@
 
 ## The Problem
 
-The everyday internet runs on services — news, search, email, chat, markets, video — and a handful of platforms own all of them. Google, Apple, Amazon, Meta: each is a service for everything, and each sits at the centre of what you do. They're scattered across dozens of apps, all competing for your time and data. Every one monetises your attention: infinite scroll keeps you hooked, algorithms decide what you see.
+The everyday internet runs on services — news, search, email, chat, weather, video — and a handful of platforms own all of them. Google, Apple, Amazon, Meta: each is a service for everything, and each sits at the centre of what you do. They're scattered across dozens of apps, all competing for your time and data. Every one monetises your attention: infinite scroll keeps you hooked, algorithms decide what you see.
 
 The internet became addictive, and the services at the core of it belong to someone else. No single place brings them all together without the noise — and without an owner extracting from you.
 
 ## What Mu Is
 
-Mu is the personal alternative to that stack: the same everyday services, owned by you. Instead of renting each one from a different platform, you run them yourself — and instead of browsing separate apps, you ask one AI that operates all of them. It checks your mail, looks up prices, searches the web, reads the news, and gives you a personalised answer.
+Mu is the personal alternative to that stack: the same everyday services, owned by you. Instead of renting each one from a different platform, you run them yourself — and instead of browsing separate apps, you ask one AI that operates all of them. It checks your mail, searches the web, reads the news, and gives you a personalised answer.
 
 The AI remembers what you care about. It surfaces relevant information before you ask. Over time, it learns your preferences and becomes more useful. It isn't a chatbot on a website — it's the interface to a stack of services that are yours.
 
@@ -20,7 +20,7 @@ Technology should serve people — not use them. When you pay for tools, incenti
 
 **AI-first.** The home screen is a prompt, not a dashboard. Ask what you need, get an answer. Cards are secondary — browse when you want depth.
 
-**Contextual.** The AI knows your state: unread mail, market movements, your preferences. Suggestions are generated from your data, not an algorithm.
+**Contextual.** The AI knows your state: unread mail, recent news, your preferences. Suggestions are generated from your data, not an algorithm.
 
 **Memory.** The AI remembers what you tell it across sessions. "I'm interested in AI and crypto" shapes every future response.
 
@@ -30,7 +30,7 @@ Technology should serve people — not use them. When you pay for tools, incenti
 
 **No ads, no tracking.** Revenue comes from usage credits, not attention.
 
-**Services, not features.** Every capability is a real [go-micro](https://go-micro.dev) service — news, mail, weather, markets and the rest — discoverable and callable over REST, MCP, A2A or the CLI. The agent is a go-micro agent that operates them. You own the whole stack, not a bundle of UI features.
+**Services, not features.** Every capability is a real [go-micro](https://go-micro.dev) service — news, mail, weather and the rest — discoverable and callable over REST, MCP, A2A or the CLI. The agent is a go-micro agent that operates them. You own the whole stack, not a bundle of UI features.
 
 **Single binary.** One Go binary built on go-micro, no external dependencies. Services run in-process today; the same handlers can be split across machines later by swapping the registry, with no code changes. Self-host your own instance.
 
@@ -42,7 +42,6 @@ Technology should serve people — not use them. When you pay for tools, incenti
 |---------|-------------|
 | **AI Agent** | Ask anything — searches, checks, fetches across all services. Remembers preferences. |
 | **News** | Headlines from RSS feeds, chronological, with AI summaries |
-| **Markets** | Live crypto, futures, commodity, and currency prices |
 | **Weather** | Forecasts and conditions |
 | **Video** | YouTube without ads, algorithms, or shorts |
 | **Web** | Search the web without tracking |
