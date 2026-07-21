@@ -11,6 +11,23 @@ import (
 	"mu/internal/auth"
 )
 
+func TestRedactChannelMessageHidesLinkCredentials(t *testing.T) {
+	password := "dont-log-this-password"
+	for _, text := range []string{
+		"link owner " + password,
+		" LINK owner " + password + " ",
+		"unlink",
+	} {
+		got := RedactChannelMessage(text)
+		if strings.Contains(got, password) || got == text {
+			t.Fatalf("RedactChannelMessage(%q) = %q", text, got)
+		}
+	}
+	if got := RedactChannelMessage("weather in Seattle"); got != "weather in Seattle" {
+		t.Fatalf("ordinary message = %q", got)
+	}
+}
+
 func TestRenderHTMLForRequestOmitsPostingGate(t *testing.T) {
 	owner, err := auth.Owner()
 	if errors.Is(err, auth.ErrNoOwner) {

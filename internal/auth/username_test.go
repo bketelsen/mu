@@ -39,6 +39,7 @@ func TestValidateUsernameReservedAndBlockedNames(t *testing.T) {
 		want     string
 	}{
 		{name: "reserved", username: "admin", want: "That username is reserved."},
+		{name: "micro reserved", username: "micro", want: "That username is reserved."},
 		{name: "blocked substring", username: "pornbot", want: "That username is not allowed."},
 	}
 

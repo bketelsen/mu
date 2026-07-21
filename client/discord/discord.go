@@ -267,8 +267,6 @@ func handleMessage(m discordMessage) {
 		return
 	}
 
-	app.Log("discord", "Received DM: %.100s", m.Content)
-
 	// Strip bot mention from content
 	content := m.Content
 	content = strings.ReplaceAll(content, "<@"+botID+">", "")
@@ -281,6 +279,7 @@ func handleMessage(m discordMessage) {
 		}
 		return
 	}
+	app.Log("discord", "Received DM: %.100s", app.RedactChannelMessage(content))
 
 	// Handle link command — one-time code or username+password
 	if strings.HasPrefix(strings.ToLower(content), "link ") {
@@ -336,7 +335,7 @@ func handleMessage(m discordMessage) {
 		return
 	}
 
-	app.Log("discord", "Message from %s (%s): %s", m.Author.Username, accountID, content)
+	app.Log("discord", "Message from %s (%s): %s", m.Author.Username, accountID, app.RedactChannelMessage(content))
 	trackQuery(accountID)
 
 	// Show typing indicator

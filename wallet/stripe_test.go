@@ -16,37 +16,11 @@ func TestStripeWebhookDiscardsNonOwnerTargetsWithoutPersistingState(t *testing.T
 	for _, tt := range []struct {
 		name   string
 		target string
-		remove func(t *testing.T)
 	}{
 		{name: "stale target", target: "legacy"},
-		{
-			name:   "no owner",
-			target: "owner",
-			remove: func(t *testing.T) {
-				t.Helper()
-				owner, err := auth.Owner()
-				if errors.Is(err, auth.ErrNoOwner) {
-					return
-				}
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := auth.Delete(owner); err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() {
-					if err := auth.Create(owner); err != nil {
-						t.Fatal(err)
-					}
-				})
-			},
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ensureWebhookOwner(t)
-			if tt.remove != nil {
-				tt.remove(t)
-			}
 
 			mutex.Lock()
 			oldWallets, oldTransactions, oldProcessed := wallets, transactions, processedSessions
@@ -87,11 +61,6 @@ func ensureWebhookOwner(t *testing.T) {
 		if err := auth.Create(owner); err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() {
-			if err := auth.Delete(owner); err != nil {
-				t.Fatal(err)
-			}
-		})
 	} else if err != nil {
 		t.Fatal(err)
 	}

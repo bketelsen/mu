@@ -114,6 +114,20 @@ func TestMigrateNeverSelectsStoredMicroAccount(t *testing.T) {
 	}
 }
 
+func TestMigrateDoesNotDeleteFreshValidOwnerAlongsideMicro(t *testing.T) {
+	resetMigrationState(t, map[string]*Account{
+		"micro": {ID: "micro", Admin: true, Created: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)},
+		"owner": {ID: "owner", Admin: true, Created: time.Now()},
+	})
+	result, err := MigrateSingleOwner(func() (string, error) { return "/backup/data", nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OwnerID != "owner" || !IsOwner("owner") {
+		t.Fatalf("migration result = %#v", result)
+	}
+}
+
 func TestMigrateBreaksAdminTiesByIDAndRemovesCredentials(t *testing.T) {
 	resetMigrationState(t, map[string]*Account{
 		"z-admin": {ID: "z-admin", Admin: true},

@@ -29,7 +29,7 @@ func ValidateUsername(username string) string {
 		}
 	}
 	// Block impersonation of system accounts.
-	if lower == "admin" || lower == "system" || lower == "root" ||
+	if lower == "admin" || lower == "micro" || lower == "system" || lower == "root" ||
 		lower == "moderator" || lower == "support" {
 		return "That username is reserved."
 	}

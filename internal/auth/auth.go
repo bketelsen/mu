@@ -169,6 +169,9 @@ func Create(acc *Account) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
+	if msg := ValidateUsername(acc.ID); msg != "" {
+		return errors.New(msg)
+	}
 	if len(accounts) != 0 {
 		return ErrOwnerExists
 	}
@@ -184,20 +187,6 @@ func Create(acc *Account) error {
 	acc.Approved = true
 	acc.Banned = false
 	accounts[acc.ID] = acc
-	data.SaveJSON("accounts.json", accounts)
-
-	return nil
-}
-
-func Delete(acc *Account) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	if _, ok := accounts[acc.ID]; !ok {
-		return errors.New("account does not exist")
-	}
-
-	delete(accounts, acc.ID)
 	data.SaveJSON("accounts.json", accounts)
 
 	return nil

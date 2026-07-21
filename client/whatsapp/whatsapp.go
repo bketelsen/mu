@@ -129,7 +129,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app.Log("whatsapp", "Webhook received: %d entries, raw: %.200s", len(payload.Entry), string(body))
+	app.Log("whatsapp", "Webhook received: %d entries", len(payload.Entry))
 
 	for _, entry := range payload.Entry {
 		for _, change := range entry.Changes {
@@ -138,7 +138,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			for _, msg := range change.Value.Messages {
-				app.Log("whatsapp", "Message: from=%s type=%s body=%.100s", msg.From, msg.Type, msg.Text.Body)
+				app.Log("whatsapp", "Message: from=%s type=%s body=%.100s", msg.From, msg.Type, app.RedactChannelMessage(msg.Text.Body))
 				if msg.Type != "text" || msg.Text.Body == "" {
 					continue
 				}
@@ -231,7 +231,7 @@ func handleMessage(from, text string, isGroup bool, replyTo string) {
 		return
 	}
 
-	app.Log("whatsapp", "Message from %s (%s, group=%v): %s", from, accountID, isGroup, text)
+	app.Log("whatsapp", "Message from %s (%s, group=%v): %s", from, accountID, isGroup, app.RedactChannelMessage(text))
 
 	// Owner DMs retain the owner's private context.
 	history := getHistory(from)

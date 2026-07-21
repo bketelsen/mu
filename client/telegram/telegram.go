@@ -263,7 +263,7 @@ func handleMessage(token string, userID int64, username, firstName string, chatI
 		return
 	}
 
-	app.Log("telegram", "Message from %s (%s): %s", username, accountID, text)
+	app.Log("telegram", "Message from %s (%s): %s", username, accountID, app.RedactChannelMessage(text))
 
 	// Send typing indicator
 	sendAction(token, chatID, "typing")

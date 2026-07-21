@@ -6,8 +6,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 )
+
+var syncFile = func(file *os.File) error { return file.Sync() }
 
 // Backup atomically copies the data directory beside its source.
 func Backup(now time.Time) (backupPath string, err error) {
@@ -32,7 +35,7 @@ func Backup(now time.Time) (backupPath string, err error) {
 		if err = os.MkdirAll(temp, 0700); err != nil {
 			return "", err
 		}
-		if err = os.Rename(temp, final); err != nil {
+		if err = commitBackup(temp, final); err != nil {
 			return "", err
 		}
 		return final, nil
@@ -85,6 +88,10 @@ func Backup(now time.Time) (backupPath string, err error) {
 				return err
 			}
 			_, copyErr := io.Copy(dst, src)
+			syncErr := error(nil)
+			if copyErr == nil {
+				syncErr = syncFile(dst)
+			}
 			srcErr := src.Close()
 			dstErr := dst.Close()
 			if copyErr != nil {
@@ -92,6 +99,9 @@ func Backup(now time.Time) (backupPath string, err error) {
 			}
 			if srcErr != nil {
 				return srcErr
+			}
+			if syncErr != nil {
+				return syncErr
 			}
 			if dstErr != nil {
 				return dstErr
@@ -104,8 +114,48 @@ func Backup(now time.Time) (backupPath string, err error) {
 	if err != nil {
 		return "", err
 	}
-	if err = os.Rename(temp, final); err != nil {
+	if err = commitBackup(temp, final); err != nil {
 		return "", err
 	}
 	return final, nil
+}
+
+func commitBackup(temp, final string) error {
+	if err := syncDirectories(temp); err != nil {
+		return err
+	}
+	if err := os.Rename(temp, final); err != nil {
+		return err
+	}
+	return syncDirectory(filepath.Dir(final))
+}
+
+func syncDirectories(root string) error {
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() {
+			return nil
+		}
+		return syncDirectory(path)
+	})
+}
+
+// Windows does not support fsync on directory handles. Unix filesystems do;
+// skipping only this unsupported operation avoids claiming directory durability.
+func syncDirectory(path string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	dir, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	syncErr := syncFile(dir)
+	closeErr := dir.Close()
+	if syncErr != nil {
+		return syncErr
+	}
+	return closeErr
 }

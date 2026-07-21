@@ -55,6 +55,10 @@ func applySetup(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(render("Choose a username for your admin account.")))
 		return
 	}
+	if msg := auth.ValidateUsername(id); msg != "" {
+		w.Write([]byte(render(msg)))
+		return
+	}
 	if len(secret) < 6 {
 		w.Write([]byte(render("Password must be at least 6 characters.")))
 		return

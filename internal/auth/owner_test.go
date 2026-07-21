@@ -35,6 +35,13 @@ func TestCreateEstablishesOnlyOwner(t *testing.T) {
 	}
 }
 
+func TestCreateRejectsReservedMicroOwner(t *testing.T) {
+	withAccounts(t, map[string]*Account{})
+	if err := Create(&Account{ID: "micro", Name: "micro", Secret: "secret1"}); err == nil {
+		t.Fatal("Create accepted the reserved micro owner")
+	}
+}
+
 func TestOwnerRejectsZeroAndMultipleAccounts(t *testing.T) {
 	withAccounts(t, map[string]*Account{})
 	if _, err := Owner(); !errors.Is(err, ErrNoOwner) {

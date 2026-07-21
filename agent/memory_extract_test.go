@@ -2,6 +2,8 @@ package agent
 
 import (
 	"errors"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -10,29 +12,32 @@ import (
 )
 
 func TestExtractMemoryOnlyRunsForCurrentOwner(t *testing.T) {
+	if os.Getenv("MU_TEST_NO_OWNER_MEMORY") == "1" {
+		if _, err := auth.Owner(); !errors.Is(err, auth.ErrNoOwner) {
+			t.Fatalf("Owner() = %v, want no owner", err)
+		}
+		oldAsk, oldSet := askBackground, setMemory
+		calls, writes := 0, 0
+		askBackground = func(*ai.Prompt) (string, error) { calls++; return `{"key":"preference","value":"tea"}`, nil }
+		setMemory = func(string, string, string) { writes++ }
+		t.Cleanup(func() { askBackground, setMemory = oldAsk, oldSet })
+		extractMemory("owner", "remember I like tea")
+		if calls != 0 || writes != 0 {
+			t.Fatalf("model calls/writes = %d/%d, want 0/0", calls, writes)
+		}
+		return
+	}
 	for _, tt := range []struct {
-		name        string
-		target      string
-		removeOwner bool
-		wantCalls   int
-		wantWrites  int
+		name       string
+		target     string
+		wantCalls  int
+		wantWrites int
 	}{
 		{name: "current owner", target: "owner", wantCalls: 1, wantWrites: 1},
 		{name: "stale target", target: "legacy", wantCalls: 0, wantWrites: 0},
-		{name: "no owner", target: "owner", removeOwner: true, wantCalls: 0, wantWrites: 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			owner := ensureMemoryOwner(t)
-			if tt.removeOwner {
-				if err := auth.Delete(owner); err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() {
-					if err := auth.Create(owner); err != nil {
-						t.Fatal(err)
-					}
-				})
-			}
+			ensureMemoryOwner(t)
 
 			oldAsk, oldSet := askBackground, setMemory
 			calls, writes := 0, 0
@@ -49,6 +54,14 @@ func TestExtractMemoryOnlyRunsForCurrentOwner(t *testing.T) {
 			}
 		})
 	}
+	t.Run("no owner", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		cmd := exec.Command(os.Args[0], "-test.run=^TestExtractMemoryOnlyRunsForCurrentOwner$")
+		cmd.Env = append(os.Environ(), "MU_TEST_NO_OWNER_MEMORY=1")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("no-owner subprocess: %v\n%s", err, output)
+		}
+	})
 }
 
 func ensureMemoryOwner(t *testing.T) *auth.Account {
@@ -59,11 +72,6 @@ func ensureMemoryOwner(t *testing.T) *auth.Account {
 		if err := auth.Create(owner); err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() {
-			if err := auth.Delete(owner); err != nil {
-				t.Fatal(err)
-			}
-		})
 		return owner
 	}
 	if err != nil {

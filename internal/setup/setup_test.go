@@ -1,10 +1,29 @@
 package setup
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"mu/internal/settings"
 )
+
+func TestSetupRejectsReservedMicroUsername(t *testing.T) {
+	resetProviders(t)
+	req := httptest.NewRequest(http.MethodPost, "/setup", strings.NewReader(url.Values{
+		"username": {"micro"}, "password": {"secret1"}, "provider": {"ollama"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res := httptest.NewRecorder()
+
+	Handler(res, req)
+
+	if !strings.Contains(res.Body.String(), "That username is reserved.") {
+		t.Fatalf("setup response = %q", res.Body.String())
+	}
+}
 
 // resetProviders sandboxes HOME and clears every provider credential from the
 // environment and the (package-level) settings map, so each test starts from

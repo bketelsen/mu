@@ -81,6 +81,18 @@ func Log(pkg string, format string, args ...interface{}) {
 	appendSysLog(pkg, format, args...)
 }
 
+// RedactChannelMessage prevents account-link commands from reaching logs.
+func RedactChannelMessage(message string) string {
+	fields := strings.Fields(message)
+	if len(fields) > 0 {
+		switch strings.ToLower(fields[0]) {
+		case "link", "unlink":
+			return "[redacted account link command]"
+		}
+	}
+	return message
+}
+
 // Response holds data for responding in either JSON or HTML format
 type Response struct {
 	Data        interface{} // Data to serialize as JSON or pass to HTML renderer
