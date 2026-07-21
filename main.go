@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -407,9 +405,6 @@ func main() {
 	// Start the notes loop — Mu's own story, posted to its own blog as the
 	// system account (low cadence; disable with NOTES=off).
 	blog.StartNotes()
-
-	// Wire guest agent news search directly to the live feed-backed provider path.
-	api.GuestNewsSearch = news.SearchToolText
 
 	// Wire MCP quota checking using wallet credit system
 	api.QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
@@ -1182,74 +1177,6 @@ func main() {
 		return wallet.PayAndCallMCP(context.Background(), accountID, baseURL, toolName, toolArgs, bw)
 	})
 
-	authenticated := map[string]bool{
-		"/video":                 false, // Public viewing, auth for interactive features
-		"/news":                  false, // Public viewing, auth for search
-		"/chat":                  false, // Public viewing, auth for chatting
-		"/home":                  false, // Public viewing
-		"/blog":                  false, // Public viewing, auth for posting
-		"/markets":               false, // Public viewing
-		"/about":                 false, // Public "what is Mu" pitch
-		"/oauth2/google":         false, // Google sign-in start (no session yet)
-		"/oauth2/google/connect": true,  // Link Google to the current account
-		"/oauth2/callback":       false, // Google sign-in callback (no session yet)
-		"/images":                false, // Public daily image; generation needs login
-		"/social":                false, // Public viewing, auth for search
-		"/social/thread":         false, // Public thread view, auth for messaging
-		"/places":                false, // Public map, auth for search
-		"/weather":               false, // Public page, auth for forecast lookup
-		"/mail":                  true,  // Require auth for inbox
-		"/logout":                true,
-		"/account":               true,
-		"/verify":                false, // Public — token in URL is the credential
-		"/token":                 true,  // PAT token management
-		"/passkey":               false, // Passkey login/register (auth checked in handler)
-		"/session":               false, // Public - used to check auth status
-		"/api":                   false, // Public - API documentation
-		"/admin/flag":            true,
-		"/admin":                 true,
-		"/admin/users":           true,
-		"/admin/moderate":        true,
-		"/admin/blocklist":       true,
-		"/admin/spam":            true,
-		"/admin/email":           true,
-		"/admin/api":             true,
-		"/admin/log":             true,
-		"/admin/env":             true,
-		"/admin/server":          true,
-		"/admin/usage":           true,
-		"/admin/delete":          true,
-		"/admin/console":         true,
-		"/admin/diagnostics":     true,
-		"/admin/invite":          true,
-		"/wallet":                false, // Public - shows wallet info; auth checked in handler
-
-		"/apps":      false, // Public - apps directory; auth checked in handler for create/edit
-		"/work":      false, // Public - task bounties; auth checked in handler for post/claim
-		"/search":    false, // Public - web search
-		"/web":       false, // Redirect to /search
-		"/web/fetch": false, // Public page, auth checked in handler (paid web fetch)
-		"/web/read":  false, // Public page, auth checked in handler (proxied reader)
-
-		"/status":                 false, // Public - server health status
-		"/pricing":                false, // Public - pricing page
-		"/docs":                   false, // Public - documentation
-		"/whitepaper":             false, // Public - whitepaper
-		"/mcp":                    false, // Public - MCP tools page
-		"/whatsapp/webhook":       false, // Public - WhatsApp webhook
-		"/.well-known/agent.json": false, // Public - A2A agent card
-		"/a2a":                    false, // Public - A2A protocol
-		"/agent":                  false, // Public page, auth checked in handler
-		"/setup":                  false, // First-run setup (open only until an admin exists)
-		"/agents":                 false, // API face for agents (public)
-		"/developers":             false, // Legacy alias → /agents (public)
-	}
-
-	// Static assets should not require authentication
-	staticPaths := []string{
-		".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg",
-		".ico", ".webmanifest", ".json",
-	}
 	// serve video
 	http.HandleFunc("/video", video.Handler)
 
@@ -1509,7 +1436,7 @@ func main() {
 	// Create server with handler
 	server := &http.Server{
 		Addr: *AddressFlag,
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Handler: app.Private(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Block known bot paths silently
 			if strings.HasPrefix(r.URL.Path, "/audio/") {
 				http.NotFound(w, r)
@@ -1550,107 +1477,9 @@ func main() {
 				r.URL.Path = r.URL.Path[:v-1]
 			}
 
-			// Fast path for static assets - skip all middleware
-			for _, ext := range staticPaths {
-				if strings.HasSuffix(r.URL.Path, ext) {
-					http.DefaultServeMux.ServeHTTP(w, r)
-					return
-				}
-			}
-
-			var token string
-
-			// set via session cookie
-			if c, err := r.Cookie("session"); err == nil && c != nil {
-				token = c.Value
-			}
-
-			// Try Authorization header (Bearer token or PAT)
-			if token == "" {
-				authHeader := r.Header.Get("Authorization")
-				if authHeader != "" {
-					// Support both "Bearer <token>" and just "<token>"
-					if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-						token = authHeader[7:]
-					} else {
-						token = authHeader
-					}
-				}
-			}
-
-			// Try X-Micro-Token header (legacy support)
-			if token == "" {
-				token = r.Header.Get("X-Micro-Token")
-			}
-
-			// Check if static asset - skip authentication entirely
-			isStaticAsset := false
-			for _, ext := range staticPaths {
-				if strings.HasSuffix(r.URL.Path, ext) {
-					isStaticAsset = true
-					break
-				}
-			}
-
-			// Skip auth check for static assets
-			if !isStaticAsset {
-				var isAuthed bool
-
-				// Check if path requires authentication
-				{
-					for url, authed := range authenticated {
-						if strings.HasPrefix(r.URL.Path, url) {
-							isAuthed = authed
-							break
-						}
-					}
-				}
-
-				// check token
-				if isAuthed {
-					// deny access if invalid
-					if err := auth.ValidateToken(token); err != nil {
-						// Allow x402 payment as alternative to auth for API requests
-						if wallet.X402Enabled() && wallet.HasPayment(r) && (app.SendsJSON(r) || app.WantsJSON(r)) {
-							r = r.WithContext(context.WithValue(r.Context(), wallet.X402ContextKey, true))
-						} else if app.SendsJSON(r) || app.WantsJSON(r) {
-							// Return JSON 401 for API-style requests
-							w.Header().Set("Content-Type", "application/json")
-							w.WriteHeader(http.StatusUnauthorized)
-							w.Write([]byte(`{"error":"Authentication required"}`))
-							return
-						} else {
-							http.Redirect(w, r, "/", 302)
-							return
-						}
-					}
-				} else if r.URL.Path == "/" {
-					// Fresh instance with no admin yet → guide the operator
-					// through the one-time setup wizard.
-					if setup.Needed() {
-						http.Redirect(w, r, "/setup", http.StatusSeeOther)
-						return
-					}
-					if _, acc := auth.TrySession(r); acc != nil {
-						// Every section has a named URL: the dashboard is /home and a
-						// query goes to the agent (/agent). The root just funnels
-						// logged-in users to the right named place.
-						q := r.URL.Query()
-						if q.Get("q") != "" || q.Get("prompt") != "" {
-							http.Redirect(w, r, "/agent?"+r.URL.RawQuery, http.StatusFound)
-						} else {
-							http.Redirect(w, r, "/home", http.StatusFound)
-						}
-					} else {
-						// Logged out: the live home IS the front door — real cards
-						// plus a working guest agent — so visitors can use Mu
-						// immediately and sign up once they've felt the value,
-						// rather than bouncing off a sign-in wall. The "what is
-						// this" pitch lives at /about.
-						home.Handler(w, r)
-					}
-					return
-				}
+			if r.URL.Path == "/" {
+				http.Redirect(w, r, "/home", http.StatusFound)
+				return
 			}
 
 			// Check if this is a user profile request (/@username)
@@ -1769,32 +1598,8 @@ func main() {
 				app.Log("wallet", "Charged %s %d credit(s) for %s %s", sess.Account, wallet.GetOperationCost(op), r.Method, r.URL.Path)
 			}
 
-			// x402: gate metered MCP tool calls. /mcp is a public endpoint, so
-			// the payment handshake lives here where auth + wallet are in scope.
-			// A metered tools/call with no session gets the standard 402
-			// challenge; one bearing a payment header is routed to the
-			// facilitator for verify+settle by the tool's QuotaCheck.
-			if r.URL.Path == "/mcp" && r.Method == http.MethodPost && wallet.X402Enabled() {
-				body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-				r.Body.Close()
-				r.Body = io.NopCloser(bytes.NewReader(body))
-				if op := api.MCPWalletOp(body); op != "" {
-					resource := "https://" + r.Host + r.URL.Path
-					if wallet.HasPayment(r) {
-						holder := &wallet.SettleHolder{}
-						ctx := context.WithValue(r.Context(), wallet.X402ContextKey, true)
-						ctx = context.WithValue(ctx, wallet.X402SettleKey, holder)
-						r = r.WithContext(ctx)
-						w = wallet.NewSettleWriter(w, holder)
-					} else if err := auth.ValidateToken(token); err != nil {
-						wallet.WritePaymentRequired(w, op, resource)
-						return
-					}
-				}
-			}
-
 			http.DefaultServeMux.ServeHTTP(w, r)
-		}),
+		}), setup.Needed),
 	}
 
 	// Channel to listen for interrupt signals
@@ -1992,11 +1797,8 @@ func isServerMode(args []string) bool {
 // deploy can be verified with `curl micro.mu/version`.
 func versionInfo() map[string]any {
 	info := map[string]any{
-		"version":  app.Version, // per-process id (start time)
+		"version":  app.Version,
 		"go":       runtime.Version(),
-		"agent":    agent.Mode(),       // "native" (go-micro agent) or "planner"
-		"mcp":      "go-micro/gateway", // /mcp served by go-micro's gateway
-		"services": service.Services(), // in-process go-micro services
 		"go_micro": "unknown",
 	}
 	if bi, ok := debug.ReadBuildInfo(); ok {

@@ -85,16 +85,8 @@ var HealthCheckFunc func() []ServiceHealth
 
 // StatusHandler handles the public /status endpoint
 func StatusHandler(w http.ResponseWriter, r *http.Request) {
-	status := checkPublicStatus()
-
-	if r.URL.Query().Get("format") == "json" || WantsJSON(r) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(status)
-		return
-	}
-
-	html := renderPublicStatusHTML(status)
-	w.Write([]byte(RenderHTML("Status", "Service status", html)))
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"ok"}`))
 }
 
 func checkPublicStatus() PublicStatusResponse {

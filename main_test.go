@@ -31,6 +31,13 @@ func TestIsServerMode(t *testing.T) {
 	}
 }
 
+func TestVersionInfoDoesNotExposeServiceTopology(t *testing.T) {
+	info := versionInfo()
+	if _, ok := info["services"]; ok {
+		t.Fatalf("public version exposes services: %#v", info)
+	}
+}
+
 func TestChargedWriteOp(t *testing.T) {
 	tests := []struct {
 		name   string
