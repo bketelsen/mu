@@ -9,7 +9,6 @@ import (
 
 	"mu/internal/ai"
 	"mu/internal/app"
-	"mu/markets"
 	"mu/news"
 	"mu/search"
 	"mu/video"
@@ -304,8 +303,7 @@ Rules:
 	return title, body, nil
 }
 
-// gatherCategoryContext builds context focused on a specific category with
-// supporting market data.
+// gatherCategoryContext builds context focused on a specific category.
 func gatherCategoryContext(category string) string {
 	var sb strings.Builder
 
@@ -356,33 +354,6 @@ func gatherCategoryContext(category string) string {
 			}
 			sb.WriteString("\n")
 		}
-	}
-
-	// Market data — always useful context
-	priceData := markets.GetAllPriceData()
-	if len(priceData) > 0 {
-		sb.WriteString("## Market Data\n\n")
-		categories := []struct {
-			name   string
-			assets []string
-		}{
-			{"Crypto", []string{"BTC", "ETH", "SOL", "PAXG"}},
-			{"Futures", []string{"OIL", "GOLD", "SILVER", "COPPER"}},
-			{"Commodities", []string{"COFFEE", "WHEAT", "CORN"}},
-			{"Currencies", []string{"EUR", "GBP", "JPY", "CNY"}},
-		}
-		for _, cat := range categories {
-			for _, symbol := range cat.assets {
-				if pd, ok := priceData[symbol]; ok && pd.Price > 0 {
-					change := ""
-					if pd.Change24h != 0 {
-						change = fmt.Sprintf(" %+.1f%%", pd.Change24h)
-					}
-					sb.WriteString(fmt.Sprintf("- %s: %.2f USD%s\n", symbol, pd.Price, change))
-				}
-			}
-		}
-		sb.WriteString("\n")
 	}
 
 	videos := video.GetLatestVideos(5)

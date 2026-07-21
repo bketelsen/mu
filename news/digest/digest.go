@@ -1,5 +1,5 @@
-// Package digest generates daily news digests by synthesizing headlines,
-// market data, and video content into a coherent briefing. The generated
+// Package digest generates daily news digests by synthesizing headlines and
+// video content into a coherent briefing. The generated
 // digest is published as a blog post tagged "digest".
 package digest
 
@@ -12,7 +12,6 @@ import (
 	"mu/internal/ai"
 	"mu/internal/app"
 	"mu/internal/data"
-	"mu/markets"
 	"mu/news"
 	"mu/video"
 )
@@ -321,32 +320,6 @@ func gatherContext() (string, []ref) {
 			}
 			sb.WriteString("\n")
 		}
-	}
-
-	priceData := markets.GetAllPriceData()
-	if len(priceData) > 0 {
-		sb.WriteString("## Market Data\n\n")
-		categories := []struct {
-			name   string
-			assets []string
-		}{
-			{"Crypto", []string{"BTC", "ETH", "SOL", "PAXG"}},
-			{"Futures", []string{"OIL", "GOLD", "SILVER", "COPPER"}},
-			{"Commodities", []string{"COFFEE", "WHEAT", "CORN"}},
-			{"Currencies", []string{"EUR", "GBP", "JPY", "CNY"}},
-		}
-		for _, cat := range categories {
-			for _, symbol := range cat.assets {
-				if pd, ok := priceData[symbol]; ok && pd.Price > 0 {
-					change := ""
-					if pd.Change24h != 0 {
-						change = fmt.Sprintf(" %+.1f%%", pd.Change24h)
-					}
-					sb.WriteString(fmt.Sprintf("- %s: %.2f USD%s\n", symbol, pd.Price, change))
-				}
-			}
-		}
-		sb.WriteString("\n")
 	}
 
 	videos := video.GetLatestVideos(5)

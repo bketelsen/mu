@@ -19,7 +19,6 @@ import (
 	"mu/internal/auth"
 	"mu/internal/event"
 	"mu/mail"
-	"mu/markets"
 	"mu/news"
 	"mu/social"
 	"mu/video"
@@ -122,7 +121,6 @@ func Load() {
 		"blog":    blog.Preview,
 		"chat":    ChatCard,
 		"news":    newsCard,
-		"markets": markets.MarketsHTML,
 		"video":   video.Latest,
 		"apps":    apps.Preview,
 		"social":  social.CardHTML,
@@ -463,9 +461,6 @@ function fetchW(la,lo){
 					suggestions = append(suggestions, fmt.Sprintf("Read my %d unread emails", unread))
 				}
 			}
-		}
-		if movers := markets.TopMovers(2); movers != "" {
-			suggestions = append(suggestions, movers)
 		}
 		suggestions = append(suggestions, "Today's news", "What's happening?")
 

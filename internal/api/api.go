@@ -634,37 +634,6 @@ func init() {
 		},
 	})
 
-	Endpoints = append(Endpoints, &Endpoint{
-		Name:        "Markets",
-		Path:        "/markets",
-		Method:      "GET",
-		Description: "Get live market prices for cryptocurrencies, futures, and commodities",
-		Params: []*Param{
-			{
-				Name:        "category",
-				Value:       "string",
-				Description: "Category: crypto, futures, or commodities (default: crypto)",
-			},
-		},
-		Response: []*Value{
-			{
-				Type: "JSON",
-				Params: []*Param{
-					{
-						Name:        "category",
-						Value:       "string",
-						Description: "The requested category",
-					},
-					{
-						Name:        "data",
-						Value:       "array",
-						Description: "Array of market items with symbol, price, type",
-					},
-				},
-			},
-		},
-	})
-
 	// Weather endpoints
 	Endpoints = append(Endpoints, &Endpoint{
 		Name:        "Weather Forecast",
@@ -761,7 +730,7 @@ func init() {
 		Name:        "Agent Query",
 		Path:        "/agent",
 		Method:      "POST",
-		Description: "Query the AI agent. The agent plans and executes tool calls (news, weather, places, markets, etc.) then synthesizes a response. Requires authentication. Costs credits per query. Returns a Server-Sent Events stream.",
+		Description: "Query the AI agent. The agent plans and executes tool calls (news, weather, places, etc.) then synthesizes a response. Requires authentication. Costs credits per query. Returns a Server-Sent Events stream.",
 		Params: []*Param{
 			{Name: "prompt", Value: "string", Description: "The question or request for the agent"},
 			{Name: "model", Value: "string", Description: "Model tier: standard (default) or premium"},
@@ -783,7 +752,7 @@ func init() {
 		Name:        "MCP Server",
 		Path:        "/mcp",
 		Method:      "POST",
-		Description: "Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, markets, login, and signup. Metered tools (chat: 5 credits, news_search: 1 credit, video_search: 2 credits, mail_send: 4 credits, weather_forecast: 1 credit + optional 1 credit for pollen data) use the same wallet credit system as the REST API. Pay per call via x402 or top up your account to pay with credits.",
+		Description: "Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, login, and signup. Metered tools (chat: 5 credits, news_search: 1 credit, video_search: 2 credits, mail_send: 4 credits, weather_forecast: 1 credit + optional 1 credit for pollen data) use the same wallet credit system as the REST API. Pay per call via x402 or top up your account to pay with credits.",
 		Params: []*Param{
 			{
 				Name:        "jsonrpc",

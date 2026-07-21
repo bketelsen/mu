@@ -13,7 +13,6 @@ import (
 	"mu/internal/app"
 	"mu/internal/auth"
 	"mu/internal/settings"
-	"mu/markets"
 	"mu/news"
 	"mu/news/digest"
 )
@@ -109,9 +108,6 @@ func runHealthChecks() []healthCheck {
 	// News Feed
 	checks = append(checks, checkNews())
 
-	// Markets
-	checks = append(checks, checkMarkets())
-
 	// Daily Digest
 	checks = append(checks, checkDigest())
 
@@ -191,24 +187,6 @@ func checkNews() healthCheck {
 		Name:   "News Feed",
 		Status: "ok",
 		Detail: fmt.Sprintf("%d articles, latest: %s ago", len(feed), age.Round(time.Minute)),
-	}
-}
-
-func checkMarkets() healthCheck {
-	data := markets.GetAllPriceData()
-	if len(data) == 0 {
-		return healthCheck{
-			Name:   "Markets",
-			Status: "warning",
-			Detail: "No price data available",
-			Fix:    "Market data sources may be unreachable",
-		}
-	}
-
-	return healthCheck{
-		Name:   "Markets",
-		Status: "ok",
-		Detail: fmt.Sprintf("%d assets tracked", len(data)),
 	}
 }
 
