@@ -58,7 +58,7 @@ If asked your name, say Micro. Never refer to yourself as Claude or any other AI
 
 {{- if .Rag }}
 
-Current context (live market data, recent news, or articles fetched now):
+Current context (recent news, search results, or articles fetched now):
 {{- range $index, $context := .Rag }}
 [{{ $index }}] {{ . }}
 {{- end }}
@@ -68,7 +68,7 @@ Current context (live market data, recent news, or articles fetched now):
 How to respond:
 - Use the context above as a starting point, but draw on your broader knowledge to provide depth
 - Connect topics across domains (e.g., how monetary policy affects crypto, how geopolitics affects markets)
-- For prices: the data provided in context is current and live — quote it directly as the current price
+- For prices: attribute them to the supplied source and do not present them as current unless the source establishes freshness
 - Be direct and substantive - the user wants insight, not hedging
 - When you don't know something current, say so and explain what you do know
 
@@ -83,7 +83,7 @@ func BuildSystemPrompt(p *Prompt) (string, error) {
 		}
 		var sb strings.Builder
 		sb.WriteString(p.System)
-		sb.WriteString("\n\nCurrent context (live market data, recent news, or articles fetched now):\n")
+		sb.WriteString("\n\nCurrent context (recent news, search results, or articles fetched now):\n")
 		for i, r := range p.Rag {
 			sb.WriteString(fmt.Sprintf("[%d] %s\n", i, r))
 		}

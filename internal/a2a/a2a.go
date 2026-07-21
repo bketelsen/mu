@@ -74,7 +74,7 @@ func buildAgentCard(baseURL string) AgentCard {
 
 	return AgentCard{
 		Name:        "Micro",
-		Description: "Personal AI agent with news, markets, trading, mail, weather, search, and more",
+		Description: "Personal AI agent with news, mail, weather, search, video, and more",
 		Version:     "1.0.0",
 		Provider: Provider{
 			Organization: "Micro",

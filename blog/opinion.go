@@ -215,7 +215,7 @@ func latestTodayOpinionTime() time.Time {
 	return opinions[0].CreatedAt
 }
 
-// generateOpinion gathers category-specific data (news, markets, videos),
+// generateOpinion gathers category-specific data (news and videos),
 // cross-references with web search for deeper context, and uses AI to
 // produce an opinion piece. Returns the title and the body content.
 func generateOpinion(category string) (string, string, error) {
