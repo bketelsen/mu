@@ -2,10 +2,13 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	"mu/internal/ai/copilot"
 	"mu/internal/settings"
 )
 
@@ -22,7 +25,8 @@ func runSetup(_ []string) int {
 	fmt.Println("  1) Anthropic Claude")
 	fmt.Println("  2) Atlas Cloud / DeepSeek")
 	fmt.Println("  3) Ollama / OpenAI-compatible (local)")
-	choice := prompt(in, "Provider [1-3]: ")
+	fmt.Println("  4) GitHub Copilot (use your Copilot subscription)")
+	choice := prompt(in, "Provider [1-4]: ")
 
 	switch choice {
 	case "1":
@@ -44,8 +48,12 @@ func runSetup(_ []string) int {
 		}
 		settings.Set("OPENAI_BASE_URL", url)
 		settings.Set("OPENAI_API_KEY", "ollama")
+	case "4":
+		if err := setupCopilot(in); err != nil {
+			return setupErr(err.Error())
+		}
 	default:
-		return setupErr("pick 1, 2 or 3")
+		return setupErr("pick 1, 2, 3 or 4")
 	}
 
 	fmt.Println()
@@ -58,6 +66,65 @@ func runSetup(_ []string) int {
 	fmt.Println("The first account you create becomes admin")
 	fmt.Println("(or set ADMIN=you@example.com before starting the server).")
 	return 0
+}
+
+// setupCopilot signs the user in to GitHub Copilot via the OAuth device flow
+// (a token can also be pasted directly), then lists the models the
+// subscription offers so chat and background models can be chosen.
+func setupCopilot(in *bufio.Reader) error {
+	fmt.Println()
+	fmt.Println("GitHub Copilot sign-in. Press Enter to start the device flow,")
+	fmt.Println("or paste an existing GitHub OAuth token (gho_...).")
+	token := prompt(in, "Token [Enter = device flow]: ")
+
+	if token == "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancel()
+		dc, err := copilot.StartDeviceFlow(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Println()
+		fmt.Printf("  1. Open  %s\n", dc.VerificationURI)
+		fmt.Printf("  2. Enter code  %s\n", dc.UserCode)
+		fmt.Println()
+		fmt.Println("Waiting for approval...")
+		token, err = copilot.WaitForDeviceToken(ctx, dc)
+		if err != nil {
+			return err
+		}
+		fmt.Println("✓ Signed in.")
+	}
+
+	// Verify the token and show what the subscription offers.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	models, err := copilot.ListModels(ctx, token)
+	if err != nil {
+		return fmt.Errorf("token verification failed: %w", err)
+	}
+	settings.Set("COPILOT_GITHUB_TOKEN", token)
+
+	fmt.Println()
+	fmt.Println("Models available on your subscription:")
+	for _, m := range models {
+		name := m.Name
+		if name == "" {
+			name = m.ID
+		}
+		fmt.Printf("  %-28s %s\n", m.ID, name)
+	}
+	fmt.Println()
+	fmt.Println("Chat model: used for interactive queries (claude-* models consume")
+	fmt.Println("premium requests). Background model: used for high-volume summaries")
+	fmt.Println("and planning — pick an included 0x model like gpt-4.1.")
+	if chat := prompt(in, "Chat model [claude-sonnet-4.5]: "); chat != "" {
+		settings.Set("COPILOT_CHAT_MODEL", chat)
+	}
+	if bg := prompt(in, "Background model [gpt-4.1]: "); bg != "" {
+		settings.Set("COPILOT_BACKGROUND_MODEL", bg)
+	}
+	return nil
 }
 
 func prompt(in *bufio.Reader, label string) string {

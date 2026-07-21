@@ -32,6 +32,7 @@ import (
 	"mu/images"
 	"mu/internal/a2a"
 	"mu/internal/agents"
+	"mu/internal/ai"
 	"mu/internal/api"
 	"mu/internal/app"
 	"mu/internal/auth"
@@ -2016,7 +2017,7 @@ func runHealthChecks() []app.ServiceHealth {
 		{"News", "/news", func() bool { return len(news.GetFeed()) > 0 }},
 		{"Blog", "/blog", func() bool { return blog.GetTopics() != nil }},
 		{"Video", "/video", func() bool { return video.GetLatestVideos(1) != nil }},
-		{"Chat", "/chat", func() bool { return os.Getenv("ANTHROPIC_API_KEY") != "" }},
+		{"Chat", "/chat", ai.Configured},
 		{"Mail", "/mail", func() bool { return os.Getenv("MAIL_DOMAIN") != "" }},
 		{"Markets", "/markets", func() bool { return len(markets.GetAllPrices()) > 0 }},
 		{"Social", "/social", func() bool { return len(social.GetThreads()) > 0 }},

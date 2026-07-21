@@ -61,6 +61,22 @@ func providerName(model string) string {
 	return "claude"
 }
 
+// recordUsageFor records usage attributed to a known provider. GitHub Copilot
+// is subscription-billed, so its per-token cost is zero and it gets its own
+// provider label instead of the model-string heuristic (which would misfile
+// Copilot-served claude-* models under "claude").
+func recordUsageFor(provider, caller, model string, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens int) {
+	if provider != "copilot" {
+		recordUsage(caller, model, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens)
+		return
+	}
+	app.RecordUsage("copilot", caller, 0, map[string]any{
+		"model":         model,
+		"input_tokens":  inputTokens,
+		"output_tokens": outputTokens,
+	})
+}
+
 func recordUsage(caller, model string, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens int) {
 	costCents := estimateCostCents(model, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens)
 

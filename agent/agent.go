@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -28,15 +27,9 @@ type Model struct {
 	Model    string // ai model override, empty = provider default
 }
 
-// defaultPremiumModel is the Anthropic model used for premium agent queries.
-var defaultPremiumModel = func() string {
-	if v := os.Getenv("ANTHROPIC_PREMIUM_MODEL"); v != "" {
-		return v
-	}
-	return "claude-opus-4-20250514"
-}()
-
-// Models lists the available model tiers.
+// Models lists the available model tiers. Model strings are resolved at
+// request time via resolveModel — settings (e.g. a configured Copilot
+// provider) are not loaded yet when this package initialises.
 var Models = []Model{
 	{
 		ID:       "standard",
@@ -49,8 +42,18 @@ var Models = []Model{
 		Name:     "Best",
 		WalletOp: "agent_query_premium",
 		Provider: ai.ProviderAnthropic,
-		Model:    defaultPremiumModel,
 	},
+}
+
+// resolveModel returns the concrete model string for a tier. The premium tier
+// maps to ai.PremiumModel (Copilot premium model, ANTHROPIC_PREMIUM_MODEL, or
+// Claude Opus); the standard tier keeps its configured value (empty = the
+// provider default).
+func (m Model) resolveModel() string {
+	if m.ID == "premium" {
+		return ai.PremiumModel()
+	}
+	return m.Model
 }
 
 // QuotaCheck is set by main.go to wire in the wallet quota check without an
@@ -281,7 +284,7 @@ func QueryWithOpts(accountID, prompt string, opts QueryOpts) (string, error) {
 		Question: prompt,
 		Priority: ai.PriorityHigh,
 		Provider: model.Provider,
-		Model:    model.Model,
+		Model:    model.resolveModel(),
 		Caller:   "agent-synth",
 	}
 
@@ -1134,7 +1137,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		Question: req.Prompt,
 		Priority: ai.PriorityHigh,
 		Provider: model.Provider,
-		Model:    model.Model,
+		Model:    model.resolveModel(),
 		Caller:   "agent-synth",
 	}
 

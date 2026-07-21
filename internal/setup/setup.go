@@ -76,6 +76,12 @@ func applySetup(w http.ResponseWriter, r *http.Request) {
 		}
 		settings.Set("OPENAI_BASE_URL", baseURL)
 		settings.Set("OPENAI_API_KEY", "ollama")
+	case "copilot":
+		if key == "" {
+			w.Write([]byte(render("Enter your GitHub OAuth token for Copilot (run `mu setup` in a terminal for guided device-flow sign-in), or pick another provider.")))
+			return
+		}
+		settings.Set("COPILOT_GITHUB_TOKEN", key)
 	default:
 		w.Write([]byte(render("Pick an AI provider.")))
 		return
@@ -124,8 +130,9 @@ func render(errMsg string) string {
     <h3 style="margin:0 0 8px;font-size:1em">2 · AI provider</h3>
     <label style="display:block;margin:0 0 6px"><input type="radio" name="provider" value="claude" checked> Anthropic Claude</label>
     <label style="display:block;margin:0 0 6px"><input type="radio" name="provider" value="atlas"> Atlas Cloud / DeepSeek</label>
+    <label style="display:block;margin:0 0 6px"><input type="radio" name="provider" value="copilot"> GitHub Copilot (subscription)</label>
     <label style="display:block;margin:0 0 12px"><input type="radio" name="provider" value="ollama"> Ollama / OpenAI-compatible (local)</label>
-    <input name="key" placeholder="API key (Claude or Atlas)"
+    <input name="key" placeholder="API key (Claude/Atlas) or GitHub OAuth token (Copilot)"
       style="width:100%;padding:10px;margin:0 0 8px;border:1px solid #ddd;border-radius:6px;font-size:15px">
     <input name="base_url" placeholder="Ollama base URL (default http://localhost:11434/v1)"
       style="width:100%;padding:10px;margin:0 0 20px;border:1px solid #ddd;border-radius:6px;font-size:15px">

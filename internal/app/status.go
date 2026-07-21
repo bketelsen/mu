@@ -13,6 +13,7 @@ import (
 
 	"mu/internal/auth"
 	"mu/internal/data"
+	"mu/internal/settings"
 )
 
 var startTime = time.Now()
@@ -388,10 +389,17 @@ func formatDKIMDetails(enabled bool, domain, selector string) string {
 }
 
 func checkLLMConfig() (provider string, configured bool) {
-	if os.Getenv("ANTHROPIC_API_KEY") == "" {
+	if settings.Get("COPILOT_GITHUB_TOKEN") != "" {
+		model := settings.Get("COPILOT_CHAT_MODEL")
+		if model == "" {
+			model = "claude-sonnet-4.5"
+		}
+		return fmt.Sprintf("Copilot/%s", model), true
+	}
+	if settings.Get("ANTHROPIC_API_KEY") == "" {
 		return "Not configured", false
 	}
-	model := os.Getenv("ANTHROPIC_MODEL")
+	model := settings.Get("ANTHROPIC_MODEL")
 	if model == "" {
 		model = "claude-sonnet-4-6"
 	}

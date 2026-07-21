@@ -22,6 +22,10 @@ var settingGroups = []settingGroup{
 		"ATLAS_API_KEY",
 		"OPENAI_BASE_URL",
 		"OPENAI_API_KEY",
+		"COPILOT_GITHUB_TOKEN",
+		"COPILOT_CHAT_MODEL",
+		"COPILOT_BACKGROUND_MODEL",
+		"COPILOT_PREMIUM_MODEL",
 	}},
 	{"Search", []string{
 		"BRAVE_API_KEY",

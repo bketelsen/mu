@@ -155,11 +155,26 @@ func nativeToolCallKey(call gmai.ToolCall) string {
 	return strings.TrimSpace(call.Name) + "\x00" + string(b)
 }
 
+// nativeProvider picks the go-micro provider, credential and model for the
+// native agent path. GitHub Copilot takes precedence when configured (its
+// driver does native tool-calling over both claude-* and gpt-* models),
+// otherwise Atlas Cloud / DeepSeek as before. Empty key means no native
+// provider is available and the caller falls back to the planner.
+func nativeProvider() (provider, key, model string) {
+	if tok := settings.Get("COPILOT_GITHUB_TOKEN"); tok != "" {
+		return "copilot", tok, ai.CopilotChatModel()
+	}
+	if key := settings.Get("ATLAS_API_KEY"); key != "" {
+		return "atlascloud", key, ai.ModelDeepSeekPro
+	}
+	return "", "", ""
+}
+
 // buildNativeAgent constructs the go-micro agent and the question (history +
 // prompt) shared by queryNative and streamNative. ok is false when no native
 // provider is configured, signalling the caller to fall back.
 func buildNativeAgent(accountID, prompt string, opts QueryOpts, wrappers ...gmai.ToolWrapper) (a gmagent.Agent, question string, ok bool) {
-	key := settings.Get("ATLAS_API_KEY")
+	provider, key, model := nativeProvider()
 	if key == "" {
 		return nil, "", false
 	}
@@ -208,8 +223,8 @@ func buildNativeAgent(accountID, prompt string, opts QueryOpts, wrappers ...gmai
 	// per-agent conversation state keyed by name, so reusing a stable "assistant"
 	// name can leak prior independent prompts into fresh guest requests.
 	toolWrappers := append([]gmai.ToolWrapper{injectAccount(accountID), dedupeNativeToolCalls()}, wrappers...)
-	a = service.NewAgent(nativeAgentInstanceName(), sys, "atlascloud", key, filterServices(nativeServices(opts.Public), opts.Tools),
-		gmagent.Model(ai.ModelDeepSeekPro),
+	a = service.NewAgent(nativeAgentInstanceName(), sys, provider, key, filterServices(nativeServices(opts.Public), opts.Tools),
+		gmagent.Model(model),
 		gmagent.MaxSteps(6),
 		gmagent.WrapTool(toolWrappers...))
 	return a, question, true
@@ -224,7 +239,7 @@ func nativeAgentInstanceName() string {
 // built-in plan/guardrails), replacing the hand-rolled planner+synthesizer.
 //
 // It returns (answer, true) when it handled the request, or ("", false) to
-// signal the caller to fall back to the hand-rolled path (e.g. no Atlas key).
+// signal the caller to fall back to the hand-rolled path (no native provider).
 func queryNative(accountID, prompt string, opts QueryOpts) (string, bool, error) {
 	recorder := newNativeToolRecorder()
 	a, question, ok := buildNativeAgent(accountID, prompt, opts, recorder.wrap)

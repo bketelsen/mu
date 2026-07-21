@@ -12,16 +12,22 @@ import (
 	_ "go-micro.dev/v6/ai/atlascloud"
 	_ "go-micro.dev/v6/ai/openai"
 
+	_ "mu/internal/ai/copilot"
 	"mu/internal/app"
 	"mu/internal/settings"
 )
 
 // resolveProvider picks the go-micro ai provider and credentials for a model,
-// mirroring mu's existing routing: Atlas Cloud for its models, then Anthropic
-// if a key is set, otherwise a local OpenAI-compatible server (Ollama).
+// mirroring mu's existing routing: Atlas Cloud for its models, then GitHub
+// Copilot when a token is configured (it serves both claude-* and gpt-*
+// models, so it acts as the gateway for everything), then Anthropic if a key
+// is set, otherwise a local OpenAI-compatible server (Ollama).
 func resolveProvider(model string) (provider, apiKey, baseURL string, err error) {
 	if isAtlasModel(model) && getAtlasAPIKey() != "" {
 		return "atlascloud", getAtlasAPIKey(), "", nil
+	}
+	if tok := settings.Get("COPILOT_GITHUB_TOKEN"); tok != "" {
+		return "copilot", tok, "", nil
 	}
 	if key := settings.Get("ANTHROPIC_API_KEY"); key != "" {
 		return "anthropic", key, "", nil
@@ -102,7 +108,7 @@ func generateViaMicro(model, systemPrompt string, messages []map[string]string, 
 		return "", fmt.Errorf("%s: %w", provider, err)
 	}
 
-	recordUsage(caller, useModel, resp.Usage.InputTokens, resp.Usage.OutputTokens, 0, 0)
+	recordUsageFor(provider, caller, useModel, resp.Usage.InputTokens, resp.Usage.OutputTokens, 0, 0)
 	app.Log("ai", "[LLM] Usage [%s]: input=%d output=%d (go-micro %s)",
 		caller, resp.Usage.InputTokens, resp.Usage.OutputTokens, provider)
 	return resp.Reply, nil
@@ -194,7 +200,7 @@ func streamViaMicro(model, systemPrompt string, messages []map[string]string, ca
 			usage = resp.Usage
 		}
 	}
-	recordUsage(caller, useModel, usage.InputTokens, usage.OutputTokens, 0, 0)
+	recordUsageFor(provider, caller, useModel, usage.InputTokens, usage.OutputTokens, 0, 0)
 	app.Log("ai", "[LLM] Usage [%s]: input=%d output=%d (go-micro %s stream)",
 		caller, usage.InputTokens, usage.OutputTokens, provider)
 	return sb.String(), nil

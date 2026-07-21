@@ -25,7 +25,14 @@ export ATLAS_API_KEY="your-atlas-api-key"
 # Ollama or any OpenAI-compatible endpoint (local, free, private)
 export OPENAI_BASE_URL="http://localhost:11434/v1"
 export OPENAI_API_KEY="ollama"
+
+# GitHub Copilot subscription (Claude and GPT models; run `mu setup` to sign in)
+export COPILOT_GITHUB_TOKEN="gho_xxxxxxxxxxxx"
+export COPILOT_CHAT_MODEL="claude-sonnet-4.5"   # optional, interactive model
+export COPILOT_BACKGROUND_MODEL="gpt-4.1"       # optional, background model
 ```
+
+See [GitHub Copilot](/docs/copilot) for the full Copilot setup guide.
 
 Without one of these, the agent, chat and AI summaries are disabled (the rest of
 the UI still works). micro.mu runs on Atlas Cloud.
@@ -205,6 +212,10 @@ export MAIL_SELECTOR="default"
 | `ATLAS_API_KEY` | - | Atlas Cloud / DeepSeek API key (alternative AI provider) |
 | `OPENAI_BASE_URL` | - | OpenAI-compatible endpoint (e.g. Ollama at `http://localhost:11434/v1`) |
 | `OPENAI_API_KEY` | - | API key for the OpenAI-compatible endpoint (`ollama` for local Ollama) |
+| `COPILOT_GITHUB_TOKEN` | - | GitHub OAuth token for a Copilot subscription (alternative AI provider; get it via `mu setup`) |
+| `COPILOT_CHAT_MODEL` | `claude-sonnet-4.5` | Copilot model for interactive queries |
+| `COPILOT_BACKGROUND_MODEL` | `gpt-4.1` | Copilot model for background tasks (keep on a 0x-multiplier model) |
+| `COPILOT_PREMIUM_MODEL` | chat model | Copilot model for the agent's "Best" tier |
 | `BRAVE_API_KEY` | - | Brave Search API key — required for `web_search` and the `/search` page |
 | `YOUTUBE_API_KEY` | - | YouTube API key for video functionality |
 | `GOOGLE_API_KEY` | - | Google Places API key for enhanced places search |
