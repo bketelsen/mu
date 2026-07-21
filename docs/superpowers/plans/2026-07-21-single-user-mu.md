@@ -904,7 +904,7 @@ Expected: PASS.
 
 Run: `rg -n 'auth\.Create\(|Name:\s*"signup"|/signup|request-invite|CreateInvite|findOrCreateGoogleAccount|auto-create account' --glob '*.go'`
 
-Expected: only `internal/setup/setup.go` contains a production `auth.Create` call; test fixtures may contain direct calls. No production signup/invite route or tool remains.
+Expected at the Task 6 boundary: `internal/setup/setup.go` and the three channel `autoCreateAccount` helpers scheduled for removal in Task 7 may still contain production `auth.Create` calls; test fixtures may contain direct calls. No web, MCP, invite, or Google production provisioning route/tool/helper remains. Task 7's final channel scan removes the remaining channel callers.
 
 - [ ] **Step 5: Commit provisioning removal**
 
