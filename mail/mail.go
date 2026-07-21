@@ -77,14 +77,8 @@ func Load() {
 	// Initialize encryption
 	initEncryption()
 
-	b, err := data.LoadFile("mail.json")
-	if err != nil {
-		messages = []*Message{}
-		inboxes = make(map[string]*Inbox)
-	} else if err := json.Unmarshal(b, &messages); err != nil {
-		messages = []*Message{}
-		inboxes = make(map[string]*Inbox)
-	} else {
+	loadPersistedMessages()
+	if len(messages) > 0 {
 		app.Log("mail", "Loaded %d messages", len(messages))
 
 		// Decrypt messages loaded from disk
@@ -123,6 +117,18 @@ func Load() {
 	if err := LoadDKIMConfig(dkimDomain, dkimSelector); err != nil {
 		app.Log("mail", "DKIM signing disabled: %v", err)
 	}
+}
+
+// loadPersistedMessages hydrates mail state without configuring SMTP or DKIM.
+func loadPersistedMessages() {
+	var loaded []*Message
+	if b, err := data.LoadFile("mail.json"); err == nil {
+		_ = json.Unmarshal(b, &loaded)
+	}
+	mutex.Lock()
+	messages = loaded
+	rebuildInboxes()
+	mutex.Unlock()
 }
 
 // fixThreading repairs broken threading relationships and computes ThreadID after loading
@@ -2038,9 +2044,17 @@ func GetRecentMessages(limit int) []*Message {
 
 // DeleteInbox removes all mail for a user.
 func DeleteInbox(userID string) error {
+	loadPersistedMessages()
 	mutex.Lock()
-	delete(inboxes, userID)
+	var kept []*Message
+	for _, message := range messages {
+		if message.FromID != userID && message.ToID != userID {
+			kept = append(kept, message)
+		}
+	}
+	messages = kept
+	rebuildInboxes()
+	err := save()
 	mutex.Unlock()
-	// Re-save all mail data.
-	return save()
+	return err
 }

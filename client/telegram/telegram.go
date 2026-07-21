@@ -38,8 +38,16 @@ var (
 const maxHistory = 10
 
 func Load() {
-	data.LoadJSON("telegram_links.json", &links)
+	loadLinks()
 	go run()
+}
+
+func loadLinks() {
+	loaded := map[string]string{}
+	_ = data.LoadJSON("telegram_links.json", &loaded)
+	linkMu.Lock()
+	links = loaded
+	linkMu.Unlock()
 }
 
 func Enabled() bool {
@@ -365,6 +373,7 @@ func getLinkedAccount(telegramID string) string {
 }
 
 func DeleteLinks(muAccount string) error {
+	loadLinks()
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for k, v := range links {

@@ -61,9 +61,17 @@ func addHistory(discordID string, role, text string) {
 }
 
 func Load() {
-	data.LoadJSON("discord_links.json", &links)
+	loadLinks()
 	loadUsage()
 	go run()
+}
+
+func loadLinks() {
+	loaded := map[string]string{}
+	_ = data.LoadJSON("discord_links.json", &loaded)
+	linkMu.Lock()
+	links = loaded
+	linkMu.Unlock()
 }
 
 func Enabled() bool {
@@ -87,6 +95,7 @@ func GetLinkedAccount(discordID string) string {
 
 // DeleteLinks removes all links for a Mu account (account deletion).
 func DeleteLinks(muAccount string) error {
+	loadLinks()
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for k, v := range links {

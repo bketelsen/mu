@@ -195,27 +195,32 @@ func Load() {
 		app.Log("apps", "service register failed: %v", err)
 	}
 
-	// Load persisted apps if the file exists. A missing file is not an error —
-	// it just means a fresh install, which falls through to seeding below.
-	if b, err := data.LoadFile("apps.json"); err == nil {
-		var loaded []*App
-		if jerr := json.Unmarshal(b, &loaded); jerr != nil {
-			app.Log("apps", "Failed to load apps.json: %v", jerr)
-		} else {
-			mutex.Lock()
-			for _, a := range loaded {
-				apps[a.Slug] = a
-			}
-			mutex.Unlock()
-			app.Log("apps", "Loaded %d apps", len(loaded))
-		}
-	}
+	loadPersistedApps()
 
 	// Ensure the built-in apps exist. Runs every startup so newly-added
 	// built-ins reach existing instances too; it only fills gaps.
 	ensureBuiltins()
 
 	data.RegisterDeleter("app", DeleteApp)
+}
+
+// loadPersistedApps hydrates saved apps without registering the service.
+func loadPersistedApps() {
+	var loaded []*App
+	if b, err := data.LoadFile("apps.json"); err == nil {
+		if err := json.Unmarshal(b, &loaded); err != nil {
+			app.Log("apps", "Failed to load apps.json: %v", err)
+		}
+	}
+	mutex.Lock()
+	apps = make(map[string]*App, len(loaded))
+	for _, a := range loaded {
+		apps[a.Slug] = a
+	}
+	mutex.Unlock()
+	if len(loaded) > 0 {
+		app.Log("apps", "Loaded %d apps", len(loaded))
+	}
 }
 
 // save persists all apps to disk.
@@ -1935,6 +1940,7 @@ const sdkJS = `// Mu App SDK
 
 // DeleteAppsByAuthor removes all apps by a user.
 func DeleteAppsByAuthor(authorID string) error {
+	loadPersistedApps()
 	mutex.Lock()
 	for slug, a := range apps {
 		if a.AuthorID == authorID {

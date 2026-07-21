@@ -213,51 +213,10 @@ func Load() {
 	// CreatePost — e.g. the news digest on startup — panics on a nil map.
 	postsMap = make(map[string]*Post)
 
-	// Load existing posts from disk. A missing or unreadable file just means no
-	// posts yet — fall through so seeding and cache-building still run.
-	if b, err := data.LoadFile("blog.json"); err != nil {
-		posts = []*Post{}
-	} else if err := json.Unmarshal(b, &posts); err != nil {
-		posts = []*Post{}
-	}
+	loadPersistedPosts()
 
 	// Publish the built-in announcement post if it isn't already there.
 	ensureSeedPosts()
-
-	// Sort posts by most recent activity (updated or created) newest first
-	sort.Slice(posts, func(i, j int) bool {
-		ti := posts[i].UpdatedAt
-		if ti.IsZero() {
-			ti = posts[i].CreatedAt
-		}
-		tj := posts[j].UpdatedAt
-		if tj.IsZero() {
-			tj = posts[j].CreatedAt
-		}
-		return ti.After(tj)
-	})
-
-	// Build postsMap for O(1) lookups
-	postsMap = make(map[string]*Post)
-	for _, post := range posts {
-		postsMap[post.ID] = post
-	}
-
-	// Load comments
-	commentData, err := data.LoadFile("comments.json")
-	if err == nil {
-		json.Unmarshal(commentData, &comments)
-	} else {
-		comments = []*Comment{}
-	}
-
-	// Sort comments by creation time (oldest first for threading)
-	sort.Slice(comments, func(i, j int) bool {
-		return comments[i].CreatedAt.Before(comments[j].CreatedAt)
-	})
-
-	// Link comments to posts
-	populateComments()
 
 	// Update cached HTML
 	updateCache()
@@ -285,6 +244,38 @@ func Load() {
 
 	// Register with admin delete
 	data.RegisterDeleter("blog", DeletePost)
+}
+
+// loadPersistedPosts hydrates blog data without registering services or starting work.
+func loadPersistedPosts() {
+	var loadedPosts []*Post
+	if b, err := data.LoadFile("blog.json"); err == nil {
+		_ = json.Unmarshal(b, &loadedPosts)
+	}
+	var loadedComments []*Comment
+	if b, err := data.LoadFile("comments.json"); err == nil {
+		_ = json.Unmarshal(b, &loadedComments)
+	}
+
+	mutex.Lock()
+	posts, comments = loadedPosts, loadedComments
+	sort.Slice(posts, func(i, j int) bool {
+		ti, tj := posts[i].UpdatedAt, posts[j].UpdatedAt
+		if ti.IsZero() {
+			ti = posts[i].CreatedAt
+		}
+		if tj.IsZero() {
+			tj = posts[j].CreatedAt
+		}
+		return ti.After(tj)
+	})
+	postsMap = make(map[string]*Post, len(posts))
+	for _, post := range posts {
+		postsMap[post.ID] = post
+	}
+	sort.Slice(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
+	populateComments()
+	mutex.Unlock()
 }
 
 // postDeleter implements flag.ContentDeleter interface
@@ -1816,6 +1807,7 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 // DeletePostsByAuthor removes all posts and comments by a user.
 // Called when an account is deleted.
 func DeletePostsByAuthor(authorID string) error {
+	loadPersistedPosts()
 	mutex.Lock()
 	var kept []*Post
 	for _, p := range posts {

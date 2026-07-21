@@ -46,7 +46,15 @@ var (
 const maxHistory = 10
 
 func Load() {
-	data.LoadJSON("whatsapp_links.json", &links)
+	loadLinks()
+}
+
+func loadLinks() {
+	loaded := map[string]string{}
+	_ = data.LoadJSON("whatsapp_links.json", &loaded)
+	linkMu.Lock()
+	links = loaded
+	linkMu.Unlock()
 }
 
 func Enabled() bool {
@@ -336,6 +344,7 @@ func getLinkedAccount(phone string) string {
 }
 
 func DeleteLinks(muAccount string) error {
+	loadLinks()
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for k, v := range links {
