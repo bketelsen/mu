@@ -36,6 +36,7 @@ var settingGroups = []settingGroup{
 		"YOUTUBE_API_KEY",
 		"GOOGLE_API_KEY",
 	}},
+	{"GitHub", []string{"GITHUB_TOKEN"}},
 	{"Mail", []string{
 		"MAIL_DOMAIN",
 		"MAIL_PORT",
@@ -126,10 +127,7 @@ func EnvHandler(w http.ResponseWriter, r *http.Request) {
 
 			_ = val
 
-			isSecret := strings.Contains(strings.ToUpper(key), "KEY") ||
-				strings.Contains(strings.ToUpper(key), "SECRET") ||
-				strings.Contains(strings.ToUpper(key), "TOKEN") ||
-				strings.Contains(strings.ToUpper(key), "PASS")
+			isSecret := isSecretSetting(key)
 
 			inputType := "text"
 			if isSecret {
@@ -151,4 +149,10 @@ func EnvHandler(w http.ResponseWriter, r *http.Request) {
 
 	html := app.RenderHTMLForRequest("Settings", "Platform configuration", b.String(), r)
 	w.Write([]byte(html))
+}
+
+func isSecretSetting(key string) bool {
+	u := strings.ToUpper(key)
+	return strings.Contains(u, "KEY") || strings.Contains(u, "SECRET") ||
+		strings.Contains(u, "TOKEN") || strings.Contains(u, "PASS")
 }

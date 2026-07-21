@@ -99,6 +99,10 @@ func StripAddress(prompt string) string {
 // keywordRoute handles obvious cases without an LLM call.
 func keywordRoute(prompt string) []string {
 	lower := strings.ToLower(prompt)
+	if containsAnyRouteTerm(lower, "github", "repository", "repositories", "pull request", "pull requests") ||
+		(containsAnyRouteTerm(lower, "issue", "issues") && (containsRouteTerm(lower, "github") || containsRepositoryCoordinate(lower))) {
+		return []string{"github"}
+	}
 
 	// Single-domain keywords are checked in a fixed order so prompts that
 	// contain more than one keyword route predictably instead of depending on
@@ -157,6 +161,18 @@ func keywordRoute(prompt string) []string {
 		ids = ids[:3]
 	}
 	return ids
+}
+
+func containsRepositoryCoordinate(prompt string) bool {
+	for _, field := range strings.FieldsFunc(prompt, func(r rune) bool {
+		return !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '/' || r == '-' || r == '_' || r == '.')
+	}) {
+		parts := strings.Split(field, "/")
+		if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func containsAnyRouteTerm(prompt string, terms ...string) bool {

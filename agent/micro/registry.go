@@ -90,4 +90,13 @@ func init() {
 		Tools:        []string{"search", "web_search", "web_fetch"},
 		MemoryScope:  "search",
 	})
+
+	Register(&Agent{
+		ID:           "github",
+		Name:         "GitHub Agent",
+		Description:  "Repositories, issues, and pull requests",
+		SystemPrompt: `You are the GitHub specialist on Mu. Use live GitHub tools to inspect repositories, issues, pull requests, and discussion comments. Quote repository names and item numbers, link to GitHub, distinguish issues from pull requests, and never claim to modify GitHub because your tools are read-only.`,
+		Tools:        []string{"github_repositories", "github_repository", "github_search", "github_issue"},
+		MemoryScope:  "github",
+	})
 }

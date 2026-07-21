@@ -31,7 +31,7 @@ func TestGuestAllowedToolsCoverPublicCoreServices(t *testing.T) {
 		})
 	}
 
-	for _, tool := range []string{"mail_read", "mail_send"} {
+	for _, tool := range []string{"mail_read", "mail_send", "github_repositories", "github_repository", "github_search", "github_issue"} {
 		t.Run(tool, func(t *testing.T) {
 			if isGuestAllowedTool(tool) {
 				t.Fatalf("%s should stay private for guest ask-answer smoke paths", tool)

@@ -36,6 +36,11 @@ func TestRouteDirectAddressAvoidsLLM(t *testing.T) {
 			prompt: "use mail to summarize unread messages",
 			want:   []string{"mail"},
 		},
+		{
+			name:   "github mention",
+			prompt: "@github show micro/mu",
+			want:   []string{"github"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -44,6 +49,29 @@ func TestRouteDirectAddressAvoidsLLM(t *testing.T) {
 				t.Fatalf("Route(%q) = %v, want %v", tt.prompt, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestGitHubAgentRegistration(t *testing.T) {
+	a := Get("github")
+	if a == nil {
+		t.Fatal("github agent is not registered")
+	}
+	want := []string{"github_repositories", "github_repository", "github_search", "github_issue"}
+	if !reflect.DeepEqual(a.Tools, want) {
+		t.Fatalf("Tools = %v, want %v", a.Tools, want)
+	}
+}
+
+func TestKeywordRouteGitHub(t *testing.T) {
+	for _, prompt := range []string{
+		"show GitHub issues for micro/mu",
+		"open pull requests in micro/mu",
+		"find the repository micro/mu",
+	} {
+		if got := keywordRoute(prompt); !reflect.DeepEqual(got, []string{"github"}) {
+			t.Fatalf("keywordRoute(%q) = %v, want [github]", prompt, got)
+		}
 	}
 }
 

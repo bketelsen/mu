@@ -28,6 +28,7 @@ import (
 	"mu/client/telegram"
 	"mu/client/whatsapp"
 	"mu/docs"
+	"mu/github"
 	"mu/home"
 	"mu/images"
 	"mu/internal/a2a"
@@ -112,6 +113,8 @@ func main() {
 	// load the data index
 	data.Load()
 	app.Load()
+	github.Load()
+	github.RegisterTools()
 
 	// load admin/flags
 	admin.Load()
