@@ -183,10 +183,12 @@ func main() {
 	telegram.Load()
 	whatsapp.Load()
 	mail.OnNewMail = func(accountID, from, subject, body string) {
-		summary := discord.SummariseEmail(from, subject, body)
-		discord.NotifyNewMail(accountID, from, subject, summary)
-		telegram.NotifyUser(accountID, fmt.Sprintf("📬 *New email from %s*\n%s", from, summary))
-		whatsapp.NotifyUser(accountID, fmt.Sprintf("📬 *New email from %s*\n%s", from, summary))
+		auth.RunForOwner(accountID, func(owner *auth.Account) {
+			summary := discord.SummariseEmail(from, subject, body)
+			discord.NotifyNewMail(owner.ID, from, subject, summary)
+			telegram.NotifyUser(owner.ID, fmt.Sprintf("📬 *New email from %s*\n%s", from, summary))
+			whatsapp.NotifyUser(owner.ID, fmt.Sprintf("📬 *New email from %s*\n%s", from, summary))
+		})
 	}
 
 	// load apps
@@ -323,55 +325,56 @@ func main() {
 	// system user. Runs async so the POST /user/status handler returns
 	// immediately. We never fire this for the system user itself.
 	user.AIReplyHook = func(askerID, prompt string) {
-		if askerID == app.SystemUserID {
-			return
-		}
-		// If the asker is already banned, don't spend AI credits.
-		if auth.IsBanned(askerID) {
-			return
-		}
-		answer, err := agent.Query(askerID, prompt)
-		if err != nil {
-			app.Log("status", "@micro agent error for %s: %v", askerID, err)
-			_ = user.PostSystemStatus("I couldn't answer that one — try again in a moment.")
-			return
-		}
-		answer = strings.TrimSpace(answer)
-		if answer == "" {
-			return
-		}
-		// Moderate the AI response before posting — if the question
-		// tricked the AI into producing harmful content, the asker
-		// is banned and the response is silently dropped.
-		if !user.ModerateAIResponse(askerID, answer) {
-			app.Log("status", "AI response for %s blocked by moderation", askerID)
-			return
-		}
-		if err := user.PostSystemStatus(answer); err != nil {
-			app.Log("status", "failed to post @micro reply: %v", err)
-		}
+		auth.RunForOwner(askerID, func(owner *auth.Account) {
+			// If the asker is already banned, don't spend AI credits.
+			if auth.IsBanned(owner.ID) {
+				return
+			}
+			answer, err := agent.Query(owner.ID, prompt)
+			if err != nil {
+				app.Log("status", "@micro agent error for %s: %v", owner.ID, err)
+				_ = user.PostSystemStatus("I couldn't answer that one — try again in a moment.")
+				return
+			}
+			answer = strings.TrimSpace(answer)
+			if answer == "" {
+				return
+			}
+			// Moderate the AI response before posting — if the question
+			// tricked the AI into producing harmful content, the asker
+			// is banned and the response is silently dropped.
+			if !user.ModerateAIResponse(owner.ID, answer) {
+				app.Log("status", "AI response for %s blocked by moderation", owner.ID)
+				return
+			}
+			if err := user.PostSystemStatus(answer); err != nil {
+				app.Log("status", "failed to post @micro reply: %v", err)
+			}
+		})
 	}
 	// Wire stream @micro replies — same agent, posts into the stream
 	// instead of the status profile.
 	stream.AIReplyHook = func(askerID, prompt string) {
-		if auth.IsBanned(askerID) {
-			return
-		}
-		answer, err := agent.Query(askerID, prompt)
-		if err != nil {
-			app.Log("stream", "@micro agent error for %s: %v", askerID, err)
-			stream.PostAgent("I couldn't answer that one — try again in a moment.")
-			return
-		}
-		answer = strings.TrimSpace(answer)
-		if answer == "" {
-			return
-		}
-		if !user.ModerateAIResponse(askerID, answer) {
-			app.Log("stream", "AI response for %s blocked by moderation", askerID)
-			return
-		}
-		stream.PostAgent(answer)
+		auth.RunForOwner(askerID, func(owner *auth.Account) {
+			if auth.IsBanned(owner.ID) {
+				return
+			}
+			answer, err := agent.Query(owner.ID, prompt)
+			if err != nil {
+				app.Log("stream", "@micro agent error for %s: %v", owner.ID, err)
+				stream.PostAgent("I couldn't answer that one — try again in a moment.")
+				return
+			}
+			answer = strings.TrimSpace(answer)
+			if answer == "" {
+				return
+			}
+			if !user.ModerateAIResponse(owner.ID, answer) {
+				app.Log("stream", "AI response for %s blocked by moderation", owner.ID)
+				return
+			}
+			stream.PostAgent(answer)
+		})
 	}
 
 	user.GetUserApps = func(authorID string) []user.UserApp {

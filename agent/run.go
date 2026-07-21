@@ -18,6 +18,12 @@ import (
 // remember (preferences, facts about themselves, interests). Runs
 // async after the response so it doesn't slow down the answer.
 func extractMemory(accountID, prompt string) {
+	auth.RunForOwner(accountID, func(owner *auth.Account) {
+		extractOwnerMemory(owner.ID, prompt)
+	})
+}
+
+func extractOwnerMemory(accountID, prompt string) {
 	lower := strings.ToLower(prompt)
 	// Quick check — only run the LLM if the prompt looks like it
 	// contains a memory-worthy statement.

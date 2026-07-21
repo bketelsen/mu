@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"mu/internal/app"
+	"mu/internal/auth"
 	"mu/internal/settings"
 )
 
@@ -321,33 +322,32 @@ func HandleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if session.PaymentStatus == "paid" {
-			// Check for duplicate processing
-			mutex.Lock()
-			if processedSessions[session.ID] {
-				mutex.Unlock()
-				app.Log("stripe", "session %s already processed, skipping", session.ID)
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			processedSessions[session.ID] = true
-			mutex.Unlock()
-
-			userID := session.Metadata.UserID
 			var credits int
 			fmt.Sscanf(session.Metadata.Credits, "%d", &credits)
-
-			if userID != "" && credits > 0 {
-				err := AddCredits(userID, credits, OpTopup, map[string]interface{}{
-					"source":     "stripe",
-					"session_id": session.ID,
-					"amount":     session.AmountTotal,
-				})
-				if err != nil {
-					app.Log("stripe", "failed to credit user %s: %v", userID, err)
-				} else {
-					app.Log("stripe", "credited %d to user %s (session %s)", credits, userID, session.ID)
+			auth.RunForOwner(session.Metadata.UserID, func(owner *auth.Account) {
+				// Check for duplicate processing only after validating the target.
+				mutex.Lock()
+				if processedSessions[session.ID] {
+					mutex.Unlock()
+					app.Log("stripe", "session %s already processed, skipping", session.ID)
+					return
 				}
-			}
+				processedSessions[session.ID] = true
+				mutex.Unlock()
+
+				if credits > 0 {
+					err := AddCredits(owner.ID, credits, OpTopup, map[string]interface{}{
+						"source":     "stripe",
+						"session_id": session.ID,
+						"amount":     session.AmountTotal,
+					})
+					if err != nil {
+						app.Log("stripe", "failed to credit user %s: %v", owner.ID, err)
+					} else {
+						app.Log("stripe", "credited %d to user %s (session %s)", credits, owner.ID, session.ID)
+					}
+				}
+			})
 		}
 	}
 
@@ -370,33 +370,33 @@ func HandleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		userID := invoice.SubscriptionData.Metadata.UserID
 		var credits int
 		fmt.Sscanf(invoice.SubscriptionData.Metadata.Credits, "%d", &credits)
 
-		if userID != "" && credits > 0 {
-			// Dedup by invoice ID.
-			mutex.Lock()
-			if processedSessions[invoice.ID] {
+		if credits > 0 {
+			auth.RunForOwner(invoice.SubscriptionData.Metadata.UserID, func(owner *auth.Account) {
+				// Dedup by invoice ID only after validating the target.
+				mutex.Lock()
+				if processedSessions[invoice.ID] {
+					mutex.Unlock()
+					app.Log("stripe", "invoice %s already processed, skipping", invoice.ID)
+					return
+				}
+				processedSessions[invoice.ID] = true
 				mutex.Unlock()
-				app.Log("stripe", "invoice %s already processed, skipping", invoice.ID)
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			processedSessions[invoice.ID] = true
-			mutex.Unlock()
 
-			err := AddCredits(userID, credits, OpTopup, map[string]interface{}{
-				"source":       "stripe_subscription",
-				"invoice_id":   invoice.ID,
-				"subscription": invoice.Subscription,
-				"plan":         invoice.SubscriptionData.Metadata.PlanID,
+				err := AddCredits(owner.ID, credits, OpTopup, map[string]interface{}{
+					"source":       "stripe_subscription",
+					"invoice_id":   invoice.ID,
+					"subscription": invoice.Subscription,
+					"plan":         invoice.SubscriptionData.Metadata.PlanID,
+				})
+				if err != nil {
+					app.Log("stripe", "failed to credit subscriber %s: %v", owner.ID, err)
+				} else {
+					app.Log("stripe", "subscription: credited %d to %s (invoice %s)", credits, owner.ID, invoice.ID)
+				}
 			})
-			if err != nil {
-				app.Log("stripe", "failed to credit subscriber %s: %v", userID, err)
-			} else {
-				app.Log("stripe", "subscription: credited %d to %s (invoice %s)", credits, userID, invoice.ID)
-			}
 		}
 	}
 

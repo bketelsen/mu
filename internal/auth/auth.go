@@ -143,6 +143,16 @@ func Owner() (*Account, error) {
 	return ownerLocked()
 }
 
+// RunForOwner executes fn only when targetID still identifies the sole owner.
+// Deferred work must not act on a deleted legacy account.
+func RunForOwner(targetID string, fn func(owner *Account)) {
+	owner, err := Owner()
+	if err != nil || owner.ID != targetID {
+		return
+	}
+	fn(owner)
+}
+
 func OwnerExists() bool {
 	_, err := Owner()
 	return err == nil

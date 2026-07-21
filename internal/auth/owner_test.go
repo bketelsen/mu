@@ -47,6 +47,35 @@ func TestOwnerRejectsZeroAndMultipleAccounts(t *testing.T) {
 	}
 }
 
+func TestRunForOwnerOnlyExecutesForCurrentOwner(t *testing.T) {
+	t.Run("current owner executes", func(t *testing.T) {
+		withAccounts(t, map[string]*Account{"owner": {ID: "owner"}})
+		var executed string
+		RunForOwner("owner", func(owner *Account) { executed = owner.ID })
+		if executed != "owner" {
+			t.Fatalf("executed as %q, want owner", executed)
+		}
+	})
+
+	t.Run("no owner is a no-op", func(t *testing.T) {
+		withAccounts(t, map[string]*Account{})
+		executed := false
+		RunForOwner("owner", func(*Account) { executed = true })
+		if executed {
+			t.Fatal("callback executed without an owner")
+		}
+	})
+
+	t.Run("stale target is discarded", func(t *testing.T) {
+		withAccounts(t, map[string]*Account{"owner": {ID: "owner"}})
+		executed := false
+		RunForOwner("legacy", func(*Account) { executed = true })
+		if executed {
+			t.Fatal("callback executed for stale target")
+		}
+	})
+}
+
 func TestCredentialBoundariesRejectNonOwner(t *testing.T) {
 	withAccounts(t, map[string]*Account{
 		"owner":  {ID: "owner", Secret: mustHash(t, "owner-pass")},
