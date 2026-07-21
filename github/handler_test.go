@@ -158,6 +158,40 @@ func TestHandlerRetainsRepositoryRailOnRepositoryError(t *testing.T) {
 	}
 }
 
+func TestHandlerPaginatesRepositoryRailIndependently(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/user/repos":
+			if got := r.URL.Query().Get("page"); got != "2" {
+				t.Fatalf("repository page = %q, want 2", got)
+			}
+			w.Header().Set("Link", `<https://api.github.com/user/repos?page=1>; rel="prev", <https://api.github.com/user/repos?page=3>; rel="next"`)
+			_, _ = io.WriteString(w, `[{"full_name":"micro/mu"}]`)
+		case "/repos/micro/mu":
+			_, _ = io.WriteString(w, `{"full_name":"micro/mu"}`)
+		case "/search/issues":
+			if got := r.URL.Query().Get("page"); got != "5" {
+				t.Fatalf("item page = %q, want 5", got)
+			}
+			_, _ = io.WriteString(w, `{"items":[]}`)
+		default:
+			t.Fatalf("unexpected upstream request %s", r.URL.String())
+		}
+	}))
+	defer ts.Close()
+	w := httptest.NewRecorder()
+	newHandler(NewServer(NewClient(ts.Client(), ts.URL, testToken)), allowAdmin).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/github?owner=micro&repo=mu&q=a%26b&page=5&repo_page=2", nil))
+	body := w.Body.String()
+	for _, want := range []string{"repo_page=1", "repo_page=3", "page=5", "q=a%26b"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("repository pagination missing %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "q=a&b") {
+		t.Fatalf("raw query rendered in pagination link: %s", body)
+	}
+}
+
 func workspaceServer(t *testing.T, malicious bool) *httptest.Server {
 	t.Helper()
 	text, url := "Fix leak", "https://github.com/micro/mu"
@@ -169,8 +203,6 @@ func workspaceServer(t *testing.T, malicious bool) *httptest.Server {
 		switch r.URL.Path {
 		case "/user/repos":
 			_, _ = io.WriteString(w, `[{"id":1,"full_name":"micro/mu","description":`+jsonString(text)+`,"html_url":`+jsonString(url)+`}]`)
-		case "/search/repositories":
-			_, _ = io.WriteString(w, `{"items":[{"id":1,"full_name":"micro/mu","description":`+jsonString(text)+`,"html_url":`+jsonString(url)+`}]}`)
 		case "/repos/micro/mu":
 			_, _ = io.WriteString(w, `{"id":1,"full_name":"micro/mu","description":`+jsonString(text)+`,"html_url":`+jsonString(url)+`}`)
 		case "/search/issues":

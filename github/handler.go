@@ -12,7 +12,7 @@ import (
 
 type workspaceState struct {
 	Owner, Repo, Tab, State, Query string
-	Page, Number                   int
+	Page, RepoPage, Number         int
 }
 
 type workspaceData struct {
@@ -50,7 +50,7 @@ func handleWorkspace(server *Server, authorize adminCheck, w http.ResponseWriter
 
 	state := parseWorkspaceState(r)
 	data := workspaceData{State: state}
-	data.Err = server.Repositories(context.Background(), &RepositoriesRequest{Page: state.Page, PerPage: defaultPerPage}, &data.Repositories)
+	data.Err = server.Repositories(context.Background(), &RepositoriesRequest{Page: state.RepoPage, PerPage: defaultPerPage}, &data.Repositories)
 	if data.Err == nil && state.Owner == "" && state.Repo == "" && len(data.Repositories.Repositories) > 0 {
 		data.State.Owner = data.Repositories.Repositories[0].Owner.Login
 		data.State.Repo = data.Repositories.Repositories[0].Name
@@ -69,7 +69,7 @@ func handleWorkspace(server *Server, authorize adminCheck, w http.ResponseWriter
 
 func parseWorkspaceState(r *http.Request) workspaceState {
 	query := r.URL.Query()
-	state := workspaceState{Owner: query.Get("owner"), Repo: query.Get("repo"), Tab: query.Get("tab"), State: query.Get("state"), Query: query.Get("q"), Page: positiveInt(query.Get("page")), Number: positiveInt(query.Get("number"))}
+	state := workspaceState{Owner: query.Get("owner"), Repo: query.Get("repo"), Tab: query.Get("tab"), State: query.Get("state"), Query: query.Get("q"), Page: positiveInt(query.Get("page")), RepoPage: positiveInt(query.Get("repo_page")), Number: positiveInt(query.Get("number"))}
 	if state.Tab != "pulls" {
 		state.Tab = "issues"
 	}
@@ -78,6 +78,9 @@ func parseWorkspaceState(r *http.Request) workspaceState {
 	}
 	if state.Page == 0 {
 		state.Page = 1
+	}
+	if state.RepoPage == 0 {
+		state.RepoPage = 1
 	}
 	return state
 }

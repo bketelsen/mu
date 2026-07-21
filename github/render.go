@@ -43,6 +43,16 @@ func renderWorkspace(data workspaceData) string {
 	if len(data.Repositories.Repositories) == 0 {
 		b.WriteString(`<p class="github-meta">No repositories found.</p>`)
 	}
+	if data.Repositories.Page.Prev > 0 {
+		state := data.State
+		state.RepoPage = data.Repositories.Page.Prev
+		b.WriteString(`<a href="` + workspaceURL(state, state.Owner, state.Repo, state.Number, state.Page) + `">Previous</a> `)
+	}
+	if data.Repositories.Page.Next > 0 {
+		state := data.State
+		state.RepoPage = data.Repositories.Page.Next
+		b.WriteString(`<a href="` + workspaceURL(state, state.Owner, state.Repo, state.Number, state.Page) + `">Next</a>`)
+	}
 	b.WriteString(`</aside><main class="github-content">`)
 	if data.ContentErr != nil {
 		b.WriteString(`<section class="card"><p>GitHub workspace unavailable. Please try again.</p></section></main></div>`)
@@ -97,7 +107,7 @@ func renderSearchForm(b *strings.Builder, state workspaceState) {
 	if state.Owner != "" && state.Repo != "" {
 		b.WriteString(`<input type="hidden" name="owner" value="` + esc(state.Owner) + `"><input type="hidden" name="repo" value="` + esc(state.Repo) + `">`)
 	}
-	b.WriteString(`<input type="hidden" name="tab" value="` + esc(state.Tab) + `"><input type="hidden" name="state" value="` + esc(state.State) + `"><button type="submit">Search</button></form>`)
+	b.WriteString(`<input type="hidden" name="tab" value="` + esc(state.Tab) + `"><input type="hidden" name="state" value="` + esc(state.State) + `"><input type="hidden" name="repo_page" value="` + strconv.Itoa(state.RepoPage) + `"><button type="submit">Search</button></form>`)
 }
 
 func renderItem(b *strings.Builder, state workspaceState, kind string, number int, title, itemState string, labels []Label, author, updated string, comments int, rawURL string) {
@@ -129,7 +139,7 @@ func workspaceURL(state workspaceState, owner, repo string, number, page int, ov
 	if len(overrides) > 1 && overrides[1] != "" {
 		itemState = overrides[1]
 	}
-	values := url.Values{"owner": {owner}, "repo": {repo}, "tab": {tab}, "state": {itemState}, "page": {strconv.Itoa(page)}}
+	values := url.Values{"owner": {owner}, "repo": {repo}, "tab": {tab}, "state": {itemState}, "page": {strconv.Itoa(page)}, "repo_page": {strconv.Itoa(state.RepoPage)}}
 	if state.Query != "" {
 		values.Set("q", state.Query)
 	}
