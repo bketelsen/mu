@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -31,20 +32,63 @@ func ownerSessionCookie(t *testing.T) *http.Cookie {
 }
 
 func TestWalletTransferRemoved(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/wallet/transfer", nil)
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		req := httptest.NewRequest(method, "/wallet/transfer", nil)
+		req.AddCookie(ownerSessionCookie(t))
+		rr := httptest.NewRecorder()
+		Handler(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("%s /wallet/transfer = %d, want 404", method, rr.Code)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/wallet", nil)
 	req.AddCookie(ownerSessionCookie(t))
 	rr := httptest.NewRecorder()
 	Handler(rr, req)
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("GET /wallet/transfer = %d, want 404", rr.Code)
-	}
-
-	req = httptest.NewRequest(http.MethodGet, "/wallet", nil)
-	req.AddCookie(ownerSessionCookie(t))
-	rr = httptest.NewRecorder()
-	Handler(rr, req)
 	if strings.Contains(rr.Body.String(), "/wallet/transfer") {
 		t.Fatal("wallet page still links to transfers")
+	}
+}
+
+func TestHistoricalTransferTransactionsRenderAsGenericCredits(t *testing.T) {
+	mutex.Lock()
+	origTx := transactions
+	transactions = map[string][]*Transaction{
+		"legacy-transfer": {
+			{ID: "incoming", Type: "transfer", Amount: 100, Balance: 100},
+			{ID: "outgoing", Type: "transfer", Amount: -25, Balance: 75},
+		},
+	}
+	mutex.Unlock()
+	defer func() {
+		mutex.Lock()
+		transactions = origTx
+		mutex.Unlock()
+	}()
+
+	page := WalletPage("legacy-transfer")
+	if !strings.Contains(page, "Incoming credit") || !strings.Contains(page, "Outgoing debit") {
+		t.Fatal("historical transfer transactions must render as generic credits and debits")
+	}
+}
+
+func TestWalletContainsNoCallablePeerTransferSymbols(t *testing.T) {
+	for _, file := range []string{"wallet.go", "handlers.go"} {
+		contents, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, symbol := range []string{
+			"handleTransferPage", "handleTransfer", "respondTransferError",
+			"maxTransferCredits", "TransferCredits", "DailyTransferTotal",
+			"DailyTransferCap", "OpTransfer", "TxTransfer",
+			"GetAllAccounts", "GetAccountByName",
+		} {
+			if strings.Contains(string(contents), symbol) {
+				t.Errorf("%s still contains callable peer-transfer symbol %q", file, symbol)
+			}
+		}
 	}
 }
 

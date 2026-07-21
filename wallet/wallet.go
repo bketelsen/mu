@@ -14,8 +14,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const DailyTransferCap = 0
-
 // Credit costs per operation (in credits/pennies)
 // Read-only operations (news reading, blog reading, video watching, chat viewing) are included.
 // Only actions that create content, trigger searches, or use external APIs are charged.
@@ -79,7 +77,6 @@ const (
 	OpAppRevenue        = "app_revenue"
 	OpTopup             = "topup"
 	OpRefund            = "refund"
-	OpTransfer          = "transfer"
 	OpEscrowHold        = "escrow_hold"
 	OpEscrowRelease     = "escrow_release"
 	OpEscrowRefund      = "escrow_refund"
@@ -87,11 +84,14 @@ const (
 
 // Transaction types
 const (
-	TxTopup    = "topup"
-	TxSpend    = "spend"
-	TxRefund   = "refund"
-	TxTransfer = "transfer"
+	TxTopup  = "topup"
+	TxSpend  = "spend"
+	TxRefund = "refund"
 )
+
+// legacyTransferTransactionType is retained only to display persisted peer-transfer history.
+// It is not an operation and cannot create new transfers.
+const legacyTransferTransactionType = "transfer"
 
 var mutex sync.RWMutex
 
@@ -263,14 +263,6 @@ func DeductCredits(userID string, amount int, operation string, metadata map[str
 	data.SaveJSON("transactions.json", transactions)
 
 	return nil
-}
-
-// DailyTransferTotal is retained only for inactive legacy handler code.
-func DailyTransferTotal(userID string, day time.Time) int { return 0 }
-
-// TransferCredits cannot create peer transfers on a sole-owner instance.
-func TransferCredits(fromUserID, toUserID string, amount int) error {
-	return errors.New("credit transfers are not available")
 }
 
 // GetTransactions returns transaction history for a user

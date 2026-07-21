@@ -109,3 +109,50 @@ The full short suite completed successfully for all packages; packages without t
 
 - Route and handler scans find removed user-management identifiers only in regression-test forbidden lists.
 - Console dispatch/help scan finds no removed local-account command cases or help entries.
+
+## Task 8A Wallet Fix
+
+### Status
+
+Completed.
+
+### Implementation
+
+- Deleted the callable peer-transfer handlers, validation, recipient autocomplete and account lookup, transfer limits, transfer operation/type constants, and inactive transfer API stubs.
+- Retained `legacyTransferTransactionType` as a private, documented historical compatibility value. Persisted `type:"transfer"` records render as generic incoming credit or outgoing debit history and cannot invoke an operation.
+- Kept owner wallet balance, top-up and Stripe paths, quota accounting, outbound x402/client payments, transaction history, and wallet persistence/migration behavior unchanged.
+
+### TDD Evidence
+
+- RED:
+
+  ```text
+  go test ./wallet -run 'Test(WalletTransferRemoved|HistoricalTransferTransactionsRenderAsGenericCredits|WalletContainsNoCallablePeerTransferSymbols)' -count=1
+  ```
+
+  Failed as expected only because the old transfer constants, stubs, handlers, limits, recipient enumeration, and recipient lookup remained in `wallet.go` and `handlers.go`.
+
+- GREEN:
+
+  ```text
+  gofmt -w wallet/wallet.go wallet/handlers.go wallet/wallet_test.go && go test ./wallet -run 'Test(WalletTransferRemoved|HistoricalTransferTransactionsRenderAsGenericCredits|WalletContainsNoCallablePeerTransferSymbols)' -count=1
+  ok   mu/wallet  0.194s
+  ```
+
+### Test Evidence
+
+```text
+go test ./wallet ./internal/api . -count=1
+ok   mu/wallet        0.279s
+ok   mu/internal/api  0.053s
+ok   mu               0.011s
+
+go test ./... -short
+Passed for every package; packages without tests reported [no test files].
+```
+
+### Review Evidence
+
+- Repository-wide callable-symbol scan finds the removed transfer names only in the wallet regression test's forbidden-symbol list; the retained auth API and unrelated mail enumeration are outside wallet handlers.
+- Repository-wide `/wallet/transfer` scan finds references only in the regression test, which verifies both GET and POST return 404 and the wallet page has no transfer link.
+- `git diff --check` completed without whitespace errors.
