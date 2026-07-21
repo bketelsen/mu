@@ -165,7 +165,7 @@ func QueryWithOpts(accountID, prompt string, opts QueryOpts) (string, error) {
 		planSystem := "You are an AI agent. Given a user question, output ONLY a JSON array of tool calls (no other text, no markdown).\n\n" +
 			toolsDesc +
 			"\n\nOutput format: [{\"tool\":\"tool_name\",\"args\":{}}]\nUse at most 5 tool calls. If no tools are needed output []." +
-			"\n\nIMPORTANT: For personal questions like 'do I have mail', 'what's the weather', 'news today', 'btc price' — ALWAYS use the appropriate tool. " +
+			"\n\nIMPORTANT: For personal questions like 'do I have mail', 'what's the weather', or 'news today' — ALWAYS use the appropriate tool. " +
 			"If the user says 'weather' without a location, use their location from user context, or default to London (lat:51.5074, lon:-0.1278)."
 		if userCtx != "" {
 			planSystem += "\n\nUser context:\n" + userCtx
@@ -208,9 +208,6 @@ func QueryWithOpts(accountID, prompt string, opts QueryOpts) (string, error) {
 			continue
 		}
 		seenToolCalls[key] = true
-		if skipMarketMoverCompanionTool(prompt, tc.Tool) {
-			continue
-		}
 		if opts.Public && !isGuestAllowedTool(tc.Tool) {
 			continue
 		}
@@ -399,7 +396,7 @@ func servePage(w http.ResponseWriter, r *http.Request) {
 		content += `<script>(function(){var i=document.getElementById('mu-chat-input');if(i&&window.muChatAsk){i.value=` + app.JSString(prefill) + `;window.muChatAsk(i.value);}history.replaceState(null,'','/agent');})()</script>`
 	}
 
-	html := app.RenderHTMLForRequest("Agent", "Ask the Mu agent — news, mail, markets, weather, search and more, with tools", content, r)
+	html := app.RenderHTMLForRequest("Agent", "Ask the Mu agent — news, mail, weather, search and more, with tools", content, r)
 	w.Write([]byte(html))
 }
 
@@ -679,7 +676,6 @@ func ToolsDropdownHTML() string {
 <div style="padding:3px 12px;">🌐 Web Search</div>
 <div style="padding:3px 12px;">Web Fetch</div>
 <div style="padding:3px 12px;">🎬 Video Search</div>
-<div style="padding:3px 12px;">📈 Markets</div>
 <div style="padding:3px 12px;">🌤 Weather</div>
 <div style="padding:3px 12px;">📍 Places Search</div>
 <div style="padding:3px 12px;">📍 Places Nearby</div>
@@ -708,7 +704,6 @@ const agentToolsDesc = `Available tools (use exact name):
 - social_search: Search social posts (args: {"query":"search term"})
 - video: Get the latest videos from curated channels (no args)
 - video_search: Search YouTube for videos (args: {"query":"search term"})
-- markets: Get live market prices (args: {"category":"crypto|futures|commodities"})
 - weather_forecast: Get weather forecast (args: {"lat":number,"lon":number})
 - mail_read: Read inbox messages (no args)
 - mail_send: Send a message (args: {"to":"username or email","subject":"subject","body":"message"})
@@ -740,7 +735,6 @@ const guestToolsDesc = `Available tools (use exact name):
 - social_search: Search social posts (args: {"query":"search term"})
 - video: Get the latest videos from curated channels (no args)
 - video_search: Search YouTube for videos (args: {"query":"search term"})
-- markets: Get live market prices (args: {"category":"crypto|futures|commodities"})
 - weather_forecast: Get weather forecast (args: {"lat":number,"lon":number})
 - places_search: Search for places (args: {"q":"search name","near":"location"})
 - places_nearby: Find places near a location (args: {"address":"location","radius":number})
@@ -930,7 +924,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		planPrompt := &ai.Prompt{
 			System: "You are an AI agent. Given a user question, output ONLY a JSON array of tool calls (no other text, no markdown).\n\n" +
 				toolsForPlan +
-				"\n\nOutput format: [{\"tool\":\"tool_name\",\"args\":{}}]\nUse at most 5 tool calls. When the question asks for cross-source insights or correlations (e.g. news + markets, news + video), call multiple relevant tools. If the question is a follow-up that can be answered from prior conversation context without new tools, output []. If no tools are needed output [].",
+				"\n\nOutput format: [{\"tool\":\"tool_name\",\"args\":{}}]\nUse at most 5 tool calls. When the question asks for cross-source insights or correlations (e.g. news + video), call multiple relevant tools. If the question is a follow-up that can be answered from prior conversation context without new tools, output []. If no tools are needed output [].",
 			Question: planQuestion,
 			Priority: ai.PriorityHigh,
 			Provider: "",
@@ -972,9 +966,6 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		seenToolCalls[key] = true
-		if skipMarketMoverCompanionTool(req.Prompt, tc.Tool) {
-			continue
-		}
 		if isGuest && !isGuestAllowedTool(tc.Tool) {
 			continue
 		}
@@ -1042,14 +1033,11 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		ragParts = append(ragParts, fmt.Sprintf("### %s\n%s", tool, unavailableToolMessage(tool)))
 	}
 
-	hasMarketsTool := false
 	hasWeatherTool := false
 	hasWebSearchTool := false
 	hasNewsSearchTool := false
 	for _, tc := range toolCalls {
 		switch tc.Tool {
-		case "markets", "markets_list":
-			hasMarketsTool = true
 		case "weather_forecast":
 			hasWeatherTool = true
 		case "web_search":
@@ -1065,7 +1053,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	if useFastToolFallback(req.Prompt, isGuest, hasMarketsTool, hasWeatherTool, hasWebSearchTool, hasNewsSearchTool, hasUnavailableNewsSearch, ragParts) {
+	if useFastToolFallback(req.Prompt, isGuest, hasWeatherTool, hasWebSearchTool, hasNewsSearchTool, hasUnavailableNewsSearch, ragParts) {
 		answer := app.NormalizeAnswerMarkdown(app.StripLatexDollars(synthesizeToolFallback(ragParts)))
 		rendered := app.RenderString(answer)
 		html := `<div class="card" id="agent-response">` + rendered + `</div>`
@@ -1098,26 +1086,24 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	var synthSystem string
 	if len(results) == 0 {
 		synthSystem = "You are Micro, the agent on Mu at micro.mu. Today's date is " + today + ".\n\n" +
-			"Mu is a personal home server: the everyday internet — news, mail, search, weather, video, markets — handled by one agent (you) the user talks to and runs themselves, instead of ten tabs and five apps. " +
-			"You check their mail, look up prices, search the web, read the news, and give a personalised answer. " +
-			"Mu includes: the agent, news, markets, weather, mail, blog, chat, video, web search, and apps — each a real service. It's open and self-hostable as a single binary (built on go-micro), so the user can run the whole stack themselves. " +
+			"Mu is a personal home server: the everyday internet — news, mail, search, weather, video — handled by one agent (you) the user talks to and runs themselves, instead of ten tabs and five apps. " +
+			"You check their mail, search the web, read the news, and give a personalised answer. " +
+			"Mu includes: the agent, news, weather, mail, blog, chat, video, web search, and apps — each a real service. It's open and self-hostable as a single binary (built on go-micro), so the user can run the whole stack themselves. " +
 			"No ads, no tracking, no algorithm. Pay for the tools, not with your attention.\n\n" +
 			"Answer the user's question conversationally. Be helpful and concise. Use markdown formatting.\n\n" +
 			"IMPORTANT: Use plain dollar signs for currency (e.g. $69,811). Do NOT use LaTeX math delimiters like \\( or \\)."
 	} else {
 		synthSystem = "You are a helpful assistant. Today's date is " + today + ". " +
 			"The tool results below come from live data feeds. For prompts about today, latest, current, or now, anchor the answer to the current date above; do not label today as a different date unless a provider timestamp explicitly proves staleness, and disclose that staleness. Use article publication dates when reasoning about recency. For weather, use the dated forecast rows exactly and never invent calendar dates or weekdays; if the date is ambiguous or absent, say so.\n\n" +
-			"Answer the user's question directly, as user-facing prose. Start with the answer, not with process narration such as \"Here's what I found\" or \"Based on the tool results\". Do not use internal tool names or implementation headings like weather_forecast, markets, or Web sources in the primary answer; translate them to natural labels only when needed. Preserve useful freshness, source, provider-unavailable, and link details.\n\n" +
+			"Answer the user's question directly, as user-facing prose. Start with the answer, not with process narration such as \"Here's what I found\" or \"Based on the tool results\". Do not use internal tool names or implementation headings like weather_forecast or Web sources in the primary answer; translate them to natural labels only when needed. Preserve useful freshness, source, provider-unavailable, and link details.\n\n" +
 			"For web_search results, preserve the user's query intent exactly, cite the listed source URLs, and if confidence is low say the results do not clearly support the requested answer and ask for a refinement.\n\n" +
 			"For news results, include the article URL next to each headline whenever the tool result provides one; if a headline has no URL, do not invent one.\n\n" +
-			"IMPORTANT: For any prices, market values, weather conditions, or other real-time data, you MUST use " +
-			"the exact values from the tool results. Do NOT use your training knowledge for current prices or live data — " +
+			"IMPORTANT: For weather conditions or other real-time data, you MUST use " +
+			"the exact values from the tool results. Do NOT use your training knowledge for live data — " +
 			"it will be outdated. If no tool result contains the requested real-time data, say it is unavailable.\n\n" +
-			"For market-mover prompts, prioritize the largest 24h movers and their prices first. Keep the answer to a brief bullets-only summary unless the user asks for depth. Only mention news when the tool results include directly explanatory headlines or sources; do not pad a market-mover answer with general market/news commentary.\n\n" +
-			"When results come from multiple sources (news, video, markets, weather, etc.), identify and highlight " +
-			"connections and correlations between them — for example, how a market move relates to a news story, " +
-			"or how videos cover the same topic appearing in the news.\n\n" +
-			"Use markdown formatting. Summarise key information from any news articles, weather data, market prices or other structured data. " +
+			"When results come from multiple sources (news, video, weather, etc.), identify and highlight " +
+			"connections and correlations between them, such as videos covering the same topic appearing in the news.\n\n" +
+			"Use markdown formatting. Summarise key information from any news articles, weather data, or other structured data. " +
 			"Do not answer with progress narration like 'let me check' or 'I'll pull the data'; the tools have already run, so provide the final answer or say exactly what is unavailable.\n\n" +
 			"IMPORTANT: Use plain dollar signs for currency (e.g. $69,811). Do NOT use LaTeX math delimiters like \\( or \\)."
 	}
@@ -1187,9 +1173,6 @@ func shortcutToolCalls(prompt string) []shortcutToolCall {
 	aliases := map[string][]shortcutToolCall{
 		// Short aliases
 		"news":          {{Tool: "news_headlines", Args: map[string]any{}}},
-		"markets":       {{Tool: "markets", Args: map[string]any{}}},
-		"market":        {{Tool: "markets", Args: map[string]any{}}},
-		"prices":        {{Tool: "markets", Args: map[string]any{}}},
 		"video":         {{Tool: "video", Args: map[string]any{}}},
 		"videos":        {{Tool: "video", Args: map[string]any{}}},
 		"latest videos": {{Tool: "video", Args: map[string]any{}}},
@@ -1197,40 +1180,30 @@ func shortcutToolCalls(prompt string) []shortcutToolCall {
 		"apps":          {{Tool: "apps_search", Args: map[string]any{}}},
 		"mail":          {{Tool: "mail_read", Args: map[string]any{}}},
 		// Personal queries
-		"do i have mail":                   {{Tool: "mail_read", Args: map[string]any{}}},
-		"do i have unread mail":            {{Tool: "mail_read", Args: map[string]any{}}},
-		"do i have email":                  {{Tool: "mail_read", Args: map[string]any{}}},
-		"check my mail":                    {{Tool: "mail_read", Args: map[string]any{}}},
-		"check my email":                   {{Tool: "mail_read", Args: map[string]any{}}},
-		"any new mail":                     {{Tool: "mail_read", Args: map[string]any{}}},
-		"any new email":                    {{Tool: "mail_read", Args: map[string]any{}}},
-		"any mail":                         {{Tool: "mail_read", Args: map[string]any{}}},
-		"unread mail":                      {{Tool: "mail_read", Args: map[string]any{}}},
-		"unread email":                     {{Tool: "mail_read", Args: map[string]any{}}},
-		"read my mail":                     {{Tool: "mail_read", Args: map[string]any{}}},
-		"read my email":                    {{Tool: "mail_read", Args: map[string]any{}}},
-		"read my unread email":             {{Tool: "mail_read", Args: map[string]any{}}},
-		"read my unread emails":            {{Tool: "mail_read", Args: map[string]any{}}},
-		"my mail":                          {{Tool: "mail_read", Args: map[string]any{}}},
-		"my email":                         {{Tool: "mail_read", Args: map[string]any{}}},
-		"btc price":                        {{Tool: "markets", Args: map[string]any{"category": "crypto"}}},
-		"bitcoin price":                    {{Tool: "markets", Args: map[string]any{"category": "crypto"}}},
-		"eth price":                        {{Tool: "markets", Args: map[string]any{"category": "crypto"}}},
-		"what's happening":                 {{Tool: "news_headlines", Args: map[string]any{}}},
-		"what's happening?":                {{Tool: "news_headlines", Args: map[string]any{}}},
-		"today's news":                     {{Tool: "news_headlines", Args: map[string]any{}}},
-		"what is moving in markets today":  {{Tool: "markets", Args: map[string]any{}}},
-		"what is moving in markets today?": {{Tool: "markets", Args: map[string]any{}}},
-		"what's moving in markets today":   {{Tool: "markets", Args: map[string]any{}}},
-		"what's moving in markets today?":  {{Tool: "markets", Args: map[string]any{}}},
-		"market movers today":              {{Tool: "markets", Args: map[string]any{}}},
-		"markets movers today":             {{Tool: "markets", Args: map[string]any{}}},
+		"do i have mail":        {{Tool: "mail_read", Args: map[string]any{}}},
+		"do i have unread mail": {{Tool: "mail_read", Args: map[string]any{}}},
+		"do i have email":       {{Tool: "mail_read", Args: map[string]any{}}},
+		"check my mail":         {{Tool: "mail_read", Args: map[string]any{}}},
+		"check my email":        {{Tool: "mail_read", Args: map[string]any{}}},
+		"any new mail":          {{Tool: "mail_read", Args: map[string]any{}}},
+		"any new email":         {{Tool: "mail_read", Args: map[string]any{}}},
+		"any mail":              {{Tool: "mail_read", Args: map[string]any{}}},
+		"unread mail":           {{Tool: "mail_read", Args: map[string]any{}}},
+		"unread email":          {{Tool: "mail_read", Args: map[string]any{}}},
+		"read my mail":          {{Tool: "mail_read", Args: map[string]any{}}},
+		"read my email":         {{Tool: "mail_read", Args: map[string]any{}}},
+		"read my unread email":  {{Tool: "mail_read", Args: map[string]any{}}},
+		"read my unread emails": {{Tool: "mail_read", Args: map[string]any{}}},
+		"my mail":               {{Tool: "mail_read", Args: map[string]any{}}},
+		"my email":              {{Tool: "mail_read", Args: map[string]any{}}},
+		"what's happening":      {{Tool: "news_headlines", Args: map[string]any{}}},
+		"what's happening?":     {{Tool: "news_headlines", Args: map[string]any{}}},
+		"today's news":          {{Tool: "news_headlines", Args: map[string]any{}}},
 		// Starter pill phrases
-		"give me a summary of today's top news":         {{Tool: "news_headlines", Args: map[string]any{}}},
-		"what's in the news?":                           {{Tool: "news_headlines", Args: map[string]any{}}},
-		"what are the latest crypto and market prices?": {{Tool: "markets", Args: map[string]any{}}},
-		"find me the latest tech videos":                {{Tool: "video_search", Args: map[string]any{"query": "tech"}}},
-		"search the web for the latest ai news":         {{Tool: "web_search", Args: map[string]any{"q": "latest AI news"}}},
+		"give me a summary of today's top news": {{Tool: "news_headlines", Args: map[string]any{}}},
+		"what's in the news?":                   {{Tool: "news_headlines", Args: map[string]any{}}},
+		"find me the latest tech videos":        {{Tool: "video_search", Args: map[string]any{"query": "tech"}}},
+		"search the web for the latest ai news": {{Tool: "web_search", Args: map[string]any{"q": "latest AI news"}}},
 		// Wallet
 		"my wallet":      {{Tool: "wallet", Args: map[string]any{}}},
 		"wallet":         {{Tool: "wallet", Args: map[string]any{}}},
@@ -1240,14 +1213,6 @@ func shortcutToolCalls(prompt string) []shortcutToolCall {
 	lower := strings.ToLower(strings.TrimSpace(prompt))
 	if tc, ok := aliases[lower]; ok {
 		return tc
-	}
-
-	// Fuzzy matches for prompts with dynamic content. Simple market-mover
-	// prompts should reach the markets tool without an LLM planning turn so the
-	// first visible tool event is emitted as soon as possible. Explanation or
-	// cross-source requests still use the planner so they can add news/search.
-	if isMarketMoverPrompt(lower) && !wantsMarketMoverExplanation(lower) {
-		return []shortcutToolCall{{Tool: "markets", Args: map[string]any{}}}
 	}
 
 	if tc := weatherShortcutToolCalls(lower); len(tc) > 0 {
@@ -1362,12 +1327,9 @@ func isLatestTechnologyNewsPrompt(lower string) bool {
 	return false
 }
 
-func useFastToolFallback(prompt string, isGuest bool, hasMarketsTool bool, hasWeatherTool bool, hasWebSearchTool bool, hasNewsSearchTool bool, hasUnavailableNewsSearch bool, ragParts []string) bool {
+func useFastToolFallback(prompt string, isGuest bool, hasWeatherTool bool, hasWebSearchTool bool, hasNewsSearchTool bool, hasUnavailableNewsSearch bool, ragParts []string) bool {
 	if !isGuest || len(ragParts) == 0 {
 		return false
-	}
-	if hasMarketsTool && isMarketMoverPrompt(prompt) && !wantsMarketMoverExplanation(prompt) {
-		return true
 	}
 	if hasWeatherTool && isSimpleWeatherPrompt(prompt) {
 		return true
@@ -1435,48 +1397,6 @@ func toolCallKey(tool string, args map[string]any) string {
 	return strings.TrimSpace(tool) + "\x00" + string(b)
 }
 
-// extractJSONArray extracts the first JSON array `[…]` from text produced by the AI.
-// skipMarketMoverCompanionTool keeps market-mover answers focused on price
-// data unless the user explicitly asks for explanatory news or cross-source
-// correlation. Planning can otherwise add broad news tools for "today" prompts,
-// which lets unrelated headlines bleed into a simple movers answer.
-func skipMarketMoverCompanionTool(prompt, tool string) bool {
-	if tool == "markets" || tool == "markets_list" || !isMarketMoverPrompt(prompt) || wantsMarketMoverExplanation(prompt) {
-		return false
-	}
-	return tool == "news" || tool == "news_headlines" || tool == "news_list" || tool == "news_search" || tool == "web_search" || tool == "recall"
-}
-
-func isMarketMoverPrompt(prompt string) bool {
-	lower := strings.ToLower(prompt)
-	hasMoveIntent := strings.Contains(lower, "moving") ||
-		strings.Contains(lower, "mover") ||
-		strings.Contains(lower, "move") ||
-		strings.Contains(lower, "rally") ||
-		strings.Contains(lower, "selloff") ||
-		strings.Contains(lower, "up today") ||
-		strings.Contains(lower, "down today")
-	if !hasMoveIntent {
-		return false
-	}
-	for _, term := range []string{"market", "markets", "stock", "stocks", "equity", "equities", "crypto", "bitcoin", "btc", "eth", "ethereum", "index", "indices", "futures"} {
-		if strings.Contains(lower, term) {
-			return true
-		}
-	}
-	return false
-}
-
-func wantsMarketMoverExplanation(prompt string) bool {
-	lower := strings.ToLower(prompt)
-	for _, term := range []string{"why", "because", "explain", "reason", "driving", "driver", "catalyst", "news", "headline", "correlat"} {
-		if strings.Contains(lower, term) {
-			return true
-		}
-	}
-	return false
-}
-
 func extractJSONArray(text string) string {
 	start := strings.Index(text, "[")
 	end := strings.LastIndex(text, "]")
@@ -1505,8 +1425,6 @@ func toolLabel(tool string) string {
 		return "Fetching web page"
 	case "video_search":
 		return "🎬 Searching videos"
-	case "markets", "markets_list":
-		return "📈 Checking market prices"
 	case "weather_forecast":
 		return "🌤 Getting weather forecast"
 	case "places_search":
@@ -1574,7 +1492,7 @@ func renderResultCard(toolName, result string, args map[string]any) string {
 	case "apps_run":
 		return renderRunCard(result)
 	}
-	// Service-sourced dashboard cards (markets, news_headlines, social, …),
+	// Service-sourced dashboard cards (news_headlines, social, …),
 	// pulled from the same tool registry, attached via api.SetCard in main.go.
 	return api.CardForTool(toolName)
 }
@@ -1853,8 +1771,6 @@ func formatToolResult(toolName, result string, args map[string]any) string {
 		return withCurrentDateContext(formatSearchResult(result))
 	case "web_search", "weather_forecast":
 		return withCurrentDateContext(result)
-	case "markets", "markets_list":
-		return withCurrentDateContext(formatMarketsResult(result))
 	case "web_fetch":
 		return formatWebFetchResult(result)
 	case "places_search", "places_nearby":
@@ -1875,88 +1791,6 @@ func formatToolResult(toolName, result string, args map[string]any) string {
 		return formatAppsRunResult(result)
 	}
 	return result
-}
-
-// formatMarketsResult converts raw markets tool JSON into readable price context
-// for synthesis. The go-micro markets tool usually returns {"text":"..."},
-// while the REST endpoint returns {"category":"...","data":[...]}; handle both so
-// market-moving prompts never expose raw JSON to users or the model fallback.
-func formatMarketsResult(result string) string {
-	var textData struct {
-		Text string `json:"text"`
-	}
-	if err := json.Unmarshal([]byte(result), &textData); err == nil && strings.TrimSpace(textData.Text) != "" {
-		return strings.TrimSpace(textData.Text)
-	}
-
-	var data struct {
-		Category  string `json:"category"`
-		UpdatedAt string `json:"updated_at"`
-		Stale     bool   `json:"stale"`
-		Partial   bool   `json:"partial"`
-		Freshness string `json:"freshness"`
-		Data      []struct {
-			Symbol    string  `json:"symbol"`
-			Price     float64 `json:"price"`
-			Change24h float64 `json:"change_24h"`
-			Type      string  `json:"type"`
-			UpdatedAt string  `json:"updated_at"`
-			Source    string  `json:"source"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal([]byte(result), &data); err != nil {
-		return result
-	}
-	if len(data.Data) == 0 {
-		return "No market prices available right now."
-	}
-
-	category := strings.TrimSpace(data.Category)
-	if category == "" {
-		category = "market"
-	}
-
-	var b strings.Builder
-	if strings.TrimSpace(data.Freshness) != "" {
-		fmt.Fprintf(&b, "%s.\n", strings.TrimSuffix(strings.TrimSpace(data.Freshness), "."))
-	} else if strings.TrimSpace(data.UpdatedAt) != "" {
-		fmt.Fprintf(&b, "Last refresh: %s.\n", strings.TrimSpace(data.UpdatedAt))
-	}
-	if data.Stale {
-		b.WriteString("Disclosure: market data may be stale.\n")
-	}
-	if data.Partial {
-		b.WriteString("Disclosure: some requested symbols are unavailable from the current source.\n")
-	}
-	fmt.Fprintf(&b, "Live %s prices:\n", category)
-	count := 0
-	for _, item := range data.Data {
-		symbol := strings.TrimSpace(item.Symbol)
-		if symbol == "" || item.Price == 0 {
-			continue
-		}
-		if item.Change24h != 0 {
-			fmt.Fprintf(&b, "%s: $%s (%+.2f%% 24h)\n", symbol, formatMarketPrice(item.Price), item.Change24h)
-		} else {
-			fmt.Fprintf(&b, "%s: $%s\n", symbol, formatMarketPrice(item.Price))
-		}
-		count++
-	}
-	if count == 0 {
-		return fmt.Sprintf("No %s prices available right now.", category)
-	}
-	return strings.TrimSpace(b.String())
-}
-
-func formatMarketPrice(price float64) string {
-	switch {
-	case price >= 100:
-		return fmt.Sprintf("%.2f", price)
-	case price >= 1:
-		return fmt.Sprintf("%.3f", price)
-	default:
-		return fmt.Sprintf("%.6f", price)
-	}
 }
 
 // formatNewsResult converts a raw JSON news feed or search result into

@@ -1,11 +1,11 @@
 # Mu
 
-A personal home server. News, mail, search, weather, markets, video — the everyday internet, handled by one agent you talk to and run yourself. The big platforms own a service for everything; Mu is the alternative — one home server across all the everyday things, each a real service, and open/self-hostable so you can run the whole stack yourself. Built on go-micro: every capability is a go-micro service, the assistant is a go-micro agent. Single binary, self-hostable.
+A personal home server. News, mail, search, weather, video — the everyday internet, handled by one agent you talk to and run yourself. The big platforms own a service for everything; Mu is the alternative — one home server across all the everyday things, each a real service, and open/self-hostable so you can run the whole stack yourself. Built on go-micro: every capability is a go-micro service, the assistant is a go-micro agent. Single binary, self-hostable.
 
 ## Architecture
 
 - **Single Go binary** — `mu --serve` starts the web server, `mu <command>` runs CLI
-- **Services** — each domain (news, markets, mail, weather, blog, social, video, search, places) is a package under the top level
+- **Services** — each domain (news, mail, weather, blog, social, video, search, places) is a package under the top level
 - **Agents** — `agent/micro/` contains specialised micro-agents per domain, routed by keyword + LLM
 - **Channels** — Discord (`client/discord/`), Telegram (`client/telegram/`), WhatsApp (`client/whatsapp/`)
 - **Protocols** — MCP server at `/mcp`, A2A at `/a2a`, x402 crypto payments
@@ -19,7 +19,6 @@ A personal home server. News, mail, search, weather, markets, video — the ever
 | `agent/` | Main agent pipeline (plan → execute → synthesise) |
 | `agent/micro/` | Multi-agent system — registry, router, executor, orchestrator |
 | `news/` | RSS feed aggregation, sentiment tagging |
-| `markets/` | Crypto, futures, commodities, currencies via CoinGecko/Yahoo |
 | `mail/` | SMTP server, DKIM, inbound filtering |
 | `blog/` | Microblogging with AI-generated daily digests |
 | `internal/ai/` | LLM abstraction — Anthropic, Atlas Cloud, local models |

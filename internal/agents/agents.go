@@ -23,7 +23,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	base := canonical() // "" => same-origin
 
 	body := `<p style="max-width:560px;text-align:center;color:#555;font-size:16px;line-height:1.6;margin:0 auto 28px">
-Every capability, as a service your agents can call — news, markets, weather, web search,
+Every capability, as a service your agents can call — news, weather, web search,
 video, mail, your own database and more. Reachable over <a href="/mcp" style="color:#111">MCP</a> and REST, paid
 per request with <a href="https://x402.org" style="color:#111">x402</a> stablecoin micropayments.</p>
 

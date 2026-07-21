@@ -4,7 +4,7 @@ This document covers the design philosophy, architecture, and technical decision
 
 ## Vision
 
-Mu is a personal home server — the everyday internet (news, mail, search, weather, video, markets) handled by one agent you talk to and run yourself. Those
+Mu is a personal home server — the everyday internet (news, mail, search, weather, video) handled by one agent you talk to and run yourself. Those
 services are the same ones a handful of platforms own and sit at the centre of what you do. The primary issue is exploitation and addiction: these
 corporations exploit their users with click/rage bait, advertising, and algorithms to drive engagement and profit. Their number one goal isn't user
 satisfaction—it's making money. Mu is the alternative — one agent across all the everyday things, each a real service, and open/self-hostable so you can run the whole stack yourself.
@@ -48,7 +48,7 @@ The system is structured in layers, from fundamental subsystems up through build
 │  User-facing features, each built on the subsystems below       │
 │                                                                 │
 │  blog/  news/  chat/  video/  mail/                             │
-│  markets/  wallet/  places/  weather/  search/  home/           │
+│  wallet/  places/  weather/  search/  home/                     │
 └────────────────────────────┬────────────────────────────────────┘
                              │ built on
 ┌────────────────────────────▼────────────────────────────────────┐
@@ -62,11 +62,11 @@ The system is structured in layers, from fundamental subsystems up through build
 **Subsystems** are the fundamental internals — app rendering, API layer, AI integration, data storage,
 authentication, and admin tools. They provide the primitives that everything else is built on.
 
-**Building blocks** are the user-facing features — blog, news, chat, video, mail, markets, wallet,
+**Building blocks** are the user-facing features — blog, news, chat, video, mail, wallet,
 places, weather, search, and home. Each one is composed from the subsystems: it uses `app/` for rendering,
 `api/` for endpoints, `ai/` for intelligence, and `data/` for storage and events.
 
-**Agents** sit on top and compose building blocks autonomously. An agent can read news, check markets,
+**Agents** sit on top and compose building blocks autonomously. An agent can read news, search the web,
 generate analysis with AI, and publish to the blog — all by orchestrating the existing building blocks.
 No special infrastructure needed; agents are processes that combine what already exists.
 
@@ -87,7 +87,6 @@ mu/
 │   Building Blocks (user-facing features)
 ├── blog/                 # Microblogging, markdown, ActivityPub
 ├── news/                 # RSS feeds, HN comments, AI summaries
-│   ├── markets/          # Crypto, futures, commodities, currencies
 ├── chat/                 # AI chat with RAG, WebSocket streaming
 ├── video/                # YouTube search and playback
 ├── mail/                 # Messaging, SMTP server, DKIM signing
@@ -122,7 +121,7 @@ The interface layer. Defines REST endpoints and exposes the MCP server for AI ag
 
 - **REST API** - Documented endpoints for all building blocks (see `internal/api/api.go`)
 - **MCP Server** - Model Context Protocol at `/mcp` for AI tool integration (see `internal/api/mcp.go`)
-  - 30+ tools: signup, login, chat, search, blog CRUD, mail, markets, weather, places, apps, etc.
+   - 30+ tools: signup, login, chat, search, blog CRUD, mail, weather, places, apps, etc.
   - JSON-RPC 2.0 protocol
   - Integrated quota checking via wallet
 - **Authentication middleware** - Bearer tokens, session cookies, PAT tokens
@@ -223,13 +222,6 @@ Private messaging with full email capability.
 - **Spam filtering** - Configurable blocklist
 - **Threading** - Conversation view with replies
 
-### Markets (`markets/`)
-
-Live financial data.
-
-- **Crypto prices** - Via Coinbase with CoinGecko 24h changes
-- **Futures/commodities/currencies** - Yahoo Finance market data
-
 ### Wallet (`wallet/`)
 
 Credit-based usage metering.
@@ -282,7 +274,7 @@ The agent layer composes building blocks to observe, analyze, and act autonomous
 - **Query history** - Tracks recent interactions
 
 An agent doesn't need special infrastructure — it works by composing existing building blocks.
-For example, an opinion agent would: read from news (data), check markets (data), generate
+For example, an opinion agent would: read from news and search (data), generate
 analysis (AI), and publish to the blog (building block). All using the same subsystems and
 building blocks that everything else uses.
 

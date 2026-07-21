@@ -4,25 +4,24 @@ A personal home server
 
 ## Overview
 
-A personal home server. One Go binary runs a set of everyday services — news, mail, markets, weather, search, images, video, blog, social, places — behind a [Go Micro](https://github.com/micro/go-micro) registry, with an LLM agent that calls them as tools. The same services are reachable as a web app, a REST API, an MCP server, an A2A endpoint, and a CLI.
+A personal home server. One Go binary runs a set of everyday services — news, mail, weather, search, images, video, blog, social, places — behind a [Go Micro](https://github.com/micro/go-micro) registry, with an LLM agent that calls them as tools. The same services are reachable as a web app, a REST API, an MCP server, an A2A endpoint, and a CLI.
 
 Use it hosted at [micro.mu](https://micro.mu), or self-host the single binary — same product either way. Open source, AGPL-3.0.
 
 ## Features
 
-- **All services in one process.** Each domain (news, markets, mail, weather, …) is a Go Micro service with typed handlers, registered in-process behind an in-memory registry. One binary, no external infrastructure; the same handlers can later be split across processes by swapping the registry.
+- **All services in one process.** Each domain (news, mail, weather, search, …) is a Go Micro service with typed handlers, registered in-process behind an in-memory registry. One binary, no external infrastructure; the same handlers can later be split across processes by swapping the registry.
 - **An agent over those services.** An LLM — Claude, Atlas Cloud (DeepSeek), a GitHub Copilot subscription (Claude and GPT models), or a local Ollama / OpenAI-compatible endpoint — calls the services as tools, composes answers, and keeps per-user memory across sessions.
-- **A web UI that's a home screen.** Cards render each service at a glance (headlines, prices, weather, unread mail); the agent sits inline to act on what you're looking at. Logged-out visitors get a public version with live public data.
+- **A web UI that's a home screen.** Cards render each service at a glance (headlines, weather, unread mail); the agent sits inline to act on what you're looking at. Logged-out visitors get a public version with live public data.
 - **Several front doors to the same services.** A REST API, an MCP server at `/mcp`, an A2A endpoint at `/a2a`, and a CLI where every tool is a subcommand. API and MCP callers can pay per request in USDC via [x402](https://x402.org).
 
 ## Services
 
 Each is reachable in the web app and directly over REST, MCP, A2A, or the CLI. The agent calls them as tools; each is also usable on its own.
 
-- **Agent** — Ask anything. It calls news, markets, mail, weather, search and more, then synthesises an answer. Remembers your preferences.
+- **Agent** — Ask anything. It calls news, mail, weather, search and more, then synthesises an answer. Remembers your preferences.
 - **Chat** — Conversational AI with session history
 - **News** — Headlines from RSS feeds, chronological, with AI summaries
-- **Markets** — Live crypto, futures, commodity, and currency prices
 - **Weather** — Forecasts and conditions
 - **Mail** — Private messaging and email (SMTP server with DKIM, inbound filtering)
 - **Social** — Public discussion threads
@@ -54,7 +53,7 @@ Because every capability is a service, it's reachable however you like. Mu expos
 }
 ```
 
-40+ tools — news, search, weather, places, video, email, markets, images — accessible via MCP. AI agents can pay per-request with USDC through the [x402 protocol](https://x402.org). No API keys. No accounts. Just call and pay. First 10 calls per wallet are free.
+40+ tools — news, search, weather, places, video, email, images — accessible via MCP. AI agents can pay per-request with USDC through the [x402 protocol](https://x402.org). No API keys. No accounts. Just call and pay. First 10 calls per wallet are free.
 
 See [MCP docs](docs/MCP.md)
 
@@ -66,7 +65,7 @@ Every MCP tool is also available as a `mu` subcommand. The same binary runs the 
 mu news                                 # latest news feed
 mu news_search "ai safety"              # search news
 mu chat "hello"                         # chat with the AI
-mu agent "what is the btc price?"       # run the full agent
+mu agent "summarise today's top stories" # run the full agent
 mu web_search "claude code"             # search the web
 mu weather_forecast --lat 51.5 --lon -0.12
 mu me                                   # your account
@@ -87,12 +86,12 @@ See [CLI docs](docs/CLI.md) for more.
 
 ## Discord & Telegram
 
-Talk to the AI agent from Discord or Telegram. Ask questions, check markets, get news — all from chat.
+Talk to the AI agent from Discord or Telegram. Ask questions, check weather, get news — all from chat.
 
 [Join the Discord](https://discord.gg/WeMU5AGxD)
 
-Discord slash commands: `/agent`, `/news`, `/markets`, `/weather`, `/mail`, `/social`, `/blog`, `/video`, `/search`, `/apps`, `/balance`, `/usage`.
-Telegram commands: `/agent`, `/ask`, `/news`, `/markets`, `/weather`, `/usage`.
+Discord slash commands: `/agent`, `/news`, `/weather`, `/mail`, `/social`, `/blog`, `/video`, `/search`, `/apps`, `/balance`, `/usage`.
+Telegram commands: `/agent`, `/ask`, `/news`, `/weather`, `/usage`.
 
 See [Discord docs](docs/DISCORD.md) and [Telegram docs](docs/TELEGRAM.md) for setup.
 

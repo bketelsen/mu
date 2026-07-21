@@ -39,10 +39,9 @@ when go-micro is missing something, fix it upstream (we own it).
 ## Status: core migration COMPLETE and LIVE on micro.mu
 
 go-micro v6 is the core of mu in production (verified via `curl micro.mu/version`
-→ `agent:native`, `mcp:go-micro/gateway`, `go_micro:v6.3.8`, 11 services; auto-
+→ `agent:native`, `mcp:go-micro/gateway`, `go_micro:v6.3.8`, 10 services; auto-
 deploys on every merge to `main`). The native agent's answer quality is now
-**validated on live traffic** (weather, market prices, news — exact tool values
-quoted). What remains is gated on two upstream go-micro features, both filed and
+**validated on live traffic** (weather and news — exact tool values quoted). What remains is gated on two upstream go-micro features, both filed and
 queued (the "longer-term features → roadmap, architect plans it out" path):
 (a) retiring the hand-rolled **streaming** planner needs streaming-`Ask`-with-
 tool-events (micro/go-micro#3341); (b) the `/a2a` cutover needs multi-skill
@@ -55,7 +54,7 @@ agent cards (micro/go-micro#3342 — task lifecycle already shipped upstream).
 - ✅ `internal/service` runtime core (registry/client/broker/store, Register, Call, loopback proxy bypass).
 - ✅ AI core: `internal/ai.Ask` and `AskStream` both run through go-micro `ai`
   (Atlas/Anthropic/local), history + per-caller token caps preserved.
-- ✅ Services (11): weather, news, markets, social, video, blog, search, places, recall, apps, mail.
+- ✅ Services (10): weather, news, social, video, blog, search, places, recall, apps, mail.
 - ✅ Native go-micro agent is the **default** for `agent.Query` (AGENT_NATIVE=off opts out), full tool coverage.
 - ✅ `/mcp` served by go-micro's `gateway/mcp` (manual resolver of mu's tools; metering/auth preserved).
 - ✅ `/version` + `/status` for deploy verification.
@@ -104,8 +103,8 @@ or improve test coverage; never break `main`.
      (web_fetch) and `apps.Server.Search`/`apps.Server.Read` (apps_search/read).
      The search and apps services are in nativeServices, so the agent
      auto-discovers these methods.
-   - ✅ Validated on live traffic (micro.mu): the native agent answers weather,
-     market prices, and news correctly end to end (exact tool values quoted).
+- ✅ Validated on live traffic (micro.mu): the native agent answers weather and
+      news correctly end to end (exact tool values quoted).
    - **Planner retirement is gated on one upstream go-micro feature.** Two
      consumers of the hand-rolled planner remain:
      - The **non-streaming** `agent.Query` already runs native (planner is only

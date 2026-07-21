@@ -11,12 +11,12 @@ import (
 // who want the explanation. Viewable signed-in or out.
 func Landing(w http.ResponseWriter, r *http.Request) {
 	body := `<p class="lead">Your personal home server for the everyday internet — news, mail, search,
-weather, markets and video, all handled by one agent you talk to. No feeds to doomscroll, no ads,
+weather and video, all handled by one agent you talk to. No feeds to doomscroll, no ads,
 no tracking. Use it hosted here, or self-host the single binary — same product either way.</p>
 
 <div class="lcards">
-  <div class="lcard"><h3>One agent, everything</h3><p>Ask for the news, your mail, a price, the forecast. Mu picks the right service and answers — you just talk to it.</p></div>
-  <div class="lcard"><h3>Real services, not widgets</h3><p>News, markets, mail, weather, blog, video and search — each a genuine service on go-micro, not a scraped feed.</p></div>
+  <div class="lcard"><h3>One agent, everything</h3><p>Ask for the news, your mail, nearby places, the forecast. Mu picks the right service and answers — you just talk to it.</p></div>
+  <div class="lcard"><h3>Real services, not widgets</h3><p>News, mail, weather, blog, video, search and places — each a genuine service on go-micro, not a scraped feed.</p></div>
   <div class="lcard"><h3>Yours to run</h3><p>Use the hosted instance, or self-host the single Go binary. Your account, your data — no lock-in either way.</p></div>
 </div>
 
@@ -44,7 +44,7 @@ no tracking. Use it hosted here, or self-host the single binary — same product
 
 	page := app.RenderLanding(app.Landing{
 		Title:       "Mu — a personal home server",
-		Description: "Your personal home server for the everyday internet: news, mail, search, weather, markets and video, handled by one agent. Open source and self-hostable.",
+		Description: "Your personal home server for the everyday internet: news, mail, search, weather and video, handled by one agent. Open source and self-hostable.",
 		Brand:       "Mu",
 		Tagline:     "Your personal home server",
 		Body:        body,

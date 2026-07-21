@@ -292,7 +292,7 @@ var tools = []Tool{
 			{Name: "query", Type: "string", Description: "News search query", Required: true},
 		},
 	},
-	// blog_list, social, video, weather_forecast and markets are registered in
+	// blog_list, social, video, and weather_forecast are registered in
 	// main.go as AI-first tools (clean Go handlers returning model-ready text),
 	// not as page-backed entries here.
 	{
@@ -410,7 +410,7 @@ var tools = []Tool{
 	// Stream (console)
 	{
 		Name:        "stream",
-		Description: "Read the platform event stream — user messages, agent responses, and system events (markets, news)",
+		Description: "Read the platform event stream — user messages, agent responses, and system events (news)",
 		Method:      "GET",
 		Path:        "/stream",
 	},

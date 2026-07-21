@@ -10,7 +10,7 @@
 // Each display service owns one Snapshot, created in Load:
 //
 //	var card *snapshot.Snapshot
-//	func Load() { card = snapshot.New("markets"); ... }
+//	func Load() { card = snapshot.New("news"); ... }
 //	// on every cache rebuild: card.Publish(html)
 //	// in the serve path: if s := card.Get(); s != "" { return s }  // else fallback
 package snapshot
@@ -27,9 +27,9 @@ import (
 
 // Snapshot is one card's read-plane channel over the go-micro store + broker.
 type Snapshot struct {
-	name   string // log/service name, e.g. "markets"
-	key    string // store key, e.g. "markets:card"
-	topic  string // broker topic, e.g. "markets.card"
+	name   string // log/service name, e.g. "news"
+	key    string // store key, e.g. "news:card"
+	topic  string // broker topic, e.g. "news.card"
 	mu     sync.RWMutex
 	mirror string
 }

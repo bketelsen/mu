@@ -23,7 +23,7 @@ mu help                                 # live list of all available tools
 mu news                                 # latest news feed
 mu news_search "ai safety"              # search news
 mu chat "hello, what's up?"             # chat with the AI
-mu agent "summarise today's markets"    # run the full agent
+mu agent "summarise today's headlines"  # run the full agent
 mu web_search "claude code"
 mu weather_forecast --lat 51.5 --lon -0.12
 mu apps_search "pomodoro"
@@ -34,7 +34,7 @@ The first positional argument is always the tool name. The rest are flags that m
 
 ## Authentication
 
-Most tools work without auth (news, markets, weather, blog reads, etc.). Anything that creates content, spends credits, or reads personal data needs a token.
+Most tools work without auth (news, weather, blog reads, etc.). Anything that creates content, spends credits, or reads personal data needs a token.
 
 ### Option 1 — browser login
 

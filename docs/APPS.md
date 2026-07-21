@@ -151,7 +151,7 @@ For same-origin Mu endpoints, use `mu.get(path)` / `mu.post(path, body)` instead
 
 ```javascript
 const answer = await mu.ai('Summarise this', { context: text }); // one-shot
-const result = await mu.agent('What changed in the markets today and why?'); // plans, calls tools, synthesises
+const result = await mu.agent('What are today\'s top news stories?'); // plans, calls tools, synthesises
 ```
 
 ### The user
@@ -166,7 +166,7 @@ Every Mu service is a typed wrapper:
 
 ```javascript
 mu.weather({ lat, lon });          mu.news();
-mu.markets({ category: 'crypto' }); mu.video();
+mu.video();
 mu.social();                        mu.search('query');
 mu.places.search({ ... });          mu.places.nearby({ ... });
 mu.blog.list();  mu.blog.read(id);  mu.blog.create({ ... });

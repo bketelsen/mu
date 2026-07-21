@@ -14,7 +14,6 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/mmcdole/gofeed v1.3.0
 	github.com/mrz1836/go-sanitize v1.5.3
-	github.com/piquette/finance-go v1.1.0
 	go-micro.dev/v6 v6.3.10
 	golang.org/x/crypto v0.48.0
 	golang.org/x/net v0.49.0
@@ -22,8 +21,6 @@ require (
 	google.golang.org/api v0.243.0
 	modernc.org/sqlite v1.42.2
 )
-
-replace github.com/piquette/finance-go => github.com/psanford/finance-go v0.0.0-20250222221941-906a725c60a0
 
 require (
 	cloud.google.com/go/auth v0.16.3 // indirect
@@ -89,7 +86,6 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
 	github.com/urfave/cli/v2 v2.27.6 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect

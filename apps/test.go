@@ -20,8 +20,8 @@ type TestResult struct {
 
 // APITestResult records one SDK call test with the actual response.
 type APITestResult struct {
-	Call     string `json:"call"`               // e.g. "mu.markets({category:'crypto'})"
-	Path     string `json:"path"`               // e.g. "/markets?category=crypto"
+	Call     string `json:"call"`
+	Path     string `json:"path"`
 	Status   int    `json:"status"`             // HTTP status code
 	Response string `json:"response,omitempty"` // truncated JSON response
 	Error    string `json:"error,omitempty"`
@@ -80,8 +80,8 @@ func TestHTML(html, authorID string) *TestResult {
 }
 
 type sdkCall struct {
-	call string // full match, e.g. "mu.markets({category:'crypto'})"
-	api  string // "markets", "news", "weather"
+	call string
+	api  string
 	path string // HTTP path to call
 }
 
@@ -90,18 +90,6 @@ var sdkPatterns = []struct {
 	api  string
 	path func([]string) string
 }{
-	{
-		re:  regexp.MustCompile(`mu\.markets\s*\(\s*\{[^}]*category\s*:\s*['"](\w+)['"][^}]*\}\s*\)`),
-		api: "markets",
-		path: func(m []string) string {
-			return "/markets?category=" + m[1]
-		},
-	},
-	{
-		re:   regexp.MustCompile(`mu\.markets\s*\(\s*\)`),
-		api:  "markets",
-		path: func(m []string) string { return "/markets" },
-	},
 	{
 		re:   regexp.MustCompile(`mu\.news\s*\(\s*\)`),
 		api:  "news",
@@ -185,20 +173,6 @@ func checkFieldAccess(html string, tr APITestResult) []string {
 	}
 
 	switch {
-	case strings.Contains(tr.Path, "/markets"):
-		// Response is {category, data: [...]}
-		// Common mistake: data.forEach() instead of data.data.forEach()
-		if strings.Contains(html, "data.forEach") && !strings.Contains(html, "data.data.forEach") && !strings.Contains(html, "data.data.map") {
-			if _, ok := response["data"]; ok {
-				issues = append(issues, fmt.Sprintf(
-					"Markets: code uses data.forEach() but response is {category, data: [...]}, use data.data.forEach(). Actual response: %s", truncateStr(tr.Response, 300)))
-			}
-		}
-		// Also check: data.Symbol vs data.symbol (PascalCase vs snake_case)
-		if strings.Contains(html, ".Symbol") || strings.Contains(html, ".Price") || strings.Contains(html, ".Change") {
-			issues = append(issues, "Markets: fields are lowercase (symbol, price, change_24h), not PascalCase (Symbol, Price)")
-		}
-
 	case strings.Contains(tr.Path, "/news"):
 		// Response is {feed: [...]}
 		if strings.Contains(html, "data.forEach") && !strings.Contains(html, "data.feed.forEach") && !strings.Contains(html, "data.feed.map") {

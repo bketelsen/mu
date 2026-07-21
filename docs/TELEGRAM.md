@@ -1,6 +1,6 @@
 # Telegram
 
-Mu includes a Telegram bot that gives you access to the AI agent directly from chat. Ask questions, check markets, get news — all from Telegram.
+Mu includes a Telegram bot that gives you access to the AI agent directly from chat. Ask questions, check weather, get news — all from Telegram.
 
 ## Setup (Self-hosting)
 
@@ -27,16 +27,15 @@ Only works in DMs for security.
 ### Direct messages
 
 Just send any message to the bot:
-- "What's the BTC price?"
+- "Weather in London"
 - "Read my email"
 - "Today's news"
 
 ### Groups
 
 In groups, use commands or @mention the bot:
-- `/ask what's happening in crypto?`
+- `/ask what's happening in the news?`
 - `/news`
-- `/markets`
 - `/weather London`
 - `@yourbotname summarise today's news`
 
@@ -48,7 +47,6 @@ The bot has privacy mode — it only sees commands and @mentions in groups, not 
 |---------|-------------|
 | `/ask <question>` | Ask the AI agent anything |
 | `/news` | Latest news headlines |
-| `/markets` | Live crypto market prices |
 | `/weather <location>` | Weather forecast |
 | `/usage` | Your query usage stats |
 
@@ -62,7 +60,6 @@ DM the bot `unlink` to disconnect your Telegram from your Mu account.
 
 The bot DMs you when:
 - You receive a **new email** (with AI-generated summary)
-- A **trading strategy signal** triggers
 
 ## Privacy
 

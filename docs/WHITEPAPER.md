@@ -10,7 +10,7 @@ github.com/micro/mu
 
 ## 1. Introduction
 
-This paper describes Mu, a unified network of composable services accessible through a single protocol endpoint and funded by direct micropayments rather than advertising. Mu provides the tools people use every day — news, search, chat, video, email, markets, weather — in one place, without ads, tracking, or algorithmic manipulation. Every service is equally available to human users via a web interface and to autonomous AI agents via the Model Context Protocol.
+This paper describes Mu, a unified network of composable services accessible through a single protocol endpoint and funded by direct micropayments rather than advertising. Mu provides the tools people use every day — news, search, chat, video, email, weather — in one place, without ads, tracking, or algorithmic manipulation. Every service is equally available to human users via a web interface and to autonomous AI agents via the Model Context Protocol.
 
 ## 2. Motivation
 
@@ -24,7 +24,7 @@ These are not incidental features. They are the direct result of an economic mod
 
 ### 2.2 Fragmentation
 
-The tools people use daily — news, search, email, chat, markets, weather — are scattered across dozens of platforms. Each one requires a separate account, a separate privacy policy, a separate data relationship. Each one competes independently for attention. There is no single place that brings these utilities together without the noise.
+The tools people use daily — news, search, email, chat, weather — are scattered across dozens of platforms. Each one requires a separate account, a separate privacy policy, a separate data relationship. Each one competes independently for attention. There is no single place that brings these utilities together without the noise.
 
 This fragmentation also means redundant infrastructure: every platform builds its own authentication, its own payment system, its own API layer, its own mobile app. Users manage dozens of accounts. Developers integrate with dozens of APIs.
 
@@ -60,7 +60,6 @@ Mu aggregates the services that people use daily and that are currently scattere
 | Blog | Microblogging with federation | Twitter/X, Threads |
 | Chat | AI conversation | ChatGPT |
 | Mail | Messaging and email | Gmail |
-| Markets | Live prices | Yahoo Finance |
 | Weather | Forecasts | Weather apps |
 | Places | Location search | Google Maps |
 | Apps | Build and run tools | App stores |
@@ -88,7 +87,7 @@ Mu is implemented as a single Go binary, built on the [Go Micro](https://go-micr
 
 **Subsystems** provide infrastructure primitives: HTTP rendering, API dispatch, LLM integration, data storage with full-text search, authentication, and administration.
 
-**Building blocks** are user-facing services. Each is registered as an in-process Go Micro service exposing typed methods, reached by the HTTP layer and the agent through the framework rather than by direct package imports. Current building blocks include news aggregation (RSS with AI summarisation), video (YouTube integration without advertising), web search (via Brave Search API), microblogging (with ActivityPub federation), AI chat, messaging (with SMTP and DKIM), financial markets (cryptocurrency, futures, commodity, and currency prices via Coinbase, CoinGecko, and Yahoo Finance), weather forecasts, location search, a work board, and micro-apps (constrained, spec-driven mini tools).
+**Building blocks** are user-facing services. Each is registered as an in-process Go Micro service exposing typed methods, reached by the HTTP layer and the agent through the framework rather than by direct package imports. Current building blocks include news aggregation (RSS with AI summarisation), video (YouTube integration without advertising), web search (via Brave Search API), microblogging (with ActivityPub federation), AI chat, messaging (with SMTP and DKIM), weather forecasts, location search, a work board, and micro-apps (constrained, spec-driven mini tools).
 
 **Agents** are autonomous processes that compose building blocks. The default agent is a Go Micro agent that performs native tool-calling over the registered services, discovering each service's methods as tools. It receives a natural language instruction and executes a sequence of tool calls across multiple building blocks to fulfil it, operating through the same registry and protocol interfaces available to external clients.
 
@@ -132,11 +131,11 @@ Each operation has a fixed credit cost determined by the underlying infrastructu
 | AI agent (standard) | 3 | LLM inference |
 | AI agent (premium) | 9 | Premium model inference |
 
-Read-only operations — browsing news feeds, reading blog posts, watching videos, viewing market prices — carry no cost.
+Read-only operations — browsing news feeds, reading blog posts, and watching videos — carry no cost.
 
 ### 3.3 Pay As You Go
 
-All metered operations consume credits from the user's wallet. Browsing (news, blogs, videos, markets) is included at no cost. Operations that require infrastructure — AI inference, web search, email delivery — cost credits. Top up from £5. This model ensures sustainability while keeping the platform accessible.
+All metered operations consume credits from the user's wallet. Browsing (news, blogs, videos) is included at no cost. Operations that require infrastructure — AI inference, web search, email delivery — cost credits. Top up from £5. This model ensures sustainability while keeping the platform accessible.
 
 ### 3.4 Incentive Alignment
 

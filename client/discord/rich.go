@@ -134,17 +134,6 @@ var slashCommands = []SlashCommand{
 		Description: "Get the latest news headlines",
 	},
 	{
-		Name:        "markets",
-		Description: "Get live market prices",
-		Options: []SlashCommandOption{
-			{Name: "category", Description: "Market category", Type: OptionString, Choices: []SlashCommandChoice{
-				{Name: "Crypto", Value: "crypto"},
-				{Name: "Futures", Value: "futures"},
-				{Name: "Commodities", Value: "commodities"},
-			}},
-		},
-	},
-	{
 		Name:        "weather",
 		Description: "Get the weather forecast",
 		Options: []SlashCommandOption{

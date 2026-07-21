@@ -1,6 +1,6 @@
 # Discord
 
-Mu includes a Discord bot that gives you access to the AI agent directly from chat. Ask questions, check markets, get news — all without leaving Discord.
+Mu includes a Discord bot that gives you access to the AI agent directly from chat. Ask questions, check weather, get news — all without leaving Discord.
 
 ## Setup (Self-hosting)
 
@@ -41,7 +41,7 @@ Only works in DMs (not channels) for security.
 ### Talking to the bot
 
 DM or @mention the bot with anything:
-- "What's the BTC price?"
+- "Find coffee shops nearby"
 - "Read my email"
 - "Today's news"
 - "Weather in London"
@@ -56,7 +56,6 @@ The bot registers these slash commands automatically:
 |---------|-------------|
 | `/agent` | Ask the AI agent anything |
 | `/news` | Latest news headlines |
-| `/markets` | Live market prices (crypto, futures, commodities) |
 | `/weather` | Weather forecast with optional location |
 | `/mail` | Check your inbox |
 | `/balance` | Your wallet balance |
@@ -81,7 +80,6 @@ The bot proactively DMs you when:
 
 Responses are formatted as Discord embeds with color coding:
 - 🟣 Purple — News
-- 🟢 Green — Markets and prices
 - 🟡 Gold — Weather and trading
 - 🔴 Red — Mail and video
 - 🔵 Blue — General, social, blog

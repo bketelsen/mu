@@ -26,9 +26,8 @@ executor + orchestrator) is the **internal reinvention** of exactly this.
 ## Two planes (the key to not degrading performance)
 
 The mistake to avoid is turning a page render into N live RPCs. Mu's data is
-already background-refreshed into caches (e.g. `markets.MarketsHTML()` returns a
-pre-rendered string a `refreshMarkets()` goroutine maintains; home cards are
-cached with a TTL). We keep that. Two distinct planes:
+already background-refreshed into caches; home cards are cached with a TTL. We
+keep that. Two distinct planes:
 
 ### Read plane (renders) — serve pre-cached snapshots, no fan-out
 - Each domain **service** owns its background refresh and produces a **snapshot**.
@@ -93,15 +92,14 @@ things that are genuinely Mu-specific.
 
 ## Migration order (incremental, no regression; verify each)
 
-1. ✅ **Reference vertical: markets.** Done — `markets/snapshot.go`: the service
-   publishes its rendered card to the go-micro store + broker; `MarketsHTML()`
-   serves a broker-fed mirror with a fallback to locally-generated HTML. Render
-   stays a memory read.
+1. ✅ **Reference vertical: news.** Done — the service publishes its rendered card
+   to the go-micro store + broker; the home card serves a broker-fed mirror with a
+   fallback to locally-generated HTML. Render stays a memory read.
 2. ✅ **Replicate the snapshot read-model** to every display card. Done — the
    pattern was extracted into a shared helper, **`internal/snapshot`** (one tested
    `Snapshot` type: `New(name)` subscribes + primes from the store, `Publish`
    writes store + broker, `Get` reads the mirror). All five cards use it:
-   **markets, news, video, social, blog** — each serves `Get()` with a fallback
+   **news, video, social, blog** — each serves `Get()` with a fallback
    to its locally-cached HTML, each with round-trip + fallback tests. Publish is
    hooked at every cache-rebuild site (video's two finalize points; social's
    `updateCacheLocked`; blog's `updateCacheUnlocked`).

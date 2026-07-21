@@ -2,7 +2,7 @@
 
 Mu's thesis: the everyday internet, handled by one agent — each capability a
 real, self-hostable service, not a feature buried in a big platform. We ship
-about a dozen today (news, mail, markets, weather, search, video, social, blog,
+about a dozen today (news, mail, weather, search, video, social, blog,
 places, payments, apps, chat). This is the map of the ~100 services
 people use every day — the dozen we have, and the ~88 to build next.
 
@@ -18,7 +18,7 @@ The existing services are the template. Each new one is the same shape:
 
 Prefer services we can stand up on what we already run — storage, auth, the AI
 layer, the search corpus, the reader/web-fetch, mail/SMTP, the scheduler, and our
-existing data services (markets, news, weather, places). Add a **new external
+existing data services (news, weather, places). Add a **new external
 source only when the capability genuinely can't exist without it**, and mark it
 so the cost is explicit. Most daily services are just *your data + AI + storage*
 — which is exactly the kind of thing the big platforms bundle and we can offer
@@ -53,13 +53,13 @@ Legend: **✓** shipped · **○** to build · `(reuse: …)` existing infra it 
 
 ## Money & finance (21–30)
 21. **payments / wallet** ✓
-22. **markets** ✓
+22. **financial news** ○ (reuse: news)
 23. **budget / expenses** ○ (reuse: storage, AI)
 24. **bill split** ○ (reuse: storage)
 25. **invoices / billing** ○ (reuse: storage, mail)
 26. **subscriptions tracker** ○ (reuse: storage, mail)
 27. **receipts** ○ (reuse: storage; AI OCR)
-28. **crypto portfolio** ○ (reuse: markets, wallet)
+28. **crypto portfolio** ○ (reuse: wallet, storage)
 29. **price / deal tracker** ○ (reuse: web-fetch, scheduler)
 30. **accounts overview / net worth** ○ (reuse: storage; ext: bank sync, optional)
 
@@ -94,7 +94,7 @@ Legend: **✓** shipped · **○** to build · `(reuse: …)` existing infra it 
 54. **trips / itinerary** ○ (reuse: AI, calendar, storage)
 55. **package tracking** ○ (ext: carrier)
 56. **phrasebook** ○ (reuse: AI, translate)
-57. **currency & tips** ○ (reuse: markets)
+57. **currency & tips** ○ (reuse: web-fetch)
 58. **local recommendations** ○ (reuse: places, corpus, AI)
 
 ## Health & wellness (59–67)
@@ -133,7 +133,7 @@ Legend: **✓** shipped · **○** to build · `(reuse: …)` existing infra it 
 ## Utilities & tools (86–95)
 86. **notifications** ○ (reuse: event bus, scheduler)
 87. **calculator** ○ (reuse: AI)
-88. **unit converter** ○ (reuse: markets for currency)
+88. **unit converter** ○ (self-contained)
 89. **timers / alarms / stopwatch** ○ (reuse: scheduler)
 90. **world clock / time zones** ○ (self-contained)
 91. **QR / barcode** ○ (self-contained)
@@ -156,7 +156,7 @@ Legend: **✓** shipped · **○** to build · `(reuse: …)` existing infra it 
   "own your services" pitch. Do these before anything marked `(ext: …)`.
 - **Agent-composed by default.** Each service is a tool the agent can call, so
   value compounds: calendar + mail + contacts → scheduling; recipes + pantry +
-  shopping → meal planning; markets + wallet → crypto portfolio.
+  shopping → meal planning; wallet + storage → crypto portfolio.
 - **A shipped service is:** the go-micro service, a web surface, REST + MCP
   exposure, per-account data, and an agent tool — the same bar the current dozen
   already meet.

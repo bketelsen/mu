@@ -22,6 +22,8 @@ func TestShowHomeCard(t *testing.T) {
 			Account{HomeCards: []string{"blog", "images"}, HomeCardsSeen: []string{"blog", "news", "markets", "social", "video", "images", "mail", "web"}}, "images", true},
 		{"future card after a save defaults on",
 			Account{HomeCards: []string{"blog"}, HomeCardsSeen: []string{"blog", "news", "markets", "social", "video", "images", "mail", "web"}}, "audio", true},
+		{"stale markets id does not affect known cards",
+			Account{HomeCards: []string{"markets", "blog"}, HomeCardsSeen: []string{"blog", "news", "markets", "social", "video", "images", "mail", "web"}}, "blog", true},
 	}
 	for _, c := range cases {
 		if got := c.acc.ShowHomeCard(c.id); got != c.want {

@@ -127,7 +127,7 @@ func TestMCPHandler_ToolsList(t *testing.T) {
 		t.Error("Expected at least one tool")
 	}
 
-	// Verify expected tools exist. Note: blog_list, video, markets, social and
+	// Verify expected tools exist. Note: blog_list, video, social and
 	// weather_forecast are registered dynamically in main.go (AI-first handlers),
 	// so they are not part of this package's static tool list.
 	expectedTools := map[string]bool{
