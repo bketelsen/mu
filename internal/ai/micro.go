@@ -43,7 +43,24 @@ func resolveProvider(model string) (provider, apiKey, baseURL string, err error)
 		}
 		return "openai", localKey, localURL, nil
 	}
-	return "", "", "", fmt.Errorf("no AI provider configured — set ANTHROPIC_API_KEY, ATLAS_API_KEY or OPENAI_BASE_URL (Ollama)")
+	return "", "", "", fmt.Errorf("no AI provider configured — set COPILOT_GITHUB_TOKEN (run `mu setup`), ANTHROPIC_API_KEY, ATLAS_API_KEY or OPENAI_BASE_URL (Ollama)")
+}
+
+// ProviderStatus reports the provider and models the default configuration
+// resolves to, for boot logs and diagnostics. Surfacing this at startup makes
+// configuration-visibility problems (env var set in another shell, different
+// $HOME, empty settings.json) obvious from the first log lines instead of as
+// per-request errors minutes later.
+func ProviderStatus() string {
+	provider, _, baseURL, err := resolveProvider(DefaultModel())
+	if err != nil {
+		return "not configured (set COPILOT_GITHUB_TOKEN, ANTHROPIC_API_KEY, ATLAS_API_KEY or OPENAI_BASE_URL, or run `mu setup`)"
+	}
+	s := fmt.Sprintf("%s (chat=%s, background=%s", provider, DefaultModel(), BackgroundModel())
+	if baseURL != "" {
+		s += ", url=" + baseURL
+	}
+	return s + ")"
 }
 
 // generateViaMicro routes an LLM request through go-micro's ai package — the

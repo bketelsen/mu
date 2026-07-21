@@ -105,6 +105,11 @@ func main() {
 	// load settings first so other packages can use them
 	settings.Load()
 
+	// log the resolved AI provider up front so misconfiguration (missing
+	// token/key in this environment) is visible immediately, not as
+	// scattered per-request errors from background loops.
+	app.Log("ai", "AI provider: %s", ai.ProviderStatus())
+
 	// load the data index
 	data.Load()
 
