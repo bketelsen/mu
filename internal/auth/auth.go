@@ -387,7 +387,7 @@ func GetSession(r *http.Request) (*Session, error) {
 			}, nil
 		}
 
-		// Try as a session token returned by the MCP login tool.
+		// Try as an existing owner session token.
 		sess, err := ParseToken(token)
 		if err == nil {
 			mutex.Lock()

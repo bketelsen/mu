@@ -121,7 +121,7 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 		ip := app.ClientIP(r)
 		if !guestQueryAllowed(ip) {
 			w.WriteHeader(401)
-			app.RespondJSON(w, RunResponse{Error: "Sign up to keep using the AI agent. 3 free queries per day."})
+			app.RespondJSON(w, RunResponse{Error: "Owner login is required to use the AI agent. Run first-time setup if this is a new server."})
 			return
 		}
 		guestQueryRecord(ip)

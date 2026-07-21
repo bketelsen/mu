@@ -738,7 +738,7 @@ func init() {
 		Name:        "MCP Server",
 		Path:        "/mcp",
 		Method:      "POST",
-		Description: "Owner-authenticated Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, markets, and login. Metered tools use the owner's wallet credits. x402 is available only for owner-initiated outbound calls to remote services.",
+		Description: "Owner-authenticated Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, and markets. Metered tools use the owner's wallet credits. x402 is available only for owner-initiated outbound calls to remote services.",
 		Params: []*Param{
 			{
 				Name:        "jsonrpc",
@@ -817,7 +817,7 @@ func Markdown() string {
 	data += "     https://example.com/api/endpoint\n"
 	data += "```\n\n"
 	data += "### Creating a PAT Token\n\n"
-	data += "1. Log in to your account via the web interface\n"
+	data += "1. Log in as the server owner via the web interface\n"
 	data += "2. Navigate to `/token` endpoint\n"
 	data += "3. Create a new token with desired permissions\n"
 	data += "4. **Save the token immediately** - it's only shown once!\n\n"
@@ -827,9 +827,7 @@ func Markdown() string {
 	data += "### Authentication\n\n"
 	data += "Include a token in the `Authorization` header:\n\n"
 	data += "```\nAuthorization: Bearer YOUR_TOKEN\n```\n\n"
-	data += "Two ways to obtain a token:\n\n"
-	data += "1. **Personal Access Token (PAT)** — create one at `/token` after logging in.\n"
-	data += "2. **Login tool** — the owner can call the `login` MCP tool to obtain a session token programmatically.\n\n"
+	data += "Create a **Personal Access Token (PAT)** at `/token` after owner login.\n\n"
 	data += "---\n\n"
 	data += "## Endpoints\n\n"
 

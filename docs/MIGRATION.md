@@ -36,19 +36,17 @@ when go-micro is missing something, fix it upstream (we own it).
    `service.Call(context.Background(), "pkg", "Server.M", &Req{...}, &rsp)`.
 4. Add a `pkg/service_test.go` round-trip test.
 
-## Status: core migration COMPLETE and LIVE on micro.mu
+## Status: core migration complete
 
-go-micro v6 is the core of mu in production (verified via `curl micro.mu/version`
-→ `agent:native`, `mcp:go-micro/gateway`, `go_micro:v6.3.8`, 11 services; auto-
-deploys on every merge to `main`). The native agent's answer quality is now
-**validated on live traffic** (weather, market prices, news — exact tool values
-quoted). What remains is gated on two upstream go-micro features, both filed and
+go-micro v6 is the core of Mu's private runtime. The native agent's answer
+quality is covered by local service and integration tests. What remains is gated
+on two upstream go-micro features, both filed and
 queued (the "longer-term features → roadmap, architect plans it out" path):
 (a) retiring the hand-rolled **streaming** planner needs streaming-`Ask`-with-
 tool-events (micro/go-micro#3341); (b) the `/a2a` cutover needs multi-skill
 agent cards (micro/go-micro#3342 — task lifecycle already shipped upstream).
 `agent/micro` stays load-bearing until both land. The dogfood loop shipped
-**8 go-micro releases (v6.3.1–v6.3.8)**, all consumed live.
+**8 go-micro releases (v6.3.1–v6.3.8)**.
 
 ## Done
 
@@ -104,8 +102,8 @@ or improve test coverage; never break `main`.
      (web_fetch) and `apps.Server.Search`/`apps.Server.Read` (apps_search/read).
      The search and apps services are in nativeServices, so the agent
      auto-discovers these methods.
-   - ✅ Validated on live traffic (micro.mu): the native agent answers weather,
-     market prices, and news correctly end to end (exact tool values quoted).
+    - ✅ Covered by service and integration tests for weather, market prices,
+      and news.
    - **Planner retirement is gated on one upstream go-micro feature.** Two
      consumers of the hand-rolled planner remain:
      - The **non-streaming** `agent.Query` already runs native (planner is only

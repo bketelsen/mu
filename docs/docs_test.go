@@ -9,6 +9,9 @@ import (
 var forbiddenSingleOwnerCopy = []string{
 	"sign up", "signup tool", "invite-only", "transfer credits to other users",
 	"auto-created accounts", "activitypub federation", "pay per request without an account",
+	"micro.mu", "pay per-request", "first 10 calls", "public event feed",
+	"without an account", "no account needed", "no login to call",
+	"pay per call with x402", "x-payment header instead of authenticating",
 }
 
 func TestDocument_Structure(t *testing.T) {
