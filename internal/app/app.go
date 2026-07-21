@@ -778,12 +778,12 @@ func renderEmailCard(acc *auth.Account) string {
 
 	pending := ""
 	if acc.Email != "" {
-		pending = fmt.Sprintf(`<p class="text-muted text-sm">A verification link was sent to <strong>%s</strong>. Click it to unlock posting. Submit again to resend.</p>`, htmlpkg.EscapeString(acc.Email))
+		pending = fmt.Sprintf(`<p class="text-muted text-sm">A verification link was sent to <strong>%s</strong>. Click it to confirm your address. Submit again to resend.</p>`, htmlpkg.EscapeString(acc.Email))
 	}
 
 	return fmt.Sprintf(`<div class="card">
-<h4>Verify your email to post</h4>
-<p class="text-sm">Verifying your email unlocks status updates, replies, comments and blog posts. We do not share or sell your address.</p>
+<h4>Email</h4>
+<p class="text-sm">Add and confirm your email address. We do not share or sell your address.</p>
 %s
 <form action="/account" method="POST" class="d-flex items-center gap-3" style="margin-top:8px">
 	<input type="email" name="email" placeholder="you@example.com" value="%s" required>
@@ -817,8 +817,8 @@ func handleVerifyStart(w http.ResponseWriter, r *http.Request, acc *auth.Account
 	}
 
 	link := PublicURL() + "/verify?token=" + tok
-	plain := fmt.Sprintf("Hi %s,\n\nClick the link below to verify your email and unlock posting on Mu:\n\n%s\n\nThis link expires in 24 hours. If you didn't request this, you can ignore this email.\n\n— Mu", acc.Name, link)
-	html := fmt.Sprintf(`<p>Hi %s,</p><p>Click the link below to verify your email and unlock posting on Mu:</p><p><a href="%s">%s</a></p><p>This link expires in 24 hours. If you didn't request this, you can ignore this email.</p><p>— Mu</p>`, htmlpkg.EscapeString(acc.Name), link, link)
+	plain := fmt.Sprintf("Hi %s,\n\nClick the link below to verify your email address on Mu:\n\n%s\n\nThis link expires in 24 hours. If you didn't request this, you can ignore this email.\n\n— Mu", acc.Name, link)
+	html := fmt.Sprintf(`<p>Hi %s,</p><p>Click the link below to verify your email address on Mu:</p><p><a href="%s">%s</a></p><p>This link expires in 24 hours. If you didn't request this, you can ignore this email.</p><p>— Mu</p>`, htmlpkg.EscapeString(acc.Name), link, link)
 
 	if err := EmailSender(email, "Verify your Mu account", plain, html); err != nil {
 		Log("auth", "Failed to send verification email to %s: %v", email, err)
@@ -1030,41 +1030,12 @@ func RenderHTML(title, desc, html string) string {
 }
 
 // RenderHTMLForRequest renders the given html in a template using the
-// user's language preference. Prepends the verify-to-post banner if the
-// authenticated user has an unverified account on a verification-gated
-// instance.
+// user's language preference.
 func RenderHTMLForRequest(title, desc, html string, r *http.Request) string {
 	lang := GetUserLanguage(r)
-	if banner := VerifyBanner(r); banner != "" {
-		html = banner + html
-	}
 	_, acc := auth.TrySession(r)
 	out := RenderHTMLWithLangAndAuth(title, desc, html, lang, acc)
 	return out
-}
-
-// VerifyBanner returns banner HTML inviting the user to verify their
-// email address, or an empty string if the banner doesn't apply (no
-// session, admin, already verified, or verification not required on
-// this instance).
-func VerifyBanner(r *http.Request) string {
-	if EmailSender == nil {
-		return ""
-	}
-	_, acc := auth.TrySession(r)
-	if acc == nil || acc.Admin || acc.Approved || acc.EmailVerified {
-		return ""
-	}
-	// Don't show the banner on the account page itself — the verify
-	// form is right there.
-	if r.URL.Path == "/account" || r.URL.Path == "/verify" {
-		return ""
-	}
-	return `<div class="verify-banner" style="background:#fff8e1;border:1px solid #f1d68c;border-radius:6px;padding:10px 14px;margin:0 0 14px;font-size:14px;color:#5b4a00;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-<strong>Verify your email to post.</strong>
-<span>Add and confirm an email on your account to unlock status updates, replies, comments and posts.</span>
-<a href="/account" style="margin-left:auto;background:#000;color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px">Verify →</a>
-</div>`
 }
 
 func navAuthHTML(acc *auth.Account) string {

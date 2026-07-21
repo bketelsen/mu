@@ -1,13 +1,59 @@
 package app
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"mu/internal/auth"
 )
+
+func TestRenderHTMLForRequestOmitsPostingGate(t *testing.T) {
+	owner, err := auth.Owner()
+	if errors.Is(err, auth.ErrNoOwner) {
+		if err := auth.Create(&auth.Account{ID: "owner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		owner, err = auth.Owner()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldAdmin, oldApproved, oldVerified := owner.Admin, owner.Approved, owner.EmailVerified
+	owner.Admin, owner.Approved, owner.EmailVerified = false, false, false
+	if err := auth.UpdateAccount(owner); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		owner.Admin, owner.Approved, owner.EmailVerified = oldAdmin, oldApproved, oldVerified
+		_ = auth.UpdateAccount(owner)
+	})
+
+	sess, err := auth.CreateSession(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/home", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: sess.Token})
+
+	oldEmailSender := EmailSender
+	EmailSender = func(string, string, string, string) error { return nil }
+	t.Cleanup(func() { EmailSender = oldEmailSender })
+
+	out := RenderHTMLForRequest("Test", "Test", "<p>content</p>", req)
+	for _, text := range []string{
+		"Verify your email to post.",
+		"unlock status updates, replies, comments and posts",
+	} {
+		if strings.Contains(out, text) {
+			t.Errorf("rendered owner page contains obsolete posting gate text %q", text)
+		}
+	}
+}
 
 func TestWantsJSON(t *testing.T) {
 	tests := []struct {

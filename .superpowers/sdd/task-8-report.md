@@ -156,3 +156,49 @@ Passed for every package; packages without tests reported [no test files].
 - Repository-wide callable-symbol scan finds the removed transfer names only in the wallet regression test's forbidden-symbol list; the retained auth API and unrelated mail enumeration are outside wallet handlers.
 - Repository-wide `/wallet/transfer` scan finds references only in the regression test, which verifies both GET and POST return 404 and the wallet page has no transfer link.
 - `git diff --check` completed without whitespace errors.
+
+## Task 8A Verification UI Fix
+
+### Status
+
+Completed.
+
+### Implementation
+
+- Deleted `VerifyBanner` and its injection from `RenderHTMLForRequest`.
+- Changed owner-facing email verification card, pending-link, and verification-email copy to describe confirming an email address without presenting it as a requirement to post.
+- Retained the account email form, verification token creation and consumption, and Google link/sign-in code unchanged.
+
+### TDD Evidence
+
+- RED:
+
+  ```text
+  go test ./internal/app -run TestRenderHTMLForRequestOmitsPostingGate -count=1
+  ```
+
+  Failed as expected because the rendered unverified owner page contained `Verify your email to post.` and `unlock status updates, replies, comments and posts`.
+
+- GREEN:
+
+  ```text
+  gofmt -w internal/app/app.go internal/app/app_test.go && go test ./internal/app -run TestRenderHTMLForRequestOmitsPostingGate -count=1
+  ok   mu/internal/app  0.044s
+  ```
+
+### Test Evidence
+
+```text
+go test ./internal/app -count=1
+ok   mu/internal/app  0.087s
+
+go test ./... -short
+Passed for every package; packages without tests reported [no test files].
+```
+
+### Review Evidence
+
+- Owner rendering regression test covers an unverified, non-admin, non-approved owner with email sending configured and asserts both obsolete banner strings are absent.
+- `VerifyBanner`, `verify-banner`, and the obsolete posting-gate phrases occur only in that regression test's forbidden-text list within `internal/app`.
+- Account email verification and Google linking/authentication entry points remain present.
+- `git diff --check` completed without whitespace errors.
