@@ -623,7 +623,7 @@ func renderPlacesPage(r *http.Request) string {
 
 	authNote := ""
 	if !isLoggedIn {
-		authNote = `<p class="text-muted">Search requires the owner account. <a href="/login">Login</a> or run <a href="/setup">first-time setup</a>.</p>`
+		authNote = `<p class="text-muted">Search requires owner login. <a href="/login">Log in</a>.</p>`
 	}
 
 	savedHTML := ""

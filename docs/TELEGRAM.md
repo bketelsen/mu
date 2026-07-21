@@ -1,76 +1,20 @@
 # Telegram
 
-Mu includes a Telegram bot that gives you access to the AI agent directly from chat. Ask questions, check markets, get news — all from Telegram.
+Mu's Telegram bot is a private owner channel. It accepts only direct messages
+from the Telegram identity linked to the owner. Groups are not a Mu interface,
+and the bot does not create accounts.
 
-## Setup (Self-hosting)
+## Setup
 
-1. Message [@BotFather](https://t.me/BotFather) on Telegram
-2. Send `/newbot`, follow the prompts, copy the token
-3. Set the token in Mu: go to `/admin/env` and paste it under **Telegram → TELEGRAM_BOT_TOKEN**
+1. Create a bot with [@BotFather](https://t.me/BotFather).
+2. Set `TELEGRAM_BOT_TOKEN` in `/admin/env` or the server environment.
+3. Link the owner to the bot in a direct message using Mu's account link flow.
 
-The bot connects automatically within 30 seconds. No webhook, no exposed ports — it uses long polling.
+Mu uses Telegram long polling and needs no inbound webhook.
 
-## Using the Bot
+## Use and privacy
 
-### First time
-
-DM the bot or use a command in a group. If you don't have a Mu account, one is created automatically from your Telegram username.
-
-### Linking an existing account
-
-DM the bot:
-```
-link myusername mypassword
-```
-Only works in DMs for security.
-
-### Direct messages
-
-Just send any message to the bot:
-- "What's the BTC price?"
-- "Read my email"
-- "Today's news"
-
-### Groups
-
-In groups, use commands or @mention the bot:
-- `/ask what's happening in crypto?`
-- `/news`
-- `/markets`
-- `/weather London`
-- `@yourbotname summarise today's news`
-
-The bot has privacy mode — it only sees commands and @mentions in groups, not every message.
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `/ask <question>` | Ask the AI agent anything |
-| `/news` | Latest news headlines |
-| `/markets` | Live crypto market prices |
-| `/weather <location>` | Weather forecast |
-| `/usage` | Your query usage stats |
-
-Commands are registered with Telegram and appear in the `/` menu.
-
-### Unlinking
-
-DM the bot `unlink` to disconnect your Telegram from your Mu account.
-
-## Notifications
-
-The bot DMs you when:
-- You receive a **new email** (with AI-generated summary)
-- A **trading strategy signal** triggers
-
-## Privacy
-
-- **Direct messages** have full access to your data (mail, wallet)
-- **Group messages** are public — no private data is included in responses
-- **Credentials** (`link` command) only work in DMs, never in groups
-- **Auto-created accounts** get a random password — you authenticate via Telegram
-
-## How it works
-
-The bot uses Telegram's long polling API — no webhook needed. It dials out to Telegram's servers, so it works behind NAT and firewalls with no port forwarding. The bot reconnects automatically if the connection drops.
+Send the linked bot a direct message or a supported command such as `/ask`,
+`/news`, `/markets`, `/weather`, or `/usage`. Each request runs as the owner.
+Unlinking removes the association. Do not send owner credentials or link codes
+outside a private direct message.

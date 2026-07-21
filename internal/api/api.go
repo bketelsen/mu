@@ -738,7 +738,7 @@ func init() {
 		Name:        "MCP Server",
 		Path:        "/mcp",
 		Method:      "POST",
-		Description: "Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, markets, and login. Metered tools (chat: 5 credits, news_search: 1 credit, video_search: 2 credits, mail_send: 4 credits, weather_forecast: 1 credit + optional 1 credit for pollen data) use the same wallet credit system as the REST API. Pay per call via x402 or top up your account to pay with credits.",
+		Description: "Owner-authenticated Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, markets, and login. Metered tools use the owner's wallet credits. x402 is available only for owner-initiated outbound calls to remote services.",
 		Params: []*Param{
 			{
 				Name:        "jsonrpc",

@@ -1354,9 +1354,9 @@ func handleGetChat(w http.ResponseWriter, r *http.Request, roomID string) {
 
 func guestChatAuthNotice() string {
 	return `<div id="chat-auth-notice" class="notice">
-  <strong>Sign in to use saved chat.</strong>
-  <p>This room keeps conversation history for your account, so sending here needs a login. You can still try Mu without an account in the public agent.</p>
-   <p><a class="link" href="/agent">Try Mu without an account</a> · <a class="link" href="/login?redirect=/chat">Log in</a> · <a class="link" href="/setup">First-time setup</a></p>
+  <strong>Sign in to use your chat.</strong>
+  <p>Chat is private to the server owner.</p>
+  <p><a class="link" href="/login?redirect=/chat">Log in</a></p>
 </div>`
 }
 

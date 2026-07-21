@@ -299,15 +299,15 @@ func handleWalletPage(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(html))
 }
 
-// PublicWalletPage renders the wallet page for unauthenticated users
+// PublicWalletPage renders the owner login prompt for unauthenticated requests.
 func PublicWalletPage() string {
 	var sb strings.Builder
 
 	// Intro
 	sb.WriteString(`<div class="card">`)
-	sb.WriteString(`<h3>Credits &amp; Pricing</h3>`)
-	sb.WriteString(`<p>Browsing is included. AI and search features use credits. Top up and pay as you go — no subscription required.</p>`)
-	sb.WriteString(`<p><a href="/login" class="btn">Login to view your balance</a>&nbsp;<a href="/setup" class="btn btn-secondary">First-time setup</a></p>`)
+	sb.WriteString(`<h3>Owner credits</h3>`)
+	sb.WriteString(`<p>Credits and wallet history are private to the server owner.</p>`)
+	sb.WriteString(`<p><a href="/login" class="btn">Owner login</a></p>`)
 	sb.WriteString(`</div>`)
 
 	// Credit costs
@@ -334,20 +334,20 @@ func PublicWalletPage() string {
 	// Topup options
 	sb.WriteString(`<div class="card">`)
 	sb.WriteString(`<h3>Top Up</h3>`)
-	sb.WriteString(`<p>Add credits to your account via card:</p>`)
+	sb.WriteString(`<p>Add credits to the owner wallet via card:</p>`)
 	sb.WriteString(`<ul>`)
 	if StripeEnabled() {
 		sb.WriteString(`<li><strong>Card</strong> — secure payment via Stripe</li>`)
 	}
 	sb.WriteString(`</ul>`)
-	sb.WriteString(`<p><a href="/login">Login</a> or run <a href="/setup">first-time setup</a> to top up.</p>`)
+	sb.WriteString(`<p><a href="/login">Log in</a> to top up.</p>`)
 	sb.WriteString(`</div>`)
 
 	// Crypto payments note
 	if X402Enabled() {
 		sb.WriteString(`<div class="card">`)
 		sb.WriteString(`<h3>Crypto (x402)</h3>`)
-		sb.WriteString(`<p>AI agents and developers can pay per-request with stablecoins via the <a href="https://x402.org">x402 protocol</a>. No account needed.</p>`)
+		sb.WriteString(`<p>The owner agent can make outbound stablecoin payments to remote services via the <a href="https://x402.org">x402 protocol</a>.</p>`)
 		sb.WriteString(`<p>Accepted tokens: <strong>USDC</strong>, <strong>EURC</strong> on Base</p>`)
 		sb.WriteString(`<p>See the <a href="/docs/wallet-and-credits">Wallet docs</a> or <a href="/docs/mcp">MCP docs</a> for details.</p>`)
 		sb.WriteString(`</div>`)

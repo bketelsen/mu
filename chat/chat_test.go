@@ -55,18 +55,17 @@ func TestHandlePatternMatchIgnoresUnsupportedPrompts(t *testing.T) {
 	}
 }
 
-func TestGuestChatAuthNoticeExplainsLoginAndAgentFallback(t *testing.T) {
+func TestGuestChatAuthNoticeOffersOwnerLoginOnly(t *testing.T) {
 	html := guestChatAuthNotice()
 
-	for _, want := range []string{
-		"Sign in to use saved chat.",
-		"/agent",
-		"Try Mu without an account",
-		"/login?redirect=/chat",
-		"/setup",
-	} {
+	for _, want := range []string{"Sign in to use your chat.", "/login?redirect=/chat"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("guest chat auth notice missing %q in %s", want, html)
+		}
+	}
+	for _, forbidden := range []string{"/agent", "/setup", "without an account"} {
+		if strings.Contains(html, forbidden) {
+			t.Fatalf("guest chat auth notice contains %q in %s", forbidden, html)
 		}
 	}
 }

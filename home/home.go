@@ -440,7 +440,7 @@ function fetchW(la,lo){
 	// ── Cards ──
 	b.WriteString(`<div id="home-cards">`)
 
-	// Date + invite/settings above the input
+	// Date and owner settings above the input.
 	b.WriteString(dateHTML)
 
 	// Inline agent — Home answers here rather than navigating away, and it renders

@@ -1,8 +1,15 @@
 package docs
 
 import (
+	"io/fs"
+	"strings"
 	"testing"
 )
+
+var forbiddenSingleOwnerCopy = []string{
+	"sign up", "signup tool", "invite-only", "transfer credits to other users",
+	"auto-created accounts", "activitypub federation", "pay per request without an account",
+}
 
 func TestDocument_Structure(t *testing.T) {
 	doc := Document{
@@ -82,5 +89,31 @@ func TestCatalog_HasCategories(t *testing.T) {
 		if !categories[cat] {
 			t.Errorf("expected category %q in catalog", cat)
 		}
+	}
+}
+
+func TestEmbeddedDocumentsDescribeSingleOwnerRuntime(t *testing.T) {
+	err := fs.WalkDir(docsFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".md") || strings.HasPrefix(path, "superpowers/") {
+			return nil
+		}
+
+		content, err := docsFS.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		lower := strings.ToLower(string(content))
+		for _, forbidden := range forbiddenSingleOwnerCopy {
+			if strings.Contains(lower, forbidden) {
+				t.Errorf("%s contains stale product claim %q", path, forbidden)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

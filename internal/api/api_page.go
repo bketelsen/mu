@@ -18,7 +18,7 @@ func APIPageHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<div class="card">`)
 	b.WriteString(`<h2>API</h2>`)
 	b.WriteString(`<p class="card-desc">The same services as the <a href="/mcp">MCP server</a>, over plain HTTP. Every tool is callable via <code>POST /mcp</code>; some also have a dedicated REST path. Metered tools show their per-call price below.</p>`)
-	b.WriteString(`<p>Authentication: <code>Authorization: Bearer YOUR_TOKEN</code> &mdash; <a href="/token">Get a token</a>, or pay per call with x402.</p>`)
+	b.WriteString(`<p>Authentication: <code>Authorization: Bearer YOUR_TOKEN</code> &mdash; <a href="/token">create an owner PAT</a>. x402 is used only for owner-initiated outbound calls.</p>`)
 	b.WriteString(`</div>`)
 
 	// Playground

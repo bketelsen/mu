@@ -8,9 +8,9 @@ A personal home server. News, mail, search, weather, markets, video — the ever
 - **Services** — each domain (news, markets, mail, weather, blog, social, video, search, places) is a package under the top level
 - **Agents** — `agent/micro/` contains specialised micro-agents per domain, routed by keyword + LLM
 - **Channels** — Discord (`client/discord/`), Telegram (`client/telegram/`), WhatsApp (`client/whatsapp/`)
-- **Protocols** — MCP server at `/mcp`, A2A at `/a2a`, x402 crypto payments
+- **Protocols** — owner-authenticated MCP server at `/mcp`, A2A at `/a2a`, outbound x402 payments
 - **AI** — `internal/ai/` supports Anthropic Claude, Atlas Cloud (DeepSeek), and local models (Ollama)
-- **Config** — `internal/settings/` for live-reloadable settings, admin UI at `/admin/env`
+- **Config** — `internal/settings/` for live-reloadable settings, owner admin UI at `/admin/env`
 
 ## Key Packages
 
@@ -25,8 +25,8 @@ A personal home server. News, mail, search, weather, markets, video — the ever
 | `internal/ai/` | LLM abstraction — Anthropic, Atlas Cloud, local models |
 | `internal/api/` | MCP server, tool registry |
 | `internal/app/` | Web UI framework, templates, middleware |
-| `internal/auth/` | Account system, sessions, passkeys |
-| `internal/memory/` | Per-user persistent memory with scoped namespaces |
+| `internal/auth/` | Single-owner setup, sessions, passkeys, and PATs |
+| `internal/memory/` | Owner persistent memory with scoped namespaces |
 | `internal/settings/` | Live-reloadable configuration |
 | `home/` | Landing page, assistant, home dashboard, summary |
 | `client/discord/` | Discord bot with slash commands, embeds, briefings |
@@ -50,5 +50,6 @@ go vet ./...            # vet
 - Settings via `internal/settings/` — reads env vars first, falls back to stored values
 - Background loops use goroutines started in `Load()` or `main.go`
 - Agent tools registered in `internal/api/mcp.go` (static) and `main.go` (dynamic with handlers)
-- All client integrations follow the same pattern: auto-create accounts, conversation history, public/private mode
+- First-run setup creates the only owner. Client integrations resolve only linked-owner direct messages and must never provision accounts.
+- Every web, API, CLI, MCP, and A2A surface is owner-authenticated after setup. Incoming x402 payment never bypasses authentication; x402 is outbound owner spending only.
 - The main branch is `main`
