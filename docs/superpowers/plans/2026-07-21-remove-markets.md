@@ -590,7 +590,7 @@ Run:
 test ! -d markets
 test ! -e internal/app/html/markets.svg
 test ! -e internal/app/html/markets.png
-rg -n '"mu/markets"|markets\.|markets_list|/markets\b|mu\.markets|market_[A-Za-z<]|Markets Agent|MarketsHTML|TopMovers|GetAllPriceData' . --glob '!docs/superpowers/specs/2026-07-21-remove-markets-design.md' --glob '!docs/superpowers/plans/2026-07-21-remove-markets.md'
+rg -n '"mu/markets"|markets\.|markets_list|/markets\b|mu\.markets|market_[A-Za-z<]|Markets Agent|MarketsHTML|TopMovers|GetAllPriceData' . --glob '!docs/superpowers/specs/2026-07-21-remove-markets-design.md' --glob '!docs/superpowers/plans/2026-07-21-remove-markets.md' --glob '!**/*_test.go'
 rg -n 'piquette/finance-go|psanford/finance-go' go.mod go.sum
 ```
 

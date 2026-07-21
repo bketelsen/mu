@@ -2,11 +2,10 @@ package api
 
 import "testing"
 
-func TestEndpointsIncludeNews(t *testing.T) {
+func TestEndpointsExcludeMarkets(t *testing.T) {
 	for _, endpoint := range Endpoints {
-		if endpoint.Path == "/news" {
-			return
+		if endpoint.Path == "/markets" || endpoint.Name == "Markets" {
+			t.Fatalf("removed Markets endpoint is still advertised: %#v", endpoint)
 		}
 	}
-	t.Fatal("news endpoint is not advertised")
 }

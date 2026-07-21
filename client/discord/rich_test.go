@@ -2,11 +2,10 @@ package discord
 
 import "testing"
 
-func TestSlashCommandsIncludeNews(t *testing.T) {
+func TestSlashCommandsExcludeMarkets(t *testing.T) {
 	for _, command := range slashCommands {
-		if command.Name == "news" {
-			return
+		if command.Name == "markets" {
+			t.Fatalf("removed /markets command remains registered: %#v", command)
 		}
 	}
-	t.Fatal("news command is not registered")
 }
