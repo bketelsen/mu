@@ -364,21 +364,17 @@ func updateCacheUnlocked() {
 		return ti.After(tj)
 	})
 
-	// Generate preview for home page (latest 1 post, exclude flagged and new accounts)
+	// Generate preview for home page (latest public, unflagged post).
 	var preview []string
 	count := 0
 	for i := 0; i < len(posts) && count < 1; i++ {
 		post := posts[i]
 		// Skip flagged posts
-		if flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
+		if flag.IsHidden("post", post.ID) {
 			continue
 		}
 		// Skip private posts (home page shows only public posts)
 		if post.Private {
-			continue
-		}
-		// Skip posts from new accounts (< 24 hours old)
-		if post.AuthorID != "" && auth.IsNewAccount(post.AuthorID) {
 			continue
 		}
 		count++
@@ -475,7 +471,7 @@ func updateCacheUnlocked() {
 	var fullList []string
 	for _, post := range posts {
 		// Skip flagged posts
-		if flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
+		if flag.IsHidden("post", post.ID) {
 			continue
 		}
 
@@ -485,9 +481,6 @@ func updateCacheUnlocked() {
 		}
 
 		// Skip posts from new accounts (< 24 hours old)
-		if post.AuthorID != "" && auth.IsNewAccount(post.AuthorID) {
-			continue
-		}
 
 		title := post.Title
 		if title == "" {
@@ -605,13 +598,10 @@ func previewUncached() string {
 	for i := 0; i < len(posts) && count < 1; i++ {
 		post := posts[i]
 		// Skip flagged posts
-		if flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
+		if flag.IsHidden("post", post.ID) {
 			continue
 		}
 		// Skip posts from new accounts (< 24 hours old)
-		if post.AuthorID != "" && auth.IsNewAccount(post.AuthorID) {
-			continue
-		}
 		count++
 
 		content := post.Content
@@ -748,7 +738,7 @@ func handleGetBlog(w http.ResponseWriter, r *http.Request) {
 		// Filter out flagged posts and private posts (unless admin)
 		var visiblePosts []*Post
 		for _, post := range posts {
-			if !flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
+			if !flag.IsHidden("post", post.ID) {
 				// Skip private posts for non-admins
 				if post.Private && !isAdmin {
 					continue

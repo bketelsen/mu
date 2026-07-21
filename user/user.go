@@ -11,39 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"mu/internal/app"
 	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/flag"
 )
-
-// UserPost is a simplified post representation for profile rendering.
-// Wired from blog building block via GetUserPosts callback.
-type UserPost struct {
-	ID        string
-	Title     string
-	Content   string
-	CreatedAt time.Time
-	Private   bool
-}
-
-// GetUserPosts returns posts by author name. Wired from main.go.
-var GetUserPosts func(authorName string) []UserPost
-
-// UserApp is a simplified app representation for profile rendering.
-type UserApp struct {
-	Slug        string
-	Name        string
-	Description string
-	Icon        string
-}
-
-// GetUserApps returns public apps by author ID. Wired from main.go.
-var GetUserApps func(authorID string) []UserApp
-
-// LinkifyContent converts URLs in text to clickable links. Wired from main.go.
-var LinkifyContent func(text string) string
 
 var profileMutex sync.RWMutex
 var profiles = map[string]*Profile{}
@@ -65,140 +37,9 @@ type StatusHistory struct {
 // maxStatusHistory is the number of past statuses to keep per user.
 const maxStatusHistory = 100
 
-// Presence tracking
-var (
-	presenceClients      = make(map[*websocket.Conn]*PresenceClient)
-	presenceClientsMutex sync.RWMutex
-)
-
-var presenceUpgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
-// PresenceClient represents a connected user for presence tracking
-type PresenceClient struct {
-	Conn     *websocket.Conn
-	UserID   string
-	LastSeen time.Time
-}
-
-// PresenceMessage is sent to clients
-type PresenceMessage struct {
-	Type  string   `json:"type"`
-	Users []string `json:"users"`
-	Count int      `json:"count"`
-}
-
 func init() {
 	b, _ := data.LoadFile("profiles.json")
 	json.Unmarshal(b, &profiles)
-}
-
-// Load initializes presence broadcasting
-func Load() {
-	go presenceBroadcaster()
-}
-
-func presenceBroadcaster() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		broadcastPresence()
-	}
-}
-
-func broadcastPresence() {
-	users := auth.GetOnlineUsers()
-
-	msg := PresenceMessage{
-		Type:  "presence",
-		Users: users,
-		Count: len(users),
-	}
-
-	data, _ := json.Marshal(msg)
-
-	presenceClientsMutex.RLock()
-	for conn := range presenceClients {
-		err := conn.WriteMessage(websocket.TextMessage, data)
-		if err != nil {
-			conn.Close()
-		}
-	}
-	presenceClientsMutex.RUnlock()
-}
-
-// PresenceHandler handles WebSocket connections for presence
-func PresenceHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := presenceUpgrader.Upgrade(w, r, nil)
-	if err != nil {
-		app.Log("user", "WebSocket upgrade error: %v", err)
-		return
-	}
-
-	var userID string
-	sess, _ := auth.TrySession(r)
-	if sess != nil {
-		userID = sess.Account
-		auth.UpdatePresence(userID)
-	}
-
-	client := &PresenceClient{
-		Conn:     conn,
-		UserID:   userID,
-		LastSeen: time.Now(),
-	}
-
-	presenceClientsMutex.Lock()
-	presenceClients[conn] = client
-	presenceClientsMutex.Unlock()
-
-	if userID != "" {
-		app.Log("user", "Presence connected: %s (total: %d)", userID, len(presenceClients))
-	}
-
-	// Send current user list immediately
-	users := auth.GetOnlineUsers()
-	msg := PresenceMessage{
-		Type:  "presence",
-		Users: users,
-		Count: len(users),
-	}
-	msgData, _ := json.Marshal(msg)
-	conn.WriteMessage(websocket.TextMessage, msgData)
-
-	// Handle incoming messages (pings to keep presence alive)
-	go func() {
-		defer func() {
-			presenceClientsMutex.Lock()
-			delete(presenceClients, conn)
-			presenceClientsMutex.Unlock()
-			conn.Close()
-			if userID != "" {
-				app.Log("user", "Presence disconnected: %s", userID)
-			}
-		}()
-
-		for {
-			_, _, err := conn.ReadMessage()
-			if err != nil {
-				break
-			}
-			if userID != "" {
-				auth.UpdatePresence(userID)
-			}
-			presenceClientsMutex.Lock()
-			if c, ok := presenceClients[conn]; ok {
-				c.LastSeen = time.Now()
-			}
-			presenceClientsMutex.Unlock()
-		}
-	}()
 }
 
 // GetProfile retrieves a user's profile, creating a default one if it doesn't exist
@@ -340,11 +181,6 @@ func StatusStreamCapped(maxTotal, maxPerUser int, viewerID string) []StatusEntry
 	cutoff := time.Now().Add(-statusMaxAge)
 	var entries []StatusEntry
 	for _, p := range profiles {
-		// Banned users are invisible to everyone — except themselves,
-		// so they don't realise they've been muted.
-		if auth.IsBanned(p.UserID) && p.UserID != viewerID {
-			continue
-		}
 		name := p.UserID
 		if acc, err := auth.GetAccount(p.UserID); err == nil {
 			name = acc.Name
@@ -423,9 +259,6 @@ func StatusCountSince(since time.Time, viewerID string) int {
 	cutoff := time.Now().Add(-statusMaxAge)
 	count := 0
 	for _, p := range profiles {
-		if auth.IsBanned(p.UserID) && p.UserID != viewerID {
-			continue
-		}
 		if !p.UpdatedAt.IsZero() && !p.UpdatedAt.Before(cutoff) && p.UpdatedAt.After(since) {
 			count++
 		}
@@ -454,7 +287,7 @@ const MicroMention = "@micro"
 var AIReplyHook func(askerID, prompt string)
 
 // StatusHandler handles POST /user/status to update the current user's status.
-// Auth, CanPost, rate limit, and wallet charging are handled by the
+// Authentication, rate limiting, and wallet charging are handled by the
 // middleware in main.go — this handler only does the domain logic.
 func StatusHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -478,8 +311,7 @@ func StatusHandler(w http.ResponseWriter, r *http.Request) {
 		app.Log("status", "Status updated for %s: %q", sess.Account, status)
 	}
 
-	// Async content moderation — flags spam/test/harmful automatically
-	// and auto-bans the user if it's bad. Fire-and-forget.
+	// Async content moderation flags spam/test/harmful content. Fire-and-forget.
 	if status != "" {
 		go moderateStatus(sess.Account, status)
 	}
@@ -521,37 +353,18 @@ func PostSystemStatus(text string) error {
 	return UpdateStatus(app.SystemUserID, text)
 }
 
-// moderateStatus runs async content moderation on a status post. If the
-// LLM classifier flags it as spam, harmful, or a test, the content is
-// hidden via the flag system AND the user is auto-banned so all
-// their existing + future content becomes invisible to everyone else.
-// The user is never told they've been muted — from their perspective
-// everything looks normal.
+// moderateStatus runs async content moderation on a status post.
 func moderateStatus(accountID, text string) {
-	// Never moderate or ban admins.
-	if acc, err := auth.GetAccount(accountID); err == nil && acc.Admin {
-		return
-	}
 	flag.CheckContent("status", accountID, "", text)
-	item := flag.GetItem("status", accountID)
-	if item != nil && item.Flagged {
-		app.Log("moderation", "Auto-banning %s after status flagged", accountID)
-		auth.BanAccount(accountID)
-	}
 }
 
 // ModerateAIResponse checks an AI-generated response BEFORE it's posted
-// as a status. Returns true if the response is safe to post. If the
-// content is flagged, the requesting user is banned (admins are exempt).
+// as a status. Returns true if the response is safe to post.
 func ModerateAIResponse(askerID, response string) bool {
-	if acc, err := auth.GetAccount(askerID); err == nil && acc.Admin {
-		return true
-	}
 	flag.CheckContent("ai_response", askerID, "", response)
 	item := flag.GetItem("ai_response", askerID)
 	if item != nil && item.Flagged {
-		app.Log("moderation", "AI response flagged for %s — banning asker", askerID)
-		auth.BanAccount(askerID)
+		app.Log("moderation", "AI response flagged for %s", askerID)
 		return false
 	}
 	return true
@@ -618,204 +431,6 @@ func containsMention(text, mention string) bool {
 
 func isMentionBoundary(c byte) bool {
 	return !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-')
-}
-
-// Handler renders a user profile page at /@username
-func Handler(w http.ResponseWriter, r *http.Request) {
-	// Extract username from URL path (remove /@ prefix)
-	username := strings.TrimPrefix(r.URL.Path, "/@")
-	username = strings.TrimSuffix(username, "/")
-	username = strings.ToLower(username)
-
-	if username == "" {
-		http.Redirect(w, r, "/home", 302)
-		return
-	}
-
-	// Handle POST request for status update (legacy, profile page form).
-	// Auth, CanPost, rate limit, and wallet charge are handled by the
-	// middleware in main.go before this handler is called.
-	if r.Method == "POST" {
-		sess, _, err := auth.RequireSession(r)
-		if err != nil {
-			app.Unauthorized(w, r)
-			return
-		}
-		if sess.Account != username {
-			app.Forbidden(w, r, "")
-			return
-		}
-
-		status := strings.TrimSpace(r.FormValue("status"))
-		if len(status) > MaxStatusLength {
-			status = status[:MaxStatusLength]
-		}
-
-		UpdateStatus(sess.Account, status)
-
-		if status != "" {
-			go moderateStatus(sess.Account, status)
-			if sess.Account != app.SystemUserID && AIReplyHook != nil && containsMention(status, MicroMention) {
-				go AIReplyHook(sess.Account, status)
-			}
-		}
-
-		http.Redirect(w, r, "/@"+sess.Account, http.StatusSeeOther)
-		return
-	}
-
-	// Get the user account
-	acc, err := auth.GetAccount(username)
-	if err != nil {
-		http.Error(w, "User not found", 404)
-		return
-	}
-
-	// Get all posts by this user via callback (wired in main.go)
-	var userPosts string
-	var postCount int
-	if GetUserPosts != nil {
-		posts := GetUserPosts(acc.Name)
-
-		// Check if viewer is admin
-		_, viewerAcc := auth.TrySession(r)
-		isAdmin := viewerAcc != nil && viewerAcc.Admin
-
-		// Filter private posts for non-admins
-		var visiblePosts []UserPost
-		for _, post := range posts {
-			if !post.Private || isAdmin {
-				visiblePosts = append(visiblePosts, post)
-			}
-		}
-
-		postCount = len(visiblePosts)
-
-		for _, post := range visiblePosts {
-			title := post.Title
-			if title == "" {
-				title = "Untitled"
-			}
-
-			// Truncate content
-			content := post.Content
-			if len(content) > 300 {
-				lastSpace := 300
-				for i := 299; i >= 0 && i < len(content); i-- {
-					if content[i] == ' ' {
-						lastSpace = i
-						break
-					}
-				}
-				if lastSpace < len(content) {
-					content = content[:lastSpace] + "..."
-				}
-			}
-
-			// Linkify URLs and embed YouTube videos
-			linkedContent := content
-			if LinkifyContent != nil {
-				linkedContent = LinkifyContent(content)
-			}
-
-			userPosts += fmt.Sprintf(`<div class="post-item">
-<h3><a href="/blog/post?id=%s">%s</a></h3>
-<div class="mb-3">%s</div>
-<div class="info">%s · <a href="/blog/post?id=%s">Read more</a></div>
-</div>`, post.ID, title, linkedContent, app.TimeAgo(post.CreatedAt), post.ID)
-		}
-	}
-
-	if userPosts == "" {
-		userPosts = "<p class='info'>No blog posts yet.</p>"
-	}
-
-	// Get user profile
-	profile := GetProfile(acc.ID)
-
-	// Check if viewing own profile
-	sess, _ := auth.TrySession(r)
-	isOwnProfile := sess != nil && sess.Account == username
-
-	// Build status section
-	statusSection := ""
-	if profile.Status != "" {
-		statusSection = fmt.Sprintf(`<p class="info italic mt-3">"%s"</p>`, htmlpkg.EscapeString(profile.Status))
-	}
-	if len(profile.History) > 0 {
-		statusSection += `<details style="margin-top:8px;"><summary style="font-size:13px;color:#999;cursor:pointer;">Status history</summary><div style="margin-top:6px;">`
-		for _, h := range profile.History {
-			statusSection += fmt.Sprintf(`<p style="font-size:13px;color:#888;margin:4px 0;font-style:italic;">"%s" <span style="color:#bbb;">— %s</span></p>`,
-				htmlpkg.EscapeString(h.Status), app.TimeAgo(h.SetAt))
-		}
-		statusSection += `</div></details>`
-	}
-
-	// Build status edit form (only for own profile)
-	statusEditForm := ""
-	if isOwnProfile {
-		statusEditForm = fmt.Sprintf(`
-<form method="POST" class="mt-4">
-<input type="text" name="status" placeholder="Set your status..." value="%s" maxlength="%d" class="form-input w-full">
-<button type="submit" class="mt-2">Update Status</button>
-</form>`, htmlpkg.EscapeString(profile.Status), MaxStatusLength)
-	}
-
-	// Build message link (only show if not own profile)
-	messageLink := ""
-	if !isOwnProfile {
-		messageLink = fmt.Sprintf(`<p class="mt-4"><a href="/mail?compose=true&to=%s">Send a message</a></p>`, acc.ID)
-	}
-
-	// Apps section
-	appsSection := ""
-	if GetUserApps != nil {
-		userApps := GetUserApps(acc.ID)
-		if len(userApps) > 0 {
-			var appsSB strings.Builder
-			appsSB.WriteString(fmt.Sprintf(`<h3 class="mb-5">Apps (%d)</h3>`, len(userApps)))
-			for _, a := range userApps {
-				icon := a.Icon
-				if icon == "" {
-					icon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>`
-				}
-				desc := a.Description
-				if len(desc) > 80 {
-					desc = desc[:80] + "..."
-				}
-				appsSB.WriteString(fmt.Sprintf(`<div class="post-item"><h3><a href="/apps/%s/run" style="display:flex;align-items:center;gap:8px"><span class="profile-app-icon">%s</span> %s</a></h3><p class="info">%s</p></div>`, a.Slug, icon, a.Name, desc))
-			}
-			appsSection = appsSB.String()
-		}
-	}
-
-	// Verified badge — green tick for accounts with a verified email,
-	// admins, or admin-approved accounts. Skipped on instances without
-	// email verification configured.
-	verifiedBadge := ""
-	if acc.Admin || acc.Approved || acc.EmailVerified {
-		verifiedBadge = ` <span title="Verified" aria-label="Verified" style="display:inline-block;vertical-align:middle;width:16px;height:16px;background:#22c55e;color:#fff;border-radius:50%;text-align:center;line-height:16px;font-size:11px;font-weight:700">✓</span>`
-	}
-
-	// Build the profile page content
-	content := fmt.Sprintf(`<div class="max-w-xl">
-<div class="mb-6" style="padding-bottom: 20px; border-bottom: 2px solid #333;">
-<p class="info m-0">@%s%s</p>
-<p class="info mt-3">Joined %s</p>
-%s
-%s
-%s
-</div>
-
-%s
-
-<h3 class="mb-5">Posts (%d)</h3>
-%s
-</div>`, acc.ID, verifiedBadge, acc.Created.Format("January 2006"), statusSection, statusEditForm, messageLink, appsSection, postCount, userPosts)
-
-	// Use name as page title
-	html := app.RenderHTML(acc.Name, fmt.Sprintf("Profile of %s", acc.Name), content)
-	w.Write([]byte(html))
 }
 
 // avatarColors are the palette used for status card avatars.
@@ -888,11 +503,10 @@ func RenderStatusStream(viewerID string) string {
 			entryClass += " home-status-system"
 		}
 		sb.WriteString(fmt.Sprintf(
-			`<div class="%s"><div class="home-status-avatar" style="background:%s">%s</div><div class="home-status-body"><div class="home-status-header"><a href="/@%s" class="home-status-name">%s</a><span class="home-status-time">%s</span></div><div class="home-status-text">%s</div></div></div>`,
+			`<div class="%s"><div class="home-status-avatar" style="background:%s">%s</div><div class="home-status-body"><div class="home-status-header"><span class="home-status-name">%s</span><span class="home-status-time">%s</span></div><div class="home-status-text">%s</div></div></div>`,
 			entryClass,
 			color,
 			htmlpkg.EscapeString(initial),
-			htmlpkg.EscapeString(s.UserID),
 			htmlpkg.EscapeString(s.Name),
 			app.TimeAgo(s.UpdatedAt),
 			htmlpkg.EscapeString(s.Status)))

@@ -175,17 +175,12 @@ func PostSystem(content string, meta map[string]any) *Event {
 }
 
 // Recent returns the most recent events, newest first, up to max.
-// viewerID is used to include banned users' own posts.
 func Recent(max int, viewerID string) []*Event {
 	mu.RLock()
 	defer mu.RUnlock()
 
 	var result []*Event
 	for _, e := range events {
-		// Banned users' events are hidden from everyone except themselves.
-		if e.Type == TypeUser && e.AuthorID != viewerID && auth.IsBanned(e.AuthorID) {
-			continue
-		}
 		result = append(result, e)
 		if len(result) >= max {
 			break

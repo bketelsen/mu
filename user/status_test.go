@@ -4,7 +4,39 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"mu/internal/auth"
+	"mu/internal/flag"
 )
+
+type harmfulAnalyzer struct{}
+
+func (harmfulAnalyzer) Analyze(string, string) (string, error) {
+	return "HARMFUL", nil
+}
+
+func TestModerateAIResponseRejectsFlaggedOutputWithoutBanningOwner(t *testing.T) {
+	owner, err := auth.Owner()
+	if err != nil {
+		owner = &auth.Account{ID: "owner", Name: "Owner", Secret: "secret", Created: time.Now()}
+		if err := auth.Create(owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	flag.SetAnalyzer(harmfulAnalyzer{})
+	t.Cleanup(func() { flag.SetAnalyzer(nil) })
+
+	if ModerateAIResponse(owner.ID, "unsafe generated output") {
+		t.Fatal("flagged generated output was accepted")
+	}
+	owner, err = auth.Owner()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if owner.Banned {
+		t.Fatal("rejecting generated output mutated the owner account")
+	}
+}
 
 func TestContainsMention(t *testing.T) {
 	cases := []struct {

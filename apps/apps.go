@@ -712,25 +712,14 @@ func handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	app.Log("apps", "Created app %q by %s", name, acc.ID)
 
-	// Async content moderation — check name, description, AND the HTML
-	// body for inappropriate content. The HTML is stripped to text + URLs
-	// before being sent to the classifier. Auto-bans on detection.
+	// Async content moderation checks the generated content without mutating its owner.
 	go func(authorID, appSlug, appName, appDesc, appHTML string) {
 		// Moderate name + description.
 		flag.CheckContent("app", appSlug, appName, appDesc)
-		if item := flag.GetItem("app", appSlug); item != nil && item.Flagged {
-			app.Log("moderation", "Auto-banning %s after app %q name/desc flagged", authorID, appName)
-			auth.BanAccount(authorID)
-			return
-		}
 		// Moderate the HTML body — extract readable text + URLs.
 		body := extractAppText(appHTML)
 		if body != "" {
 			flag.CheckContent("app_content", appSlug, appName, body)
-			if item := flag.GetItem("app_content", appSlug); item != nil && item.Flagged {
-				app.Log("moderation", "Auto-banning %s after app %q content flagged", authorID, appName)
-				auth.BanAccount(authorID)
-			}
 		}
 	}(acc.ID, slug, name, description, html)
 
@@ -1713,8 +1702,7 @@ func GetPublicApps() []*App {
 		if !a.Public {
 			continue
 		}
-		// Hide apps from banned users and flagged apps.
-		if auth.IsBanned(a.AuthorID) || flag.IsHidden("app", a.Slug) {
+		if flag.IsHidden("app", a.Slug) {
 			continue
 		}
 		list = append(list, a)

@@ -284,9 +284,6 @@ func main() {
 	// load docs
 	docs.Load()
 
-	// load user presence tracking
-	user.Load()
-
 	// Load the stream (platform event timeline).
 	stream.Load()
 
@@ -302,23 +299,6 @@ func main() {
 		}()
 	}
 
-	// Wire user → blog callback (avoids direct import between building blocks)
-	user.GetUserPosts = func(authorName string) []user.UserPost {
-		posts := blog.GetPostsByAuthor(authorName)
-		result := make([]user.UserPost, len(posts))
-		for i, p := range posts {
-			result[i] = user.UserPost{
-				ID:        p.ID,
-				Title:     p.Title,
-				Content:   p.Content,
-				CreatedAt: p.CreatedAt,
-				Private:   p.Private,
-			}
-		}
-		return result
-	}
-	user.LinkifyContent = blog.Linkify
-
 	// Wire @micro mention handling in the status stream. When a user
 	// posts a status containing "@micro ...", run the agent against
 	// the sender's wallet and post the reply as a status from the
@@ -326,10 +306,6 @@ func main() {
 	// immediately. We never fire this for the system user itself.
 	user.AIReplyHook = func(askerID, prompt string) {
 		auth.RunForOwner(askerID, func(owner *auth.Account) {
-			// If the asker is already banned, don't spend AI credits.
-			if auth.IsBanned(owner.ID) {
-				return
-			}
 			answer, err := agent.Query(owner.ID, prompt)
 			if err != nil {
 				app.Log("status", "@micro agent error for %s: %v", owner.ID, err)
@@ -340,9 +316,7 @@ func main() {
 			if answer == "" {
 				return
 			}
-			// Moderate the AI response before posting — if the question
-			// tricked the AI into producing harmful content, the asker
-			// is banned and the response is silently dropped.
+			// Moderate the AI response before posting. Flagged output is dropped.
 			if !user.ModerateAIResponse(owner.ID, answer) {
 				app.Log("status", "AI response for %s blocked by moderation", owner.ID)
 				return
@@ -356,9 +330,6 @@ func main() {
 	// instead of the status profile.
 	stream.AIReplyHook = func(askerID, prompt string) {
 		auth.RunForOwner(askerID, func(owner *auth.Account) {
-			if auth.IsBanned(owner.ID) {
-				return
-			}
 			answer, err := agent.Query(owner.ID, prompt)
 			if err != nil {
 				app.Log("stream", "@micro agent error for %s: %v", owner.ID, err)
@@ -375,20 +346,6 @@ func main() {
 			}
 			stream.PostAgent(answer)
 		})
-	}
-
-	user.GetUserApps = func(authorID string) []user.UserApp {
-		appList := apps.GetAppsByAuthor(authorID)
-		result := make([]user.UserApp, len(appList))
-		for i, a := range appList {
-			result[i] = user.UserApp{
-				Slug:        a.Slug,
-				Name:        a.Name,
-				Description: a.Description,
-				Icon:        a.Icon,
-			}
-		}
-		return result
 	}
 
 	// Enable indexing after all content is loaded
@@ -478,13 +435,6 @@ func main() {
 			_, err := mail.SendExternalEmail("Mu", from, to, subject, plain, html, "")
 			return err
 		}
-	}
-
-	// Verification is only required when we can actually send verification
-	// emails. Self-hosted instances without mail configured fall back to
-	// the legacy "any account can post" rule.
-	auth.VerificationRequired = func() bool {
-		return app.EmailSender != nil
 	}
 
 	// Register MCP auth tools
@@ -1128,15 +1078,8 @@ func main() {
 	// serve blog (full list)
 	http.HandleFunc("/blog", blog.Handler)
 
-	// serve individual blog post (public, no auth)
-	// Serves ActivityPub JSON-LD when requested via Accept header
-	http.HandleFunc("/blog/post", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" && blog.WantsActivityPub(r) {
-			blog.PostObjectHandler(w, r)
-			return
-		}
-		blog.PostHandler(w, r)
-	})
+	// Serve individual blog posts.
+	http.HandleFunc("/blog/post", blog.PostHandler)
 
 	// handle comments on posts /blog/post/{id}/comment
 	http.HandleFunc("/blog/post/", blog.CommentHandler)
@@ -1315,8 +1258,7 @@ func main() {
 	app.DigestStatusFunc = digest.Status
 	admin.GenerateDigestFunc = digest.Generate
 
-	// public status page - service health checks
-	app.HealthCheckFunc = runHealthChecks
+	// Public status is intentionally minimal; detailed diagnostics are admin-only.
 	http.HandleFunc("/status", app.StatusHandler)
 
 	// whitepaper
@@ -1326,27 +1268,6 @@ func main() {
 	// documentation
 	http.HandleFunc("/docs", docs.Handler)
 	http.HandleFunc("/docs/", docs.Handler)
-
-	// ActivityPub: WebFinger discovery
-	http.HandleFunc("/.well-known/webfinger", blog.WebFingerHandler)
-
-	// presence WebSocket endpoint
-	http.HandleFunc("/presence", user.PresenceHandler)
-
-	// presence ping endpoint
-	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
-		_, acc, err := auth.RequireSession(r)
-		if err != nil {
-			app.Unauthorized(w, r)
-			return
-		}
-
-		auth.UpdatePresence(acc.ID)
-
-		w.Header().Set("Content-Type", "application/json")
-		onlineCount := auth.GetOnlineCount()
-		w.Write([]byte(fmt.Sprintf(`{"status":"ok","online":%d}`, onlineCount)))
-	})
 
 	// /version — what's deployed and how it's wired, for verifying releases.
 	http.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
@@ -1410,61 +1331,6 @@ func main() {
 			if r.URL.Path == "/" {
 				http.Redirect(w, r, "/home", http.StatusFound)
 				return
-			}
-
-			// Check if this is a user profile request (/@username)
-			if strings.HasPrefix(r.URL.Path, "/@") {
-				rest := r.URL.Path[2:]
-
-				// Handle ActivityPub sub-endpoints: /@username/outbox, /@username/inbox
-				if strings.HasSuffix(rest, "/outbox") {
-					blog.OutboxHandler(w, r)
-					return
-				}
-				if strings.HasSuffix(rest, "/inbox") {
-					blog.InboxHandler(w, r)
-					return
-				}
-
-				// Serve ActivityPub actor JSON if requested
-				if !strings.Contains(rest, "/") && blog.WantsActivityPub(r) {
-					blog.ActorHandler(w, r)
-					return
-				}
-
-				// Otherwise serve the HTML profile page.
-				// POST /@username updates status — run through the
-				// same write gate as every other content path.
-				if !strings.Contains(rest, "/") {
-					if r.Method == "POST" {
-						op := wallet.OpSocialPost
-						sess, err := auth.GetSession(r)
-						if err != nil {
-							http.Error(w, "authentication required", http.StatusUnauthorized)
-							return
-						}
-						if !auth.CanWrite(sess.Account) {
-							http.Error(w, "owner authentication required", http.StatusForbidden)
-							return
-						}
-						if err := auth.CheckPostRate(sess.Account); err != nil {
-							http.Error(w, err.Error(), http.StatusTooManyRequests)
-							return
-						}
-						canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, op)
-						if !canProceed {
-							http.Error(w, fmt.Sprintf("This costs %d credit(s). Top up at /wallet", cost), http.StatusPaymentRequired)
-							return
-						}
-						if err := wallet.ConsumeQuota(sess.Account, op); err != nil {
-							http.Error(w, err.Error(), http.StatusPaymentRequired)
-							return
-						}
-						app.Log("wallet", "Charged %s %d credit(s) for POST /@%s status", sess.Account, wallet.GetOperationCost(op), rest)
-					}
-					user.Handler(w, r)
-					return
-				}
 			}
 
 			// CSRF protection: set token cookie on every response,
@@ -1720,7 +1586,6 @@ func isServerMode(args []string) bool {
 	return false
 }
 
-// runHealthChecks performs lightweight health checks on public-facing services
 // versionInfo reports the running build and how the system is wired, so a
 // deploy can be verified with `curl micro.mu/version`.
 func versionInfo() map[string]any {
@@ -1747,43 +1612,4 @@ func versionInfo() map[string]any {
 		}
 	}
 	return info
-}
-
-func runHealthChecks() []app.ServiceHealth {
-	type result struct {
-		index int
-		check app.ServiceHealth
-	}
-
-	checks := []struct {
-		name string
-		path string
-		fn   func() bool
-	}{
-		{"News", "/news", func() bool { return len(news.GetFeed()) > 0 }},
-		{"Blog", "/blog", func() bool { return blog.GetTopics() != nil }},
-		{"Video", "/video", func() bool { return video.GetLatestVideos(1) != nil }},
-		{"Chat", "/chat", ai.Configured},
-		{"Mail", "/mail", func() bool { return os.Getenv("MAIL_DOMAIN") != "" }},
-		{"Markets", "/markets", func() bool { return len(markets.GetAllPrices()) > 0 }},
-		{"Social", "/social", func() bool { return len(social.GetThreads()) > 0 }},
-		{"go-micro", "/version", func() bool { return len(service.Services()) > 0 }},
-	}
-
-	results := make([]app.ServiceHealth, len(checks))
-	ch := make(chan result, len(checks))
-
-	for i, c := range checks {
-		go func(idx int, name, path string, fn func() bool) {
-			ok := fn()
-			ch <- result{idx, app.ServiceHealth{Name: name, Status: ok, Path: path}}
-		}(i, c.name, c.path, c.fn)
-	}
-
-	for range checks {
-		r := <-ch
-		results[r.index] = r.check
-	}
-
-	return results
 }

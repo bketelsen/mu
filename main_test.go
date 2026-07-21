@@ -50,6 +50,26 @@ func TestAdminRoutesExcludeLocalUserManagement(t *testing.T) {
 	}
 }
 
+func TestRoutesExcludeProfilesFederationAndPresence(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, route := range []string{
+		"/.well-known/webfinger",
+		"/presence",
+		"/ping",
+		"strings.HasPrefix(r.URL.Path, \"/@\")",
+	} {
+		if strings.Contains(string(source), route) {
+			t.Errorf("main route registration retains %s", route)
+		}
+	}
+	if !strings.Contains(string(source), `http.HandleFunc("/user/status", user.StatusHandler)`) {
+		t.Error("owner-private status route is missing")
+	}
+}
+
 func TestVersionInfoDoesNotExposeServiceTopology(t *testing.T) {
 	info := versionInfo()
 	if _, ok := info["services"]; ok {
