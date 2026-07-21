@@ -497,7 +497,7 @@ function fetchW(la,lo){
 	if viewerAcc != nil {
 		allCardDefs := []struct{ id, label string }{
 			{"blog", "Blog"}, {"news", "News"},
-			{"markets", "Markets"}, {"social", "Social"}, {"video", "Video"},
+			{"social", "Social"}, {"video", "Video"},
 			{"images", "Images"}, {"mail", "Mail"}, {"web", "Search"},
 		}
 		optIn := map[string]bool{"mail": true, "web": true}
@@ -590,11 +590,10 @@ function fetchW(la,lo){
 	}
 
 	tooltips := map[string]string{
-		"blog":    "Microblog posts with daily AI-generated digests",
-		"news":    "Headlines from RSS feeds, sorted by time",
-		"markets": "Live crypto, futures, and commodity prices",
-		"social":  "Public discussion threads",
-		"video":   "Latest videos from curated channels",
+		"blog":   "Microblog posts with daily AI-generated digests",
+		"news":   "Headlines from RSS feeds, sorted by time",
+		"social": "Public discussion threads",
+		"video":  "Latest videos from curated channels",
 	}
 
 	var leftHTML, rightHTML []string

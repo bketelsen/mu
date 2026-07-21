@@ -13,7 +13,6 @@
   window.mu={
     weather:function(o){return get('/weather?lat='+o.lat+'&lon='+o.lon+(o.pollen?'&pollen=1':''))},
     news:function(){return get('/news')},
-    markets:function(o){return get('/markets'+(o&&o.category?'?category='+o.category:''))},
     video:function(){return get('/video')},
     blog:{list:function(){return get('/blog')},read:function(id){return get('/blog/post?id='+id)},create:function(o){return post('/blog',o)}},
     social:function(){return get('/social')},

@@ -82,13 +82,6 @@ var Templates = []Template{
 		HTML:        templateWeather,
 	},
 	{
-		ID:          "markets",
-		Name:        "Markets",
-		Description: "Live crypto prices using mu.markets()",
-		Category:    "Data",
-		HTML:        templateMarkets,
-	},
-	{
 		ID:          "news",
 		Name:        "News",
 		Description: "Latest news feed using mu.news()",
@@ -105,7 +98,7 @@ var Templates = []Template{
 	{
 		ID:          "dashboard",
 		Name:        "Dashboard",
-		Description: "Markets + news + weather in a single view",
+		Description: "News + weather in a single view",
 		Category:    "Composite",
 		HTML:        templateDashboard,
 	},
@@ -122,13 +115,6 @@ var Templates = []Template{
 		Description: "Find places nearby + local weather",
 		Category:    "Composite",
 		HTML:        templatePlaceExplorer,
-	},
-	{
-		ID:          "portfolio",
-		Name:        "Portfolio",
-		Description: "Track crypto portfolio with live prices + news",
-		Category:    "Composite",
-		HTML:        templatePortfolio,
 	},
 }
 
@@ -705,61 +691,6 @@ if (navigator.geolocation) {
 </body>
 </html>`
 
-const templateMarkets = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px; background: #fff; color: #333; max-width: 600px; margin: 0 auto; }
-h2 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
-.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-.tabs button { padding: 6px 16px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fff; cursor: pointer; font-family: inherit; font-size: 13px; }
-.tabs button.active { background: #000; color: #fff; border-color: #000; }
-.coin { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 8px; }
-.coin-name { font-weight: 600; }
-.coin-price { font-variant-numeric: tabular-nums; }
-.coin-change { font-size: 13px; font-weight: 500; }
-.up { color: #16a34a; }
-.down { color: #dc2626; }
-.loading { text-align: center; color: #999; padding: 32px; }
-.error { color: #c00; padding: 16px; text-align: center; }
-</style>
-</head>
-<body>
-<h2>Markets</h2>
-<div class="tabs">
-  <button class="active" onclick="load('crypto',this)">Crypto</button>
-  <button onclick="load('futures',this)">Futures</button>
-  <button onclick="load('commodities',this)">Commodities</button>
-</div>
-<div id="content"><div class="loading">Loading...</div></div>
-<script>
-function load(category, btn) {
-  if (btn) { document.querySelectorAll('.tabs button').forEach(function(b){b.className='';}); btn.className='active'; }
-  document.getElementById('content').innerHTML = '<div class="loading">Loading...</div>';
-  mu.markets({category: category}).then(function(data) {
-    if (!data || data.error) { showError(data && data.error || 'Failed to load'); return; }
-    var items = data.data;
-    if (!items || !items.length) { showError('No data available'); return; }
-    var html = '';
-    items.forEach(function(item) {
-      var change = item.change_24h || 0;
-      var cls = change >= 0 ? 'up' : 'down';
-      var sign = change >= 0 ? '+' : '';
-      var price = item.price >= 1 ? '$' + item.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '$' + item.price.toFixed(4);
-      html += '<div class="coin"><div><span class="coin-name">' + item.symbol + '</span></div><div style="text-align:right"><div class="coin-price">' + price + '</div><div class="coin-change ' + cls + '">' + sign + change.toFixed(2) + '%</div></div></div>';
-    });
-    document.getElementById('content').innerHTML = html;
-  }).catch(function(e) { showError(e.message); });
-}
-function showError(msg) { document.getElementById('content').innerHTML = '<div class="error">' + msg + '</div>'; }
-load('crypto', null);
-</script>
-</body>
-</html>`
-
 const templateNews = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -868,9 +799,6 @@ h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
 .panel h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #555; }
 .loading { color: #999; font-size: 13px; }
 .error { color: #c00; font-size: 13px; }
-.coin { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
-.coin:last-child { border-bottom: none; }
-.up { color: #16a34a; } .down { color: #dc2626; }
 .article { padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
 .article:last-child { border-bottom: none; }
 .article a { color: #333; text-decoration: none; font-size: 14px; font-weight: 500; }
@@ -885,35 +813,17 @@ h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
 <body>
 <h2>Dashboard</h2>
 <div class="grid">
-  <div class="panel" id="markets-panel">
-    <h3>Markets</h3>
-    <div class="loading">Loading prices...</div>
-  </div>
   <div class="panel" id="weather-panel">
     <h3>Weather</h3>
     <div class="loading">Getting location...</div>
   </div>
-  <div class="panel" style="grid-column: 1 / -1;" id="news-panel">
+  <div class="panel" id="news-panel">
     <h3>News</h3>
     <div class="loading">Loading headlines...</div>
   </div>
 </div>
 <script>
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-
-// Markets
-mu.markets({category: 'crypto'}).then(function(data) {
-  if (!data || data.error || !data.data) { document.querySelector('#markets-panel .loading').className = 'error'; document.querySelector('#markets-panel .error').textContent = 'Failed to load'; return; }
-  var html = '';
-  data.data.slice(0, 8).forEach(function(item) {
-    var change = item.change_24h || 0;
-    var cls = change >= 0 ? 'up' : 'down';
-    var sign = change >= 0 ? '+' : '';
-    var price = item.price >= 1 ? '$' + item.price.toLocaleString(undefined, {maximumFractionDigits:2}) : '$' + item.price.toFixed(4);
-    html += '<div class="coin"><span>' + item.symbol + '</span><span>' + price + ' <span class="' + cls + '">' + sign + change.toFixed(1) + '%</span></span></div>';
-  });
-  document.getElementById('markets-panel').innerHTML = '<h3>Markets</h3>' + html;
-}).catch(function(e) { document.querySelector('#markets-panel .loading').textContent = e.message; });
 
 // Weather
 function loadWeather(lat, lon) {
@@ -1135,121 +1045,6 @@ function searchFor(query) {
 </body>
 </html>`
 
-const templatePortfolio = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px; background: #fff; color: #333; max-width: 600px; margin: 0 auto; }
-h2 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
-.total { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
-.total-change { font-size: 14px; margin-bottom: 20px; }
-.up { color: #16a34a; } .down { color: #dc2626; }
-.holding { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 8px; }
-.holding-left { display: flex; align-items: center; gap: 12px; }
-.holding-symbol { font-weight: 600; }
-.holding-amount { font-size: 13px; color: #888; }
-.holding-right { text-align: right; }
-.holding-value { font-weight: 500; font-variant-numeric: tabular-nums; }
-.holding-change { font-size: 13px; }
-.add-form { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-.add-form input, .add-form select { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-family: inherit; font-size: 14px; }
-.add-form button { padding: 8px 16px; background: #000; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-family: inherit; }
-.news-section { margin-top: 24px; }
-.news-section h3 { font-size: 14px; font-weight: 600; color: #555; margin-bottom: 10px; }
-.news-item { padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
-.news-item a { color: #333; text-decoration: none; }
-.news-item a:hover { color: #000; }
-.news-item .meta { font-size: 12px; color: #999; }
-.loading { text-align: center; color: #999; padding: 24px; }
-</style>
-</head>
-<body>
-<h2>Portfolio</h2>
-<div class="total" id="totalValue">$0.00</div>
-<div class="total-change" id="totalChange"></div>
-<div id="holdings"></div>
-<div class="add-form">
-  <select id="addSymbol"><option value="">Add coin...</option></select>
-  <input type="number" id="addAmount" placeholder="Amount" step="any" style="width:100px;">
-  <button onclick="addHolding()">Add</button>
-</div>
-<div class="news-section">
-  <h3>Crypto News</h3>
-  <div id="news"><div class="loading">Loading...</div></div>
-</div>
-<script>
-function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-var portfolio = JSON.parse(localStorage.getItem('mu_portfolio') || '[]');
-var prices = {};
-
-function savePortfolio() { localStorage.setItem('mu_portfolio', JSON.stringify(portfolio)); }
-
-function render() {
-  var html = '';
-  var totalVal = 0, totalPrev = 0;
-  portfolio.forEach(function(h, i) {
-    var p = prices[h.symbol];
-    if (!p) { html += '<div class="holding"><span>' + h.symbol + ': ' + h.amount + '</span><span>—</span></div>'; return; }
-    var val = h.amount * p.price;
-    var prevVal = h.amount * (p.price / (1 + (p.change_24h || 0) / 100));
-    totalVal += val;
-    totalPrev += prevVal;
-    var cls = p.change_24h >= 0 ? 'up' : 'down';
-    var sign = p.change_24h >= 0 ? '+' : '';
-    html += '<div class="holding"><div class="holding-left"><div><div class="holding-symbol">' + h.symbol + '</div><div class="holding-amount">' + h.amount + '</div></div></div>';
-    html += '<div class="holding-right"><div class="holding-value">$' + val.toLocaleString(undefined,{maximumFractionDigits:2}) + '</div>';
-    html += '<div class="holding-change ' + cls + '">' + sign + (p.change_24h||0).toFixed(1) + '%</div></div></div>';
-  });
-  document.getElementById('holdings').innerHTML = html || '<p style="color:#999;font-size:14px">No holdings yet. Add some below.</p>';
-  document.getElementById('totalValue').textContent = '$' + totalVal.toLocaleString(undefined,{maximumFractionDigits:2});
-  var totalChange = totalPrev > 0 ? ((totalVal - totalPrev) / totalPrev * 100) : 0;
-  var tcCls = totalChange >= 0 ? 'up' : 'down';
-  var tcSign = totalChange >= 0 ? '+' : '';
-  document.getElementById('totalChange').innerHTML = '<span class="' + tcCls + '">' + tcSign + totalChange.toFixed(2) + '% today</span>';
-}
-
-function addHolding() {
-  var sym = document.getElementById('addSymbol').value;
-  var amt = parseFloat(document.getElementById('addAmount').value);
-  if (!sym || isNaN(amt) || amt <= 0) return;
-  var existing = portfolio.find(function(h) { return h.symbol === sym; });
-  if (existing) { existing.amount += amt; } else { portfolio.push({symbol: sym, amount: amt}); }
-  savePortfolio();
-  document.getElementById('addAmount').value = '';
-  render();
-}
-
-// Load prices
-mu.markets({category: 'crypto'}).then(function(data) {
-  if (!data || !data.data) return;
-  var sel = document.getElementById('addSymbol');
-  data.data.forEach(function(item) {
-    prices[item.symbol] = item;
-    var opt = document.createElement('option');
-    opt.value = item.symbol; opt.textContent = item.symbol + ' ($' + (item.price >= 1 ? item.price.toFixed(2) : item.price.toFixed(4)) + ')';
-    sel.appendChild(opt);
-  });
-  render();
-});
-
-// Load news
-mu.news().then(function(data) {
-  if (!data || !data.feed) { document.getElementById('news').innerHTML = '<p style="color:#999">No news</p>'; return; }
-  var crypto = data.feed.filter(function(a) { return (a.category || '').toLowerCase().indexOf('crypto') >= 0 || (a.title || '').toLowerCase().match(/bitcoin|crypto|eth|defi/); });
-  if (crypto.length === 0) crypto = data.feed.slice(0, 5);
-  var html = '';
-  crypto.slice(0, 5).forEach(function(a) {
-    html += '<div class="news-item"><a href="' + esc(a.url || '#') + '" target="_blank">' + esc(a.title) + '</a><div class="meta">' + esc(a.category || '') + '</div></div>';
-  });
-  document.getElementById('news').innerHTML = html;
-});
-</script>
-</body>
-</html>`
-
 const templateMuApp = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1270,14 +1065,15 @@ const templateMuApp = `<!DOCTYPE html>
 <script>
 // --- Configure your app ---
 app.config({
-  name: 'My App',
+  name: 'News Desk',
   layout: 'dashboard',
   tabs: [
-    {id: 'crypto', label: 'Crypto'},
-    {id: 'futures', label: 'Futures'},
+    {id: 'all', label: 'All'},
+    {id: 'technology', label: 'Technology'},
+    {id: 'world', label: 'World'},
   ],
   onTab: function(tabId) {
-    loadMarkets(tabId);
+    loadHeadlines(tabId);
   }
 });
 
@@ -1286,38 +1082,38 @@ app.section('stats', {
   type: 'stats',
   order: 0,
   load: function() {
-    return mu.markets({category: 'crypto'}).then(function(data) {
-      if (!data || !data.data) return {error: 'No data'};
-      var btc = data.data.find(function(c) { return c.symbol === 'BTC'; });
-      var eth = data.data.find(function(c) { return c.symbol === 'ETH'; });
+    return mu.news().then(function(data) {
+      if (!data || !data.feed) return {error: 'No headlines'};
+      var categories = {};
+      data.feed.forEach(function(article) { categories[article.category || 'Other'] = true; });
       return {
         items: [
-          {label: 'BTC', value: '$' + (btc ? btc.price.toLocaleString(undefined,{maximumFractionDigits:0}) : '-'), change: btc ? (btc.change_24h >= 0 ? '+' : '') + btc.change_24h.toFixed(1) + '%' : ''},
-          {label: 'ETH', value: '$' + (eth ? eth.price.toLocaleString(undefined,{maximumFractionDigits:0}) : '-'), change: eth ? (eth.change_24h >= 0 ? '+' : '') + eth.change_24h.toFixed(1) + '%' : ''},
-          {label: 'Coins', value: String(data.data.length)},
+          {label: 'Headlines', value: String(data.feed.length)},
+          {label: 'Categories', value: String(Object.keys(categories).length)},
         ]
       };
     });
   }
 });
 
-// --- Markets list ---
-function loadMarkets(category) {
-  app.section('markets', {
-    title: 'Prices',
+// --- Headlines list ---
+function loadHeadlines(category) {
+  app.section('headlines', {
+    title: 'Headlines',
     order: 1,
     load: function() {
-      return mu.markets({category: category || 'crypto'}).then(function(data) {
-        if (!data || !data.data) return {error: 'Failed to load'};
+      return mu.news().then(function(data) {
+        if (!data || !data.feed) return {error: 'Failed to load'};
+        var articles = data.feed;
+        if (category && category !== 'all') {
+          articles = articles.filter(function(article) { return (article.category || '').toLowerCase() === category; });
+        }
         return {
-          items: data.data.map(function(coin) {
-            var price = coin.price >= 1 ? '$' + coin.price.toLocaleString(undefined,{maximumFractionDigits:2}) : '$' + coin.price.toFixed(4);
+          items: articles.slice(0, 12).map(function(article) {
             return {
-              title: coin.symbol,
-              subtitle: coin.type,
-              value: price,
-              badge: (coin.change_24h >= 0 ? '+' : '') + coin.change_24h.toFixed(1) + '%',
-              badgeColor: coin.change_24h >= 0 ? 'green' : 'red',
+              title: article.title,
+              subtitle: article.category,
+              description: (article.description || '').slice(0, 120),
             };
           })
         };
@@ -1325,7 +1121,7 @@ function loadMarkets(category) {
     }
   });
 }
-loadMarkets('crypto');
+loadHeadlines('all');
 
 // --- News section ---
 app.section('news', {
