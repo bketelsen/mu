@@ -121,7 +121,7 @@ Legend: **✓** shipped · **○** to build · `(reuse: …)` existing infra it 
 
 ## Work & dev (77–85)
 77. **code snippets** ○ (reuse: storage)
-78. **repos / issues** ○ (reuse: existing GitHub integration)
+78. **repos / issues** ✓
 79. **uptime / monitoring** ○ (reuse: web-fetch, scheduler)
 80. **status page** ○ (reuse: monitoring)
 81. **feedback / support desk** ○ (reuse: mail, storage)

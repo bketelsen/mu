@@ -37,6 +37,15 @@ See [GitHub Copilot](/docs/copilot) for the full Copilot setup guide.
 Without one of these, the agent, chat and AI summaries are disabled (the rest of
 the UI still works). micro.mu runs on Atlas Cloud.
 
+## GitHub Repository Configuration
+
+```bash
+export GITHUB_TOKEN="github_pat_xxxxxxxxxxxx"
+```
+
+This admin-only, read-only repositories and issues service can also be configured
+under `/admin/env` without restarting Mu.
+
 ## Web Search Configuration
 
 ```bash
@@ -213,6 +222,7 @@ export MAIL_SELECTOR="default"
 | `OPENAI_BASE_URL` | - | OpenAI-compatible endpoint (e.g. Ollama at `http://localhost:11434/v1`) |
 | `OPENAI_API_KEY` | - | API key for the OpenAI-compatible endpoint (`ollama` for local Ollama) |
 | `COPILOT_GITHUB_TOKEN` | - | GitHub OAuth token for a Copilot subscription (alternative AI provider; get it via `mu setup`) |
+| `GITHUB_TOKEN` | - | Fine-grained GitHub token used by the admin-only, read-only repositories/issues service. Grant metadata, issues, and pull-request read access only for repositories Mu should expose. This is separate from `COPILOT_GITHUB_TOKEN`. |
 | `COPILOT_CHAT_MODEL` | `claude-sonnet-4.5` | Copilot model for interactive queries |
 | `COPILOT_BACKGROUND_MODEL` | `gpt-4.1` | Copilot model for background tasks (keep on a 0x-multiplier model) |
 | `COPILOT_PREMIUM_MODEL` | chat model | Copilot model for the agent's "Best" tier |
@@ -376,4 +386,3 @@ docker run -d \
 | Donations | `DONATION_URL` |
 | Card Payments | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | Crypto Payments | `X402_PAY_TO` (optional: `X402_FACILITATOR_URL`, `X402_NETWORK`, `X402_ASSET`) |
-
