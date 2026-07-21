@@ -3,8 +3,11 @@ package discord
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
+
+	"mu/internal/auth"
 )
 
 type linkCode struct {
@@ -19,7 +22,10 @@ var (
 
 // GenerateLinkCode creates a one-time code that a user pastes in Discord
 // to link their account. Expires after 5 minutes.
-func GenerateLinkCode(accountID string) string {
+func GenerateLinkCode(accountID string) (string, error) {
+	if !auth.IsOwner(accountID) {
+		return "", errors.New("only the Mu owner can be linked")
+	}
 	codeMu.Lock()
 	defer codeMu.Unlock()
 
@@ -39,7 +45,7 @@ func GenerateLinkCode(accountID string) string {
 		ExpiresAt: time.Now().Add(5 * time.Minute),
 	}
 
-	return code
+	return code, nil
 }
 
 // redeemCode validates and consumes a link code, returning the account ID.

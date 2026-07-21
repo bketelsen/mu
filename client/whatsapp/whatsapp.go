@@ -9,22 +9,21 @@
 //  4. Configure the webhook URL in Meta Developer Portal:
 //     https://your-domain.com/whatsapp/webhook
 //
-// Users are auto-created on first message. Existing users can link
-// with "link <username> <password>".
+// The Mu owner links the bot with "link <username> <password>" in a direct
+// message; group messages are ignored.
 package whatsapp
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	"mu/agent"
 	"mu/internal/app"
@@ -61,6 +60,18 @@ func Enabled() bool {
 	return settings.Get("WHATSAPP_TOKEN") != "" && settings.Get("WHATSAPP_PHONE_ID") != ""
 }
 
+type messageAccess = auth.MessageAccess
+
+const (
+	accessIgnore    = auth.AccessIgnore
+	accessNeedsLink = auth.AccessNeedsLink
+	accessOwner     = auth.AccessOwner
+)
+
+func classifyMessage(isDirect bool, linkedAccount string) messageAccess {
+	return auth.ClassifyMessage(isDirect, linkedAccount)
+}
+
 // Handler handles the WhatsApp webhook at /whatsapp/webhook.
 func Handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -80,7 +91,7 @@ func handleVerify(w http.ResponseWriter, r *http.Request) {
 	challenge := r.URL.Query().Get("hub.challenge")
 
 	verifyToken := settings.Get("WHATSAPP_VERIFY_TOKEN")
-	if mode == "subscribe" && token == verifyToken {
+	if verifyToken != "" && mode == "subscribe" && token == verifyToken {
 		app.Log("whatsapp", "Webhook verified")
 		w.WriteHeader(200)
 		w.Write([]byte(challenge))
@@ -92,21 +103,22 @@ func handleVerify(w http.ResponseWriter, r *http.Request) {
 
 // handleWebhook processes incoming messages from WhatsApp.
 func handleWebhook(w http.ResponseWriter, r *http.Request) {
-	// Always return 200 quickly to acknowledge receipt
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(200)
+	secret := settings.Get("WHATSAPP_APP_SECRET")
+	if secret == "" {
+		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
 
-	// Verify signature if app secret is set
-	if secret := settings.Get("WHATSAPP_APP_SECRET"); secret != "" {
-		sig := r.Header.Get("X-Hub-Signature-256")
-		if !verifySignature(body, sig, secret) {
-			app.Log("whatsapp", "Invalid webhook signature")
-			w.WriteHeader(200)
-			return
-		}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if !verifySignature(body, r.Header.Get("X-Hub-Signature-256"), secret) {
+		app.Log("whatsapp", "Invalid webhook signature")
+		w.WriteHeader(http.StatusUnauthorized)
+		return
 	}
 
 	w.WriteHeader(200)
@@ -172,43 +184,15 @@ type webhookPayload struct {
 }
 
 func handleMessage(from, text string, isGroup bool, replyTo string) {
+	if isGroup {
+		return
+	}
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return
 	}
 
-	// In groups, only respond to:
-	// 1. Messages starting with "mu " or "/ask "
-	// 2. Replies to the bot's messages
-	if isGroup {
-		lower := strings.ToLower(text)
-		botPhoneID := settings.Get("WHATSAPP_PHONE_ID")
-		isReplyToBot := replyTo == botPhoneID
-		hasTrigger := strings.HasPrefix(lower, "mu ") ||
-			strings.HasPrefix(lower, "/ask ") ||
-			strings.HasPrefix(lower, "@mu ") ||
-			lower == "mu" || lower == "/ask"
-
-		if !hasTrigger && !isReplyToBot {
-			return
-		}
-
-		// Strip prefix
-		if strings.HasPrefix(lower, "mu ") {
-			text = strings.TrimSpace(text[3:])
-		} else if strings.HasPrefix(lower, "/ask ") {
-			text = strings.TrimSpace(text[5:])
-		} else if strings.HasPrefix(lower, "@mu ") {
-			text = strings.TrimSpace(text[4:])
-		}
-		if text == "" {
-			sendMessage(from, "Ask me anything! Start with *mu* followed by your question.")
-			return
-		}
-	}
-
-	// Handle link command (DMs only)
-	if !isGroup && strings.HasPrefix(strings.ToLower(text), "link ") {
+	if strings.HasPrefix(strings.ToLower(text), "link ") {
 		parts := strings.Fields(text[5:])
 		if len(parts) >= 2 {
 			username := parts[0]
@@ -217,7 +201,14 @@ func handleMessage(from, text string, isGroup bool, replyTo string) {
 				sendMessage(from, "Invalid username or password.")
 				return
 			}
-			linkAccount(from, username)
+			if !auth.IsOwner(username) {
+				sendMessage(from, "Only the Mu owner account can be linked.")
+				return
+			}
+			if err := linkAccount(from, username); err != nil {
+				sendMessage(from, "Couldn't save the account link. Try again later.")
+				return
+			}
 			sendMessage(from, fmt.Sprintf("Linked to *%s*.", username))
 			return
 		}
@@ -234,24 +225,19 @@ func handleMessage(from, text string, isGroup bool, replyTo string) {
 		return
 	}
 
-	// Look up or auto-create account
 	accountID := getLinkedAccount(from)
-	if accountID == "" {
-		accountID = autoCreateAccount(from)
-		if accountID == "" {
-			sendMessage(from, "Couldn't create your account. Try again later.")
-			return
-		}
-		sendMessage(from, fmt.Sprintf("Welcome! I've created your account *%s*. Ask me anything.", accountID))
+	if classifyMessage(true, accountID) != accessOwner {
+		sendMessage(from, "Link this bot to your Mu owner account before using it.")
+		return
 	}
 
 	app.Log("whatsapp", "Message from %s (%s, group=%v): %s", from, accountID, isGroup, text)
 
-	// Groups are public context, DMs are private
+	// Owner DMs retain the owner's private context.
 	history := getHistory(from)
 	answer, err := agent.QueryWithOpts(accountID, text, agent.QueryOpts{
 		History: history,
-		Public:  isGroup,
+		Public:  false,
 	})
 	if err != nil {
 		app.Log("whatsapp", "Agent error for %s: %v", accountID, err)
@@ -330,11 +316,14 @@ func NotifyUser(muAccountID, message string) {
 
 // ── Account management ──
 
-func linkAccount(phone, muAccount string) {
+func linkAccount(phone, muAccount string) error {
+	if !auth.IsOwner(muAccount) {
+		return errors.New("only the Mu owner can be linked")
+	}
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	links[phone] = muAccount
-	data.SaveJSON("whatsapp_links.json", links)
+	return data.SaveJSON("whatsapp_links.json", links)
 }
 
 func getLinkedAccount(phone string) string {
@@ -353,41 +342,6 @@ func DeleteLinks(muAccount string) error {
 		}
 	}
 	return data.SaveJSON("whatsapp_links.json", links)
-}
-
-func autoCreateAccount(phone string) string {
-	// Use last 6 digits of phone as username base
-	id := "wa" + phone
-	if len(id) > 10 {
-		id = "wa" + phone[len(phone)-6:]
-	}
-
-	baseID := id
-	for i := 0; i < 100; i++ {
-		if _, err := auth.GetAccount(id); err != nil {
-			break
-		}
-		id = fmt.Sprintf("%s%d", baseID, i+1)
-	}
-
-	passBytes := make([]byte, 16)
-	rand.Read(passBytes)
-	pass := hex.EncodeToString(passBytes)
-
-	acc := &auth.Account{
-		ID:      id,
-		Name:    "WhatsApp User",
-		Secret:  pass,
-		Created: time.Now(),
-	}
-	if err := auth.Create(acc); err != nil {
-		app.Log("whatsapp", "Auto-create failed for %s: %v", phone, err)
-		return ""
-	}
-
-	linkAccount(phone, id)
-	app.Log("whatsapp", "Auto-created account %s for WhatsApp %s", id, phone)
-	return id
 }
 
 func getHistory(phone string) []agent.QueryMessage {

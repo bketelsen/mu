@@ -430,7 +430,7 @@ var EmailSender func(to, subject, bodyPlain, bodyHTML string) error
 
 // DiscordLinkCodeFunc generates a one-time code for linking a Discord
 // account. Set by the discord package at startup.
-var DiscordLinkCodeFunc func(accountID string) string
+var DiscordLinkCodeFunc func(accountID string) (string, error)
 
 // PublicURL returns the externally-reachable base URL for the instance.
 // Falls back to relative paths when not configured.
@@ -607,8 +607,12 @@ func Account(w http.ResponseWriter, r *http.Request) {
 		// Discord link code generation
 		if r.Form.Get("discord_link") != "" {
 			if DiscordLinkCodeFunc != nil {
-				code := DiscordLinkCodeFunc(acc.ID)
-				http.Redirect(w, r, "/account?discord_code="+code, http.StatusSeeOther)
+				code, err := DiscordLinkCodeFunc(acc.ID)
+				if err == nil {
+					http.Redirect(w, r, "/account?discord_code="+code, http.StatusSeeOther)
+				} else {
+					http.Redirect(w, r, "/account", http.StatusSeeOther)
+				}
 			} else {
 				http.Redirect(w, r, "/account", http.StatusSeeOther)
 			}
