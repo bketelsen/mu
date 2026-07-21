@@ -121,39 +121,6 @@ type StatusEntry struct {
 // statusMaxAge is how old a status can be before it stops appearing on home.
 const statusMaxAge = 7 * 24 * time.Hour
 
-// RecentStatuses returns users who have set a status within the last 7 days,
-// most recently updated first. Limited to max entries.
-func RecentStatuses(max int) []StatusEntry {
-	profileMutex.RLock()
-	defer profileMutex.RUnlock()
-
-	cutoff := time.Now().Add(-statusMaxAge)
-	var entries []StatusEntry
-	for _, p := range profiles {
-		if p.Status == "" || p.UpdatedAt.Before(cutoff) {
-			continue
-		}
-		name := p.UserID
-		if acc, err := auth.GetAccount(p.UserID); err == nil {
-			name = acc.Name
-		}
-		entries = append(entries, StatusEntry{
-			UserID:    p.UserID,
-			Name:      name,
-			Status:    p.Status,
-			UpdatedAt: p.UpdatedAt,
-		})
-	}
-	// Sort newest first
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].UpdatedAt.After(entries[j].UpdatedAt)
-	})
-	if len(entries) > max {
-		entries = entries[:max]
-	}
-	return entries
-}
-
 // StatusStream returns a flat chronological feed of every status ever
 // posted (current + history), newest first. This is the home card data
 // source — it turns what was an accidental chat surface into an honest

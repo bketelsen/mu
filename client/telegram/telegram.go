@@ -217,7 +217,7 @@ func handleMessage(token string, userID int64, username, firstName string, chatI
 	text = strings.Join(cleaned, " ")
 
 	if text == "" {
-		sendTelegram(token, chatID, "Ask me anything! In groups use `/ask your question`.")
+		sendTelegram(token, chatID, emptyMessageReply(getLinkedAccount(telegramID)))
 		return
 	}
 
@@ -292,6 +292,13 @@ func handleMessage(token string, userID int64, username, firstName string, chatI
 	}
 
 	sendTelegram(token, chatID, answer)
+}
+
+func emptyMessageReply(linkedAccount string) string {
+	if classifyMessage(true, linkedAccount) != accessOwner {
+		return "Link this bot to your Mu owner account before using it."
+	}
+	return "Ask me anything! In groups use `/ask your question`."
 }
 
 func sendTelegram(token string, chatID int64, text string) {

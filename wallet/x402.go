@@ -18,16 +18,6 @@ import (
 	_ "mu/internal/env" // load ~/.env before x402 config is read at init
 )
 
-// x402 payment headers. Version 1 uses X-PAYMENT / X-PAYMENT-RESPONSE; version 2
-// renamed them to PAYMENT-SIGNATURE / PAYMENT-RESPONSE. We accept either on the
-// way in and emit both on the way out so any conformant client interoperates.
-const (
-	HeaderPaymentV1     = "X-PAYMENT"
-	HeaderPaymentV2     = "PAYMENT-SIGNATURE"
-	HeaderPaymentRespV1 = "X-PAYMENT-RESPONSE"
-	HeaderPaymentRespV2 = "PAYMENT-RESPONSE"
-)
-
 // x402 configuration from the environment. Defaults target Base mainnet via
 // Coinbase's hosted facilitator; set X402_FACILITATOR_URL to the open
 // (testnet) facilitator to certify without real funds.
@@ -120,36 +110,8 @@ func acceptedAssets() []x402Asset {
 // X402Enabled reports whether x402 payments are configured.
 func X402Enabled() bool { return x402PayTo != "" }
 
-// x402 free trial — first N calls per wallet address are free. Tracked in
-// memory (resets on restart, which is acceptable for a trial).
-var (
-	x402TrialLimit = 10
-	x402TrialUsage = map[string]int{}
-)
-
-// X402TrialRemaining returns how many free calls the address has left.
-func X402TrialRemaining(walletAddr string) int {
-	if walletAddr == "" {
-		return 0
-	}
-	if r := x402TrialLimit - x402TrialUsage[walletAddr]; r > 0 {
-		return r
-	}
-	return 0
-}
-
-// X402UseTrialCall records a free trial call, returning false when exhausted.
-func X402UseTrialCall(walletAddr string) bool {
-	if walletAddr == "" || x402TrialUsage[walletAddr] >= x402TrialLimit {
-		return false
-	}
-	x402TrialUsage[walletAddr]++
-	app.Log("x402", "Free trial call %d/%d for %s", x402TrialUsage[walletAddr], x402TrialLimit, walletAddr)
-	return true
-}
-
-// PaymentRequirements is a single accepted way to pay, matching the x402
-// "exact" scheme. maxAmountRequired is in the asset's atomic units.
+// PaymentRequirements describes a remote server's x402 payment challenge for
+// the outbound client. maxAmountRequired is in the asset's atomic units.
 type PaymentRequirements struct {
 	Scheme            string            `json:"scheme"`
 	Network           string            `json:"network"`
@@ -163,130 +125,15 @@ type PaymentRequirements struct {
 	Extra             map[string]string `json:"extra,omitempty"`
 }
 
-// SettleResponse is the facilitator's settlement result.
-type SettleResponse struct {
-	Success     bool   `json:"success"`
-	Transaction string `json:"transaction,omitempty"`
-	Network     string `json:"network,omitempty"`
-	Payer       string `json:"payer,omitempty"`
-	ErrorReason string `json:"errorReason,omitempty"`
-	Message     string `json:"message,omitempty"`
-}
-
-// creditsToAtomic converts a credit cost (Mu treats 1 credit ≈ 1 US cent) into
-// the token's atomic units: cents * 10^(decimals-2). For 6-decimal USDC, 5
-// credits ($0.05) → "50000".
-func creditsToAtomic(credits, decimals int) string {
-	if credits < 1 {
-		credits = 1
-	}
-	mult := 1
-	for i := 0; i < decimals-2; i++ {
-		mult *= 10
-	}
-	return strconv.Itoa(credits * mult)
-}
-
-// BuildPaymentRequirements creates the accepted-payment list for an operation —
-// one entry per accepted asset; the paying agent picks one.
-func BuildPaymentRequirements(operation, resource string) []PaymentRequirements {
-	cost := GetOperationCost(operation)
-	if cost < 1 {
-		cost = 1
-	}
-	var reqs []PaymentRequirements
-	for _, a := range acceptedAssets() {
-		reqs = append(reqs, PaymentRequirements{
-			Scheme:            "exact",
-			Network:           x402NetworkID,
-			MaxAmountRequired: creditsToAtomic(cost, a.Decimals),
-			Resource:          resource,
-			Description:       "Access to " + operation,
-			MimeType:          "application/json",
-			PayTo:             x402PayTo,
-			MaxTimeoutSeconds: 60,
-			Asset:             a.Address,
-			Extra:             map[string]string{"name": a.Name, "version": a.Version},
-		})
-	}
-	return reqs
-}
-
-// WritePaymentRequired sends the standard x402 402 challenge: an HTTP 402 whose
-// JSON body carries the accepted payment requirements. No custom headers — the
-// body is the contract, as every x402 client expects.
-func WritePaymentRequired(w http.ResponseWriter, operation, resource string) {
-	reqs := BuildPaymentRequirements(operation, resource)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusPaymentRequired)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"x402Version": x402Version,
-		"error":       "X-PAYMENT header required",
-		"accepts":     reqs,
-	})
-}
-
-// HasPayment reports whether a request carries an x402 payment header.
-func HasPayment(r *http.Request) bool {
-	return r.Header.Get(HeaderPaymentV1) != "" || r.Header.Get(HeaderPaymentV2) != ""
-}
-
-func paymentHeader(r *http.Request) string {
-	if v := r.Header.Get(HeaderPaymentV1); v != "" {
-		return v
-	}
-	return r.Header.Get(HeaderPaymentV2)
-}
-
-// VerifyAndSettle decodes the payment header, verifies it with the facilitator
-// and, if valid, settles it. On success the settlement is stashed on the
-// request context (see SettleHolder) so the response layer can emit the
-// X-PAYMENT-RESPONSE header. Returns the settlement or an error.
-func VerifyAndSettle(r *http.Request, operation, resource string) (*SettleResponse, error) {
-	hdr := paymentHeader(r)
-	if hdr == "" {
-		return nil, fmt.Errorf("no payment header")
-	}
-	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(hdr))
-	if err != nil {
-		if raw, err = base64.RawURLEncoding.DecodeString(strings.TrimSpace(hdr)); err != nil {
-			return nil, fmt.Errorf("invalid payment header encoding: %w", err)
-		}
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, fmt.Errorf("invalid payment payload: %w", err)
-	}
-
-	settle, err := settlePayload(payload, operation, resource)
-	if err != nil {
-		return nil, err
-	}
-	if h, ok := r.Context().Value(X402SettleKey).(*SettleHolder); ok && h != nil {
-		h.Resp = settle
-	}
-	return settle, nil
-}
-
-// settlePayload verifies then settles a decoded payment payload against the
-// requirements for operation (the server-side x402 path, VerifyAndSettle).
-func settlePayload(payload map[string]any, operation, resource string) (*SettleResponse, error) {
-	req := matchRequirement(BuildPaymentRequirements(operation, resource), payload)
-	if req == nil {
-		return nil, fmt.Errorf("no matching payment requirement for the presented payment")
-	}
-	return settleRequirement(payload, req)
-}
-
 // settleRequirement verifies then settles a payment payload against a specific
 // requirement (used when the amount isn't a fixed tool price, e.g. a USDC → credit
 // top-up that sweeps an arbitrary balance).
-func settleRequirement(payload map[string]any, req *PaymentRequirements) (*SettleResponse, error) {
+func settleRequirement(payload map[string]any, req *PaymentRequirements) error {
 	body := map[string]any{"x402Version": x402Version, "paymentPayload": payload, "paymentRequirements": req}
 
 	vres, err := facilitatorPost("/verify", body)
 	if err != nil {
-		return nil, fmt.Errorf("verify: %w", err)
+		return fmt.Errorf("verify: %w", err)
 	}
 	var verify struct {
 		IsValid        bool   `json:"isValid"`
@@ -296,24 +143,30 @@ func settleRequirement(payload map[string]any, req *PaymentRequirements) (*Settl
 	}
 	_ = json.Unmarshal(vres, &verify)
 	if !verify.IsValid && !verify.Valid {
-		return nil, fmt.Errorf("payment invalid: %s", firstNonEmpty(verify.InvalidMessage, verify.InvalidReason, "rejected by facilitator"))
+		return fmt.Errorf("payment invalid: %s", firstNonEmpty(verify.InvalidMessage, verify.InvalidReason, "rejected by facilitator"))
 	}
 
 	sres, err := facilitatorPost("/settle", body)
 	if err != nil {
-		return nil, fmt.Errorf("settle: %w", err)
+		return fmt.Errorf("settle: %w", err)
 	}
-	var settle SettleResponse
+	var settle struct {
+		Success     bool   `json:"success"`
+		Transaction string `json:"transaction,omitempty"`
+		Payer       string `json:"payer,omitempty"`
+		ErrorReason string `json:"errorReason,omitempty"`
+		Message     string `json:"message,omitempty"`
+	}
 	_ = json.Unmarshal(sres, &settle)
 	if !settle.Success {
-		return nil, fmt.Errorf("settlement failed: %s", firstNonEmpty(settle.Message, settle.ErrorReason, "unknown"))
+		return fmt.Errorf("settlement failed: %s", firstNonEmpty(settle.Message, settle.ErrorReason, "unknown"))
 	}
 	app.Log("x402", "settled %s: tx=%s payer=%s", req.Resource, settle.Transaction, settle.Payer)
-	return &settle, nil
+	return nil
 }
 
 // usdcAtomicPerCredit is the 6-decimal USDC atomic amount for one credit
-// (1 credit ≈ 1¢), so 1 USDC = 100 credits — matching X402PriceFor.
+// (1 credit ≈ 1¢), so 1 USDC = 100 credits.
 const usdcAtomicPerCredit = 10000
 
 // ConvertUSDCToCredits sweeps the account's entire USDC balance to the treasury
@@ -365,7 +218,7 @@ func ConvertUSDCToCredits(accountID string) (int, error) {
 	if err := json.Unmarshal(rawp, &payload); err != nil {
 		return 0, err
 	}
-	if _, err := settleRequirement(payload, req); err != nil {
+	if err := settleRequirement(payload, req); err != nil {
 		return 0, err
 	}
 	if err := AddCredits(accountID, credits, "usdc_topup", map[string]interface{}{"usdc_atomic": raw.String()}); err != nil {
@@ -373,42 +226,6 @@ func ConvertUSDCToCredits(accountID string) (int, error) {
 	}
 	app.Log("x402", "converted %s USDC atomic to %d credits for %s", raw.String(), credits, accountID)
 	return credits, nil
-}
-
-// matchRequirement picks the advertised requirement the payment was made
-// against, by network (and asset when the payload names one). Falls back to the
-// first requirement, which is correct for the single-asset default.
-func matchRequirement(reqs []PaymentRequirements, payload map[string]any) *PaymentRequirements {
-	if len(reqs) == 0 {
-		return nil
-	}
-	net, _ := payload["network"].(string)
-	net = normalizeNetwork(net)
-	asset := payloadAsset(payload)
-	for i := range reqs {
-		if net != "" && normalizeNetwork(reqs[i].Network) != net {
-			continue
-		}
-		if asset != "" && !strings.EqualFold(reqs[i].Asset, asset) {
-			continue
-		}
-		return &reqs[i]
-	}
-	return &reqs[0]
-}
-
-// payloadAsset best-effort extracts the token address from a payment payload,
-// tolerating the v1/v2 nesting differences.
-func payloadAsset(payload map[string]any) string {
-	if a, ok := payload["asset"].(string); ok && a != "" {
-		return a
-	}
-	if p, ok := payload["payload"].(map[string]any); ok {
-		if a, ok := p["asset"].(string); ok {
-			return a
-		}
-	}
-	return ""
 }
 
 // facilitatorPost POSTs JSON to a facilitator endpoint, attaching a CDP Bearer
@@ -447,21 +264,6 @@ func facilitatorPost(path string, body map[string]any) ([]byte, error) {
 		return nil, fmt.Errorf("facilitator %s returned %d: %s", path, resp.StatusCode, strings.TrimSpace(string(data)))
 	}
 	return data, nil
-}
-
-// X402PriceFor returns the per-call price to invoke an operation via x402
-// (e.g. "$0.05"), or "" when x402 is disabled or the operation is free. Mu
-// treats 1 credit ≈ 1 US cent, so the agent price and the credit cost are the
-// same number shown two ways. Used to advertise per-endpoint pricing.
-func X402PriceFor(operation string) string {
-	if !X402Enabled() {
-		return ""
-	}
-	cost := GetOperationCost(operation)
-	if cost < 1 {
-		return ""
-	}
-	return fmt.Sprintf("$%d.%02d", cost/100, cost%100)
 }
 
 // X402Status returns a human-readable diagnostic of the x402 configuration
@@ -524,55 +326,4 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
-}
-
-// ── settlement response header plumbing ─────────────────────────────────────
-
-type x402ContextKeyType struct{}
-
-// X402ContextKey marks requests whose payment should be verified+settled.
-var X402ContextKey = x402ContextKeyType{}
-
-type x402SettleKeyType struct{}
-
-// X402SettleKey holds a *SettleHolder that VerifyAndSettle fills on success.
-var X402SettleKey = x402SettleKeyType{}
-
-// SettleHolder carries a settlement result out of VerifyAndSettle (which runs
-// deep inside the tool dispatch) to the response writer.
-type SettleHolder struct{ Resp *SettleResponse }
-
-// settleWriter injects the X-PAYMENT-RESPONSE / PAYMENT-RESPONSE headers
-// (base64 settlement) just before the status line is written — by which point
-// settlement, if any, has completed.
-type settleWriter struct {
-	http.ResponseWriter
-	holder *SettleHolder
-	wrote  bool
-}
-
-// NewSettleWriter wraps w so a successful settlement is surfaced as the standard
-// response headers.
-func NewSettleWriter(w http.ResponseWriter, h *SettleHolder) http.ResponseWriter {
-	return &settleWriter{ResponseWriter: w, holder: h}
-}
-
-func (s *settleWriter) WriteHeader(code int) {
-	if !s.wrote {
-		s.wrote = true
-		if s.holder != nil && s.holder.Resp != nil {
-			b, _ := json.Marshal(s.holder.Resp)
-			enc := base64.StdEncoding.EncodeToString(b)
-			s.Header().Set(HeaderPaymentRespV1, enc)
-			s.Header().Set(HeaderPaymentRespV2, enc)
-		}
-	}
-	s.ResponseWriter.WriteHeader(code)
-}
-
-func (s *settleWriter) Write(b []byte) (int, error) {
-	if !s.wrote {
-		s.WriteHeader(http.StatusOK)
-	}
-	return s.ResponseWriter.Write(b)
 }

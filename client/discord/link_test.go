@@ -81,6 +81,15 @@ func TestClassifyMessage(t *testing.T) {
 	}
 }
 
+func TestEmptyMessageReplyRequiresOwnerLink(t *testing.T) {
+	if got := emptyMessageReply(""); got != "Link this bot to your Mu owner account before using it." {
+		t.Fatalf("unlinked reply = %q", got)
+	}
+	if got := emptyMessageReply(ownerIDForTest(t)); got != "Ask me anything — I'm Micro, your agent across news, mail, markets, weather, search and more." {
+		t.Fatalf("owner reply = %q", got)
+	}
+}
+
 func TestRedeemCodeRejectsExpiredCode(t *testing.T) {
 	codeMu.Lock()
 	codes = map[string]*linkCode{

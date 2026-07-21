@@ -28,4 +28,4 @@ owner wallet. x402 is an outbound owner capability: the agent can pay a remote
 x402-enabled service within configured spend limits. Incoming payment never
 authenticates a request or bypasses owner authentication.
 
-See [Installation](INSTALLATION.md) to create the owner and run Mu.
+See [Installation](/docs/installation) to create the owner and run Mu.

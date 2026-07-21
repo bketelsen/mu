@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"mu/internal/app"
-	"mu/wallet"
 )
 
 // APIPageHandler renders the API documentation page with interactive playground
@@ -231,11 +230,7 @@ func apiEndpointsSection() string {
 	var nav strings.Builder
 	nav.WriteString(`<nav class="ep-nav"><div class="ep-nav-title">Endpoints</div>`)
 	for _, t := range sortedTools() {
-		price := ""
-		if p := wallet.X402PriceFor(t.WalletOp); p != "" {
-			price = `<span class="ep-price">` + p + `</span>`
-		}
-		nav.WriteString(`<a href="#api-` + html.EscapeString(t.Name) + `"><span class="ep-path">` + html.EscapeString(t.Name) + `</span>` + price + `</a>`)
+		nav.WriteString(`<a href="#api-` + html.EscapeString(t.Name) + `"><span class="ep-path">` + html.EscapeString(t.Name) + `</span></a>`)
 	}
 	nav.WriteString(`</nav>`)
 	return `<div class="ep-layout">` + nav.String() + `<div class="ep-main">` + app.List(apiEndpointsHTML()) + `</div></div>`
@@ -248,9 +243,7 @@ func apiEndpointsHTML() string {
 	for _, t := range sortedTools() {
 		b.WriteString(`<div class="card" id="api-` + html.EscapeString(t.Name) + `">`)
 
-		if p := wallet.X402PriceFor(t.WalletOp); p != "" {
-			b.WriteString(`<span class="tool-price"><b>` + p + `</b> <span>/ call</span></span>`)
-		} else if t.WalletOp != "" {
+		if t.WalletOp != "" {
 			b.WriteString(`<span class="tool-price">credits</span>`)
 		}
 

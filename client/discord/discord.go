@@ -276,7 +276,7 @@ func handleMessage(m discordMessage) {
 	content = strings.TrimSpace(content)
 
 	if content == "" {
-		sendMessage(m.ChannelID, "Ask me anything — I'm Micro, your agent across news, mail, markets, weather, search and more.")
+		sendMessage(m.ChannelID, emptyMessageReply(GetLinkedAccount(m.Author.ID)))
 		return
 	}
 
@@ -365,6 +365,13 @@ func handleMessage(m discordMessage) {
 
 	embed := formatAsEmbed(content, answer)
 	sendEmbed(m.ChannelID, embed)
+}
+
+func emptyMessageReply(linkedAccount string) string {
+	if classifyMessage(true, linkedAccount) != accessOwner {
+		return "Link this bot to your Mu owner account before using it."
+	}
+	return "Ask me anything — I'm Micro, your agent across news, mail, markets, weather, search and more."
 }
 
 // ── Discord HTTP API ──

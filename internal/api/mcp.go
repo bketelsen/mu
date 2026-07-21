@@ -127,10 +127,6 @@ var QuotaCheck func(r *http.Request, op string) (bool, int, error)
 // the call and the error message is returned to the caller. Set by main.go.
 var ToolGuard func(r *http.Request, toolName string) error
 
-// PaymentRequiredResponse is called when quota check fails to build x402 payment
-// requirements. Returns nil if x402 is not enabled. Set by main.go.
-var PaymentRequiredResponse func(w http.ResponseWriter, op string, resource string)
-
 // GuestNewsSearch is retained for compatibility with callers that configure a
 // news provider, but MCP execution never uses it without an owner session.
 var GuestNewsSearch func(query string) (string, error)

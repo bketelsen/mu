@@ -45,4 +45,4 @@ write and credit charge to the owner wallet.
   destinations to reduce SSRF risk.
 - App HTML, storage, and fetch requests have size and time limits.
 
-See [MCP](MCP.md) for authenticated programmatic access.
+See [MCP](/docs/mcp) for authenticated programmatic access.

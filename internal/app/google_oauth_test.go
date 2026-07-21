@@ -6,10 +6,13 @@ import (
 	"time"
 
 	"mu/internal/auth"
+	"mu/internal/data"
 )
 
 func setGoogleOwner(t *testing.T, email string) *auth.Account {
 	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	data.Load()
 	owner, err := auth.Owner()
 	if errors.Is(err, auth.ErrNoOwner) {
 		if err := auth.Create(&auth.Account{ID: "owner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}); err != nil {

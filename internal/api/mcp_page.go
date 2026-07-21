@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"mu/internal/app"
-	"mu/wallet"
 )
 
 // MCPHandler handles both GET (HTML page) and POST (JSON-RPC) at /mcp
@@ -204,11 +203,7 @@ func mcpToolsSection() string {
 	var nav strings.Builder
 	nav.WriteString(`<nav class="ep-nav"><div class="ep-nav-title">Tools</div>`)
 	for _, t := range sortedTools() {
-		price := ""
-		if p := wallet.X402PriceFor(t.WalletOp); p != "" {
-			price = `<span class="ep-price">` + p + `</span>`
-		}
-		nav.WriteString(`<a href="#tool-` + html.EscapeString(t.Name) + `">` + html.EscapeString(t.Name) + price + `</a>`)
+		nav.WriteString(`<a href="#tool-` + html.EscapeString(t.Name) + `">` + html.EscapeString(t.Name) + `</a>`)
 	}
 	nav.WriteString(`</nav>`)
 	return `<div class="ep-layout">` + nav.String() + `<div class="ep-main">` + app.List(mcpToolsHTML()) + `</div></div>`
@@ -220,20 +215,12 @@ func mcpToolsHTML() string {
 	for _, t := range sortedTools() {
 		b.WriteString(`<div class="card" id="tool-` + html.EscapeString(t.Name) + `">`)
 		if t.WalletOp != "" {
-			if price := wallet.X402PriceFor(t.WalletOp); price != "" {
-				b.WriteString(`<span class="tool-price"><b>` + price + `</b> <span>/ call</span></span>`)
-			} else {
-				b.WriteString(`<span class="tool-price">credits</span>`)
-			}
+			b.WriteString(`<span class="tool-price">credits</span>`)
 		}
 		b.WriteString(`<span class="card-title">` + html.EscapeString(t.Name) + `</span>`)
 		b.WriteString(app.Desc(t.Description))
 		if t.WalletOp != "" {
-			if price := wallet.X402PriceFor(t.WalletOp); price != "" {
-				b.WriteString(`<p class="card-meta">Uses owner credits.</p>`)
-			} else {
-				b.WriteString(`<p class="card-meta">Metered &mdash; requires credits</p>`)
-			}
+			b.WriteString(`<p class="card-meta">Metered &mdash; requires credits</p>`)
 		}
 		if len(t.Params) > 0 {
 			b.WriteString(`<table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0">`)

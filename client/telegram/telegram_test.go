@@ -46,6 +46,15 @@ func TestClassifyMessage(t *testing.T) {
 	}
 }
 
+func TestEmptyMessageReplyRequiresOwnerLink(t *testing.T) {
+	if got := emptyMessageReply(""); got != "Link this bot to your Mu owner account before using it." {
+		t.Fatalf("unlinked reply = %q", got)
+	}
+	if got := emptyMessageReply(ownerIDForTest(t)); got != "Ask me anything! In groups use `/ask your question`." {
+		t.Fatalf("owner reply = %q", got)
+	}
+}
+
 func TestLinkAccountRejectsNonOwner(t *testing.T) {
 	ownerIDForTest(t)
 	if err := linkAccount("telegram-test", "legacy"); err == nil {

@@ -364,21 +364,6 @@ func main() {
 
 	// Wire MCP quota checking using wallet credit system
 	api.QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		// Check for x402 payment (bypasses auth + credits).
-		// Free trial: first 10 calls per wallet address are free —
-		// no payment header needed if within the trial.
-		if r.Context().Value(wallet.X402ContextKey) != nil {
-			// Try free trial first (by wallet address from payment header).
-			payAddr := r.Header.Get("X-Wallet-Address")
-			if payAddr != "" && wallet.X402UseTrialCall(payAddr) {
-				return true, 0, nil
-			}
-			_, err := wallet.VerifyAndSettle(r, op, r.URL.Path)
-			if err != nil {
-				return false, 0, fmt.Errorf("x402 payment failed: %w", err)
-			}
-			return true, 0, nil
-		}
 		sess, err := auth.GetSession(r)
 		if err != nil {
 			return false, 0, fmt.Errorf("authentication required")
@@ -389,14 +374,6 @@ func main() {
 
 	// Wire agent quota checking (same wallet credit system)
 	agent.QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		// Check for x402 payment (bypasses auth + credits)
-		if r.Context().Value(wallet.X402ContextKey) != nil {
-			_, err := wallet.VerifyAndSettle(r, op, r.URL.Path)
-			if err != nil {
-				return false, 0, fmt.Errorf("x402 payment failed: %w", err)
-			}
-			return true, 0, nil
-		}
 		sess, err := auth.GetSession(r)
 		if err != nil {
 			return false, 0, fmt.Errorf("authentication required")
@@ -418,11 +395,6 @@ func main() {
 
 	// Inline visual cards now come from the capability registry (core), which
 	// each service self-registers into from its Load(). No central wiring here.
-
-	// Wire x402 payment required response for MCP
-	if wallet.X402Enabled() {
-		api.PaymentRequiredResponse = wallet.WritePaymentRequired
-	}
 
 	// Wire email sending for verification mails. Uses the platform's own
 	// SMTP relay so verification mails come from no-reply@<MAIL_DOMAIN>.
