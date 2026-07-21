@@ -19,7 +19,7 @@ and no other local account can be created.
 
 Set `ANTHROPIC_API_KEY`, `ATLAS_API_KEY`, `OPENAI_BASE_URL`, or a Copilot token
 before starting if you want to configure the provider non-interactively. See
-[Environment Variables](/docs/environment-variables).
+[Environment Variables](/docs/environment).
 
 ## Authentication
 

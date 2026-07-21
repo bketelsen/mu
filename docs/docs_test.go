@@ -123,17 +123,27 @@ func TestEmbeddedDocumentsDescribeSingleOwnerRuntime(t *testing.T) {
 
 func TestViewerLinksUseCatalogURLs(t *testing.T) {
 	wants := map[string]string{
-		"ABOUT.md":        "/docs/installation",
-		"INSTALLATION.md": "/docs/environment-variables",
-		"APPS.md":         "/docs/mcp",
-		"COPILOT.md":      "/docs/environment-variables",
+		"ABOUT.md":        "INSTALLATION.md",
+		"INSTALLATION.md": "ENVIRONMENT_VARIABLES.md",
+		"APPS.md":         "MCP.md",
+		"COPILOT.md":      "ENVIRONMENT_VARIABLES.md",
 	}
-	for filename, want := range wants {
+	for filename, target := range wants {
+		want := ""
+		for _, doc := range catalog {
+			if doc.Filename == target {
+				want = "/docs/" + doc.Slug
+				break
+			}
+		}
+		if want == "" {
+			t.Fatalf("catalog has no document for %s", target)
+		}
 		content, err := docsFS.ReadFile(filename)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(content), want) {
+		if !strings.Contains(string(content), "]("+want+")") {
 			t.Errorf("%s does not link to %s", filename, want)
 		}
 	}

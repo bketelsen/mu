@@ -149,28 +149,6 @@ type Result struct {
 	Data any    `json:"data,omitempty"`
 }
 
-// MCPWalletOp parses a JSON-RPC MCP request body and returns the wallet
-// operation for a tools/call to a metered tool, or "" if the call is free or is
-// not a tools/call. Lets the HTTP layer gate x402 payments before dispatch,
-// where auth and wallet packages are in scope.
-func MCPWalletOp(body []byte) string {
-	var req struct {
-		Method string `json:"method"`
-		Params struct {
-			Name string `json:"name"`
-		} `json:"params"`
-	}
-	if err := json.Unmarshal(body, &req); err != nil || req.Method != "tools/call" {
-		return ""
-	}
-	for i := range tools {
-		if toolMatches(tools[i], req.Params.Name) {
-			return tools[i].WalletOp
-		}
-	}
-	return ""
-}
-
 // toolMatches reports whether name is the tool's canonical name or one of its
 // legacy aliases. Aliases let a renamed tool keep resolving old callers (agent
 // shortcuts, existing integrations) without appearing in listings.

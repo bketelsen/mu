@@ -47,11 +47,14 @@ func TestClassifyMessage(t *testing.T) {
 }
 
 func TestEmptyMessageReplyRequiresOwnerLink(t *testing.T) {
-	if got := emptyMessageReply(""); got != "Link this bot to your Mu owner account before using it." {
+	if got := emptyMessageReply(true, ""); got != "Link this bot to your Mu owner account before using it." {
 		t.Fatalf("unlinked reply = %q", got)
 	}
-	if got := emptyMessageReply(ownerIDForTest(t)); got != "Ask me anything! In groups use `/ask your question`." {
+	if got := emptyMessageReply(true, ownerIDForTest(t)); got != "Ask me anything! In groups use `/ask your question`." {
 		t.Fatalf("owner reply = %q", got)
+	}
+	if got := emptyMessageReply(false, ownerIDForTest(t)); got != "" {
+		t.Fatalf("shared reply = %q", got)
 	}
 }
 
