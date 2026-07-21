@@ -230,8 +230,8 @@ func TestCategory_WithoutHref(t *testing.T) {
 
 func TestAuthorLink(t *testing.T) {
 	result := AuthorLink("alice", "Alice Smith")
-	if !strings.Contains(result, `/@alice`) {
-		t.Error("expected profile link")
+	if strings.Contains(result, "<a ") || strings.Contains(result, "/@") {
+		t.Errorf("author text retains profile navigation: %q", result)
 	}
 	if !strings.Contains(result, "Alice Smith") {
 		t.Error("expected display name")

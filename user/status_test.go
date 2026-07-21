@@ -96,7 +96,7 @@ func TestStatusStream_ChronologicalOrder(t *testing.T) {
 	}
 	profileMutex.Unlock()
 
-	stream := StatusStream(100, "")
+	stream := StatusStream(100)
 
 	// Expected order (newest first):
 	//   alice "latest" (now)
@@ -153,7 +153,7 @@ func TestStatusStream_PerUserCapPreventsFlood(t *testing.T) {
 	profileMutex.Unlock()
 
 	// Cap: 10 total, 3 per user. Alice should contribute at most 3.
-	stream := StatusStreamCapped(10, 3, "")
+	stream := StatusStreamCapped(10, 3)
 
 	aliceCount := 0
 	bobCount := 0
@@ -217,7 +217,7 @@ func TestStatusStream_RespectsMax(t *testing.T) {
 	}
 	profileMutex.Unlock()
 
-	stream := StatusStream(10, "")
+	stream := StatusStream(10)
 	if len(stream) != 10 {
 		t.Errorf("got %d, want 10", len(stream))
 	}
@@ -294,7 +294,7 @@ func TestStatusCountSince_IgnoresExpiredEntries(t *testing.T) {
 	}
 	profileMutex.Unlock()
 
-	count := StatusCountSince(now.Add(-2*statusMaxAge), "")
+	count := StatusCountSince(now.Add(-2 * statusMaxAge))
 	if count != 2 {
 		t.Fatalf("StatusCountSince counted %d entries, want only the 2 fresh entries", count)
 	}

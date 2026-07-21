@@ -426,9 +426,7 @@ func main() {
 
 	// Wire email sending for verification mails. Uses the platform's own
 	// SMTP relay so verification mails come from no-reply@<MAIL_DOMAIN>.
-	// Only enabled when MAIL_DOMAIN is configured to a real domain —
-	// instances without mail configured skip the verification gate
-	// entirely (see auth.VerificationRequired below).
+	// It is enabled only when MAIL_DOMAIN is configured to a real domain.
 	if domain := mail.GetConfiguredDomain(); domain != "" && domain != "localhost" {
 		app.EmailSender = func(to, subject, plain, html string) error {
 			from := "no-reply@" + domain
@@ -1500,7 +1498,7 @@ func updatesHandler(w http.ResponseWriter, r *http.Request) {
 		result["social"] = 0
 		result["stream"] = 0
 	} else {
-		result["status"] = user.StatusCountSince(since, viewerID)
+		result["status"] = user.StatusCountSince(since)
 		result["social"] = social.CountSince(since)
 		result["stream"] = stream.CountSince(since)
 	}

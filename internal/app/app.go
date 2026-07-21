@@ -708,7 +708,6 @@ func Account(w http.ResponseWriter, r *http.Request) {
 	content := fmt.Sprintf(`<div class="card">
 <h4>Profile</h4>
 <p><strong>%s</strong> · %s · Joined %s</p>
-<p><a href="/@%s">Public profile →</a></p>
 </div>
 
 %s
@@ -739,7 +738,6 @@ func Account(w http.ResponseWriter, r *http.Request) {
 		acc.ID,
 		acc.Name,
 		acc.Created.Format("January 2, 2006"),
-		acc.ID,
 		emailCard,
 		googleCard,
 		languageOptions,

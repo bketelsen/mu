@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	htmlpkg "html"
 	"net/http"
 	"regexp"
 	"sort"
@@ -412,10 +413,7 @@ func updateCacheUnlocked() {
 			title = "Untitled"
 		}
 
-		authorLink := post.Author
-		if post.AuthorID != "" {
-			authorLink = fmt.Sprintf(`<a href="/@%s">%s</a>`, post.AuthorID, post.Author)
-		}
+		authorLink := htmlpkg.EscapeString(post.Author)
 
 		tagsHtml := ""
 		if post.Tags != "" {
@@ -507,10 +505,7 @@ func updateCacheUnlocked() {
 		// Add links and YouTube embeds
 		content = Linkify(content)
 
-		authorLink := post.Author
-		if post.AuthorID != "" {
-			authorLink = fmt.Sprintf(`<a href="/@%s">%s</a>`, post.AuthorID, post.Author)
-		}
+		authorLink := htmlpkg.EscapeString(post.Author)
 
 		tagsHtml := ""
 		if post.Tags != "" {
@@ -623,10 +618,7 @@ func previewUncached() string {
 			title = "Untitled"
 		}
 
-		authorLink := post.Author
-		if post.AuthorID != "" {
-			authorLink = fmt.Sprintf(`<a href="/@%s">%s</a>`, post.AuthorID, post.Author)
-		}
+		authorLink := htmlpkg.EscapeString(post.Author)
 
 		tagsHtml := ""
 		if post.Tags != "" {
@@ -685,10 +677,7 @@ func renderPostPreview(post *Post) string {
 
 	content = Linkify(content)
 
-	authorLink := post.Author
-	if post.AuthorID != "" {
-		authorLink = fmt.Sprintf(`<a href="/@%s" class="text-muted">%s</a>`, post.AuthorID, post.Author)
-	}
+	authorLink := htmlpkg.EscapeString(post.Author)
 
 	item := fmt.Sprintf(`<div class="post-item">
 		<h3><a href="/blog/post?id=%s">%s</a></h3>
@@ -1424,10 +1413,7 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 	// Add links and YouTube embeds for full post view
 	contentHTML := Linkify(post.Content)
 
-	authorLink := post.Author
-	if post.AuthorID != "" {
-		authorLink = fmt.Sprintf(`<a href="/@%s" class="text-muted">%s</a>`, post.AuthorID, post.Author)
-	}
+	authorLink := htmlpkg.EscapeString(post.Author)
 
 	// Admin controls (edit/delete for author or admin)
 	_, acc := auth.TrySession(r)
@@ -1532,10 +1518,7 @@ func renderComments(postID string, r *http.Request) string {
 		if !isAdmin && flag.IsHidden("comment", comment.ID) {
 			continue
 		}
-		authorLink := comment.Author
-		if comment.AuthorID != "" {
-			authorLink = fmt.Sprintf(`<a href="/@%s">%s</a>`, comment.AuthorID, comment.Author)
-		}
+		authorLink := htmlpkg.EscapeString(comment.Author)
 
 		renderedContent := app.RenderString(comment.Content)
 		commentsHTML.WriteString(fmt.Sprintf(`

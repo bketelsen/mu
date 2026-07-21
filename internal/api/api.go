@@ -437,51 +437,6 @@ func init() {
 	})
 
 	Endpoints = append(Endpoints, &Endpoint{
-		Name:        "User Profile",
-		Path:        "/@{username}",
-		Method:      "GET",
-		Description: "Get user profile and their posts",
-		Response: []*Value{
-			{
-				Type: "HTML",
-				Params: []*Param{
-					{
-						Name:        "html",
-						Value:       "string",
-						Description: "Rendered user profile page",
-					},
-				},
-			},
-		},
-	})
-
-	Endpoints = append(Endpoints, &Endpoint{
-		Name:        "Update User Status",
-		Path:        "/@{username}",
-		Method:      "POST",
-		Description: "Update user status message (own profile only)",
-		Params: []*Param{
-			{
-				Name:        "status",
-				Value:       "string",
-				Description: "Status message (max 100 characters)",
-			},
-		},
-		Response: []*Value{
-			{
-				Type: "Redirect",
-				Params: []*Param{
-					{
-						Name:        "location",
-						Value:       "string",
-						Description: "Redirects to user profile",
-					},
-				},
-			},
-		},
-	})
-
-	Endpoints = append(Endpoints, &Endpoint{
 		Name:        "Add Comment",
 		Path:        "/blog/post/{id}/comment",
 		Method:      "POST",

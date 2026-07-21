@@ -16,7 +16,7 @@ func TestSMTPAcceptsOnlyOwnerLocalRecipient(t *testing.T) {
 		}
 	}
 
-	session := &Session{remoteIP: "203.0.113.10"}
+	session := &Session{}
 	if err := session.Rcpt(owner.ID+"@"+GetConfiguredDomain(), nil); err != nil {
 		t.Fatalf("owner local recipient rejected: %v", err)
 	}

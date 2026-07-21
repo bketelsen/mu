@@ -122,8 +122,8 @@ type StatusEntry struct {
 const statusMaxAge = 7 * 24 * time.Hour
 
 // RecentStatuses returns users who have set a status within the last 7 days,
-// most recently updated first. Limited to max entries. Excludes the given userID.
-func RecentStatuses(viewerID string, max int) []StatusEntry {
+// most recently updated first. Limited to max entries.
+func RecentStatuses(max int) []StatusEntry {
 	profileMutex.RLock()
 	defer profileMutex.RUnlock()
 
@@ -167,14 +167,13 @@ func RecentStatuses(viewerID string, max int) []StatusEntry {
 //     entries.
 //
 // Pass 0 for either cap to disable it.
-func StatusStream(max int, viewerID string) []StatusEntry {
-	return StatusStreamCapped(max, StatusStreamPerUser, viewerID)
+func StatusStream(max int) []StatusEntry {
+	return StatusStreamCapped(max, StatusStreamPerUser)
 }
 
 // StatusStreamCapped is the underlying implementation with explicit
-// per-user and total caps. viewerID is the current viewer — a banned
-// user's own posts are included so they don't realise they're muted.
-func StatusStreamCapped(maxTotal, maxPerUser int, viewerID string) []StatusEntry {
+// per-user and total caps.
+func StatusStreamCapped(maxTotal, maxPerUser int) []StatusEntry {
 	profileMutex.RLock()
 	defer profileMutex.RUnlock()
 
@@ -252,7 +251,7 @@ func StatusStreamCapped(maxTotal, maxPerUser int, viewerID string) []StatusEntry
 // StatusCountSince returns how many status entries are newer than the
 // given timestamp. Used by the /updates endpoint to tell the client
 // whether it needs to refresh the stream.
-func StatusCountSince(since time.Time, viewerID string) int {
+func StatusCountSince(since time.Time) int {
 	profileMutex.RLock()
 	defer profileMutex.RUnlock()
 
@@ -472,7 +471,7 @@ func envInt(key string, def int) int {
 // stream of recent statuses. Extracted so the fragment endpoint and
 // the home card can share one code path.
 func RenderStatusStream(viewerID string) string {
-	entries := StatusStream(StatusStreamMax, viewerID)
+	entries := StatusStream(StatusStreamMax)
 	app.Log("status", "RenderStatusStream: %d entries for viewer %s", len(entries), viewerID)
 
 	var sb strings.Builder

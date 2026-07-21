@@ -70,6 +70,25 @@ func TestRoutesExcludeProfilesFederationAndPresence(t *testing.T) {
 	}
 }
 
+func TestExecutableSourcesExcludeProfileDiscovery(t *testing.T) {
+	for _, file := range []string{
+		"blog/blog.go",
+		"mail/mail.go",
+		"stream/handlers.go",
+		"internal/app/app.go",
+		"internal/app/ui.go",
+		"internal/api/api.go",
+	} {
+		source, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(source), "/@") {
+			t.Errorf("%s retains executable profile discovery", file)
+		}
+	}
+}
+
 func TestVersionInfoDoesNotExposeServiceTopology(t *testing.T) {
 	info := versionInfo()
 	if _, ok := info["services"]; ok {

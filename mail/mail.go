@@ -1025,8 +1025,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			if isSent {
 				authorDisplay = "You"
 			} else if !IsExternalEmail(m.FromID) {
-				// Internal user - add profile link
-				authorDisplay = fmt.Sprintf(`<a href="/@%s" class="mail-link">%s</a>`, m.FromID, m.FromID)
+				authorDisplay = html.EscapeString(m.FromID)
 			} else if m.From != m.FromID {
 				// External email with display name
 				authorDisplay = m.From
@@ -1053,11 +1052,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		if msg.FromID == acc.ID {
 			otherParty = msg.ToID
 		}
-		// Format other party with profile link if internal user
-		otherPartyDisplay := otherParty
-		if !IsExternalEmail(otherParty) {
-			otherPartyDisplay = fmt.Sprintf(`<a href="/@%s" class="mail-link-muted">%s</a>`, otherParty, otherParty)
-		}
+		otherPartyDisplay := html.EscapeString(otherParty)
 
 		// Add block link if other party is external email and user is admin
 		blockButton := ""
