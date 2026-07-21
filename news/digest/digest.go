@@ -258,7 +258,7 @@ Perspective:
 
 Structure your briefing as 3-5 short paragraphs of flowing prose:
 - Open with the dominant theme or story of the day
-- Weave in market movements where relevant to the narrative (e.g. "Oil surged 8% as tensions in the Gulf escalated" not "Oil: $94.63")
+- Weave in market movements where relevant to the narrative; include figures only when explicitly reported by the supplied sources
 - Cover geopolitics, finance, tech, and other notable stories
 - Close with anything else worth knowing
 
