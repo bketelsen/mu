@@ -53,6 +53,34 @@ func TestPullRequestsListsRepositoryPullRequestsWithoutText(t *testing.T) {
 	}
 }
 
+func TestPullRequestsSearchesRepositoryTextWithoutAllQualifier(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/search/issues" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		query := r.URL.Query().Get("q")
+		for _, want := range []string{"repo:micro/mu", "is:pr", "documentation"} {
+			if !strings.Contains(query, want) {
+				t.Fatalf("query = %q, missing %q", query, want)
+			}
+		}
+		if strings.Contains(query, "is:all") {
+			t.Fatalf("query = %q, contains is:all", query)
+		}
+		_, _ = io.WriteString(w, `{"items":[{"number":7,"title":"Improve docs"}]}`)
+	}))
+	defer ts.Close()
+
+	c := NewClient(ts.Client(), ts.URL, func() string { return "test-token" })
+	pulls, _, err := c.PullRequests(context.Background(), ItemOptions{Owner: "micro", Repo: "mu", Query: "documentation", State: "all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pulls) != 1 || pulls[0].Number != 7 {
+		t.Fatalf("pulls = %#v", pulls)
+	}
+}
+
 func TestSearchValidatesAndQualifiesType(t *testing.T) {
 	var calls int
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +106,22 @@ func TestSearchValidatesAndQualifiesType(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("upstream calls = %d", calls)
+	}
+}
+
+func TestSearchOmitsAllStateQualifier(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("q")
+		if strings.Contains(query, "is:all") {
+			t.Fatalf("query = %q, contains is:all", query)
+		}
+		_, _ = io.WriteString(w, `{"items":[]}`)
+	}))
+	defer ts.Close()
+
+	c := NewClient(ts.Client(), ts.URL, func() string { return "test-token" })
+	if _, _, err := c.Search(context.Background(), ItemOptions{Query: "docs", State: "all"}); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -148,6 +192,8 @@ func TestItemOperationsRejectInvalidInputBeforeHTTP(t *testing.T) {
 		assertInvalid(t, err)
 	}
 	_, err := c.Thread(context.Background(), "micro", "mu", 0)
+	assertInvalid(t, err)
+	_, _, err = c.PullRequests(context.Background(), ItemOptions{})
 	assertInvalid(t, err)
 	if calls != 0 {
 		t.Fatalf("upstream calls = %d", calls)

@@ -26,7 +26,11 @@ func (c *Client) Issues(ctx context.Context, opts ItemOptions) ([]Issue, PageInf
 	if state == "" {
 		state = "open"
 	}
-	return c.searchIssues(ctx, opts, append(itemQualifiers(opts), "is:issue", "is:"+state))
+	qualifiers := append(itemQualifiers(opts), "is:issue")
+	if state != "all" {
+		qualifiers = append(qualifiers, "is:"+state)
+	}
+	return c.searchIssues(ctx, opts, qualifiers)
 }
 
 func (c *Client) PullRequests(ctx context.Context, opts ItemOptions) ([]PullRequest, PageInfo, error) {
@@ -36,6 +40,9 @@ func (c *Client) PullRequests(ctx context.Context, opts ItemOptions) ([]PullRequ
 	state := opts.State
 	if state == "" {
 		state = "all"
+	}
+	if opts.Query == "" && opts.Owner == "" {
+		return nil, PageInfo{}, &APIError{Kind: ErrorInvalid}
 	}
 	if opts.Query == "" && opts.Owner != "" {
 		page, perPage := normalizePage(opts.Page, opts.PerPage)
@@ -51,7 +58,11 @@ func (c *Client) PullRequests(ctx context.Context, opts ItemOptions) ([]PullRequ
 		return pulls, pageInfo, err
 	}
 
-	issues, page, err := c.searchIssues(ctx, opts, append(itemQualifiers(opts), "is:pr", "is:"+state))
+	qualifiers := append(itemQualifiers(opts), "is:pr")
+	if state != "all" {
+		qualifiers = append(qualifiers, "is:"+state)
+	}
+	issues, page, err := c.searchIssues(ctx, opts, qualifiers)
 	pulls := make([]PullRequest, len(issues))
 	for i, issue := range issues {
 		pulls[i] = PullRequest{ID: issue.ID, Number: issue.Number, Title: issue.Title, Body: issue.Body, State: issue.State, HTMLURL: issue.HTMLURL, User: issue.User, Labels: issue.Labels, Comments: issue.Comments, CreatedAt: issue.CreatedAt, UpdatedAt: issue.UpdatedAt, ClosedAt: issue.ClosedAt}
@@ -73,7 +84,7 @@ func (c *Client) Search(ctx context.Context, opts ItemOptions) ([]Issue, PageInf
 	case "pulls":
 		qualifiers = append(qualifiers, "is:pr")
 	}
-	if opts.State != "" {
+	if opts.State == "open" || opts.State == "closed" {
 		qualifiers = append(qualifiers, "is:"+opts.State)
 	}
 	return c.searchIssues(ctx, opts, qualifiers)
