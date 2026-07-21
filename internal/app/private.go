@@ -46,7 +46,8 @@ var publicPrivateAssets = map[string]bool{
 
 func Private(next http.Handler, setupNeeded func() bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if publicPrivatePath(r.URL.Path, setupNeeded()) {
+		needsSetup := setupNeeded()
+		if publicPrivatePath(r.URL.Path, needsSetup) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -56,6 +57,10 @@ func Private(next http.Handler, setupNeeded func() bool) http.Handler {
 		}
 		if WantsJSON(r) || SendsJSON(r) || r.URL.Path == "/mcp" || r.URL.Path == "/a2a" || strings.HasPrefix(r.URL.Path, "/api/") {
 			RespondError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		if needsSetup {
+			http.Redirect(w, r, "/setup", http.StatusSeeOther)
 			return
 		}
 		RedirectToLogin(w, r)

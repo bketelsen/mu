@@ -55,6 +55,47 @@ func TestPrivateDeniesApplicationRoutesByDefault(t *testing.T) {
 	}
 }
 
+func TestPrivateRedirectsFreshBrowserRequestsToSetup(t *testing.T) {
+	h := Private(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("fresh browser request reached private handler")
+	}), func() bool { return true })
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusSeeOther)
+	}
+	if location := rr.Header().Get("Location"); location != "/setup" {
+		t.Fatalf("Location = %q, want /setup", location)
+	}
+}
+
+func TestPrivateRedirectsConfiguredBrowserRequestsToLogin(t *testing.T) {
+	h := Private(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("configured browser request reached private handler")
+	}), func() bool { return false })
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusSeeOther)
+	}
+	if location := rr.Header().Get("Location"); location != "/login?redirect=%2F" {
+		t.Fatalf("Location = %q, want login redirect", location)
+	}
+}
+
+func TestPrivateDeniesFreshMachineRequests(t *testing.T) {
+	h := Private(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("fresh machine request reached private handler")
+	}), func() bool { return true })
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Accept", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusUnauthorized)
+	}
+}
+
 func TestPrivateAllowsOwner(t *testing.T) {
 	owner, err := auth.Owner()
 	if errors.Is(err, auth.ErrNoOwner) {
