@@ -1182,6 +1182,7 @@ func main() {
 		"/places":                false, // Public map, auth for search
 		"/weather":               false, // Public page, auth for forecast lookup
 		"/mail":                  true,  // Require auth for inbox
+		"/github":                true,  // Require authentication; handler requires admin
 		"/logout":                true,
 		"/account":               true,
 		"/verify":                false, // Public — token in URL is the credential
@@ -1235,6 +1236,7 @@ func main() {
 	}
 	// serve video
 	http.HandleFunc("/video", video.Handler)
+	http.HandleFunc("/github", github.Handler)
 
 	// serve news
 	http.HandleFunc("/news", news.Handler)
