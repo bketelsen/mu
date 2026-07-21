@@ -64,6 +64,7 @@
 
 .github-layout { display:grid; grid-template-columns:minmax(220px, 30%) minmax(0, 1fr); gap:var(--spacing-lg); }
 .github-repos { border-right:1px solid var(--divider); padding-right:var(--spacing-md); }
+.github-content { min-width:0; }
 .github-repo, .github-item { display:block; padding:var(--spacing-sm); border-bottom:1px solid var(--divider); }
 .github-repo:hover, .github-item:hover { background:var(--hover-background); text-decoration:none; }
 .github-repo.active { background:var(--hover-background); border-left:3px solid var(--accent-color); }

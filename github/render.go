@@ -19,7 +19,7 @@ func githubLink(rawURL, label string) string {
 
 func renderWorkspace(data workspaceData) string {
 	var b strings.Builder
-	b.WriteString(`<form method="get" action="/github"><input type="search" name="q" value="` + esc(data.State.Query) + `" placeholder="Search repositories"><input type="hidden" name="tab" value="` + esc(data.State.Tab) + `"><input type="hidden" name="state" value="` + esc(data.State.State) + `"><input type="hidden" name="page" value="` + strconv.Itoa(data.State.Page) + `"><button type="submit">Search</button></form>`)
+	renderSearchForm(&b, data.State)
 	if isNotConfigured(data.Err) {
 		b.WriteString(`<section class="card"><p>Set <code>GITHUB_TOKEN</code> to connect GitHub.</p><p><a href="/admin/env">Configure environment</a></p></section>`)
 		return b.String()
@@ -44,6 +44,10 @@ func renderWorkspace(data workspaceData) string {
 		b.WriteString(`<p class="github-meta">No repositories found.</p>`)
 	}
 	b.WriteString(`</aside><main class="github-content">`)
+	if data.ContentErr != nil {
+		b.WriteString(`<section class="card"><p>GitHub workspace unavailable. Please try again.</p></section></main></div>`)
+		return b.String()
+	}
 	if data.State.Owner == "" || data.State.Repo == "" {
 		b.WriteString(`<p>Select a repository to view its work.</p></main></div>`)
 		return b.String()
@@ -82,6 +86,18 @@ func renderWorkspace(data workspaceData) string {
 	}
 	b.WriteString(`</main></div>`)
 	return b.String()
+}
+
+func renderSearchForm(b *strings.Builder, state workspaceState) {
+	placeholder := "Search issues"
+	if state.Tab == "pulls" {
+		placeholder = "Search pull requests"
+	}
+	b.WriteString(`<form method="get" action="/github"><input type="search" name="q" value="` + esc(state.Query) + `" placeholder="` + placeholder + `">`)
+	if state.Owner != "" && state.Repo != "" {
+		b.WriteString(`<input type="hidden" name="owner" value="` + esc(state.Owner) + `"><input type="hidden" name="repo" value="` + esc(state.Repo) + `">`)
+	}
+	b.WriteString(`<input type="hidden" name="tab" value="` + esc(state.Tab) + `"><input type="hidden" name="state" value="` + esc(state.State) + `"><button type="submit">Search</button></form>`)
 }
 
 func renderItem(b *strings.Builder, state workspaceState, kind string, number int, title, itemState string, labels []Label, author, updated string, comments int, rawURL string) {

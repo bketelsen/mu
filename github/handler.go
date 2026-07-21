@@ -21,6 +21,7 @@ type workspaceData struct {
 	Repository   RepositoryResponse
 	Thread       IssueResponse
 	Err          error
+	ContentErr   error
 }
 
 type adminCheck func(*http.Request) (*auth.Session, *auth.Account, error)
@@ -49,7 +50,7 @@ func handleWorkspace(server *Server, authorize adminCheck, w http.ResponseWriter
 
 	state := parseWorkspaceState(r)
 	data := workspaceData{State: state}
-	data.Err = server.Repositories(context.Background(), &RepositoriesRequest{Query: state.Query, Page: state.Page, PerPage: defaultPerPage}, &data.Repositories)
+	data.Err = server.Repositories(context.Background(), &RepositoriesRequest{Page: state.Page, PerPage: defaultPerPage}, &data.Repositories)
 	if data.Err == nil && state.Owner == "" && state.Repo == "" && len(data.Repositories.Repositories) > 0 {
 		data.State.Owner = data.Repositories.Repositories[0].Owner.Login
 		data.State.Repo = data.Repositories.Repositories[0].Name
@@ -58,10 +59,10 @@ func handleWorkspace(server *Server, authorize adminCheck, w http.ResponseWriter
 		}
 	}
 	if data.Err == nil && data.State.Owner != "" && data.State.Repo != "" {
-		data.Err = server.Repository(context.Background(), &RepositoryRequest{Owner: data.State.Owner, Repo: data.State.Repo, Resource: data.State.Tab, State: data.State.State, Query: data.State.Query, Page: data.State.Page, PerPage: defaultPerPage}, &data.Repository)
+		data.ContentErr = server.Repository(context.Background(), &RepositoryRequest{Owner: data.State.Owner, Repo: data.State.Repo, Resource: data.State.Tab, State: data.State.State, Query: data.State.Query, Page: data.State.Page, PerPage: defaultPerPage}, &data.Repository)
 	}
-	if data.Err == nil && data.State.Number > 0 && data.State.Owner != "" && data.State.Repo != "" {
-		data.Err = server.Issue(context.Background(), &IssueRequest{Owner: data.State.Owner, Repo: data.State.Repo, Number: data.State.Number}, &data.Thread)
+	if data.ContentErr == nil && data.State.Number > 0 && data.State.Owner != "" && data.State.Repo != "" {
+		data.ContentErr = server.Issue(context.Background(), &IssueRequest{Owner: data.State.Owner, Repo: data.State.Repo, Number: data.State.Number}, &data.Thread)
 	}
 	app.Respond(w, r, app.Response{Title: "GitHub", Description: "Repositories, issues, and pull requests", HTML: renderWorkspace(data)})
 }
