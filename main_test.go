@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"mu/internal/auth"
 	"mu/wallet"
 )
 
@@ -77,5 +78,23 @@ func TestArgFloat(t *testing.T) {
 				t.Fatalf("argFloat(%v) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMigrateSingleOwnerUsesDataBackup(t *testing.T) {
+	oldBackup := backupData
+	oldRun := runOwnerMigration
+	called := false
+	backupData = func() (string, error) { called = true; return "/tmp/mu-backup", nil }
+	runOwnerMigration = func(backup func() (string, error)) (auth.MigrationResult, error) {
+		path, err := backup()
+		return auth.MigrationResult{Migrated: true, BackupPath: path, OwnerID: "owner"}, err
+	}
+	t.Cleanup(func() { backupData, runOwnerMigration = oldBackup, oldRun })
+	if err := migrateSingleOwner(); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("startup migration did not invoke data backup")
 	}
 }

@@ -62,6 +62,37 @@ var EnvFlag = flag.String("env", "dev", "Set the environment")
 var ServeFlag = flag.Bool("serve", false, "Run the server")
 var AddressFlag = flag.String("address", ":8080", "Address for server")
 
+var backupData = func() (string, error) { return data.Backup(time.Now()) }
+var runOwnerMigration = auth.MigrateSingleOwner
+
+func registerAccountCleanup() {
+	auth.RegisterAccountDeleteHook("blog", blog.DeletePostsByAuthor)
+	auth.RegisterAccountDeleteHook("social", social.DeleteByAuthor)
+	auth.RegisterAccountDeleteHook("apps", apps.DeleteAppsByAuthor)
+	auth.RegisterAccountDeleteHook("stream", stream.ClearByAuthor)
+	auth.RegisterAccountDeleteHook("user", user.ClearStatusHistory)
+	auth.RegisterAccountDeleteHook("mail", mail.DeleteInbox)
+	auth.RegisterAccountDeleteHook("wallet", wallet.DeleteWallet)
+	auth.RegisterAccountDeleteHook("basewallet", wallet.DeleteBaseWallet)
+	auth.RegisterAccountDeleteHook("micro", micro.DeleteUserAgents)
+	auth.RegisterAccountDeleteHook("discord", discord.DeleteLinks)
+	auth.RegisterAccountDeleteHook("telegram", telegram.DeleteLinks)
+	auth.RegisterAccountDeleteHook("whatsapp", whatsapp.DeleteLinks)
+	auth.RegisterAccountDeleteHook("prefs", app.ClearUserPrefs)
+	auth.RegisterAccountDeleteHook("memory", memory.Clear)
+}
+
+func migrateSingleOwner() error {
+	result, err := runOwnerMigration(backupData)
+	if err != nil {
+		return err
+	}
+	if result.Migrated {
+		app.Log("auth", "single-owner migration complete owner=%s deleted=%d reset=%v backup=%s", result.OwnerID, result.Deleted, result.Reset, result.BackupPath)
+	}
+	return nil
+}
+
 // argFloat coerces a tool argument (JSON number or string) to a float64.
 func argFloat(v any) float64 {
 	switch n := v.(type) {
@@ -103,6 +134,13 @@ func main() {
 
 	// load settings first so other packages can use them
 	settings.Load()
+
+	// Migration is startup-only: it must complete before services or background work begin.
+	registerAccountCleanup()
+	if err := migrateSingleOwner(); err != nil {
+		app.Log("auth", "single-owner migration failed: %v", err)
+		os.Exit(1)
+	}
 
 	// log the resolved AI provider up front so misconfiguration (missing
 	// token/key in this environment) is visible immediately, not as
@@ -355,22 +393,6 @@ func main() {
 	// Wire admin → blog callbacks (avoids blog importing admin)
 	admin.GetNewAccountBlog = blog.GetNewAccountBlogPosts
 	admin.RefreshBlogCache = blog.RefreshCache
-
-	// Register account deletion hooks — each package cleans up its own data.
-	auth.RegisterAccountDeleteHook("blog", blog.DeletePostsByAuthor)
-	auth.RegisterAccountDeleteHook("social", social.DeleteByAuthor)
-	auth.RegisterAccountDeleteHook("apps", apps.DeleteAppsByAuthor)
-	auth.RegisterAccountDeleteHook("stream", stream.ClearByAuthor)
-	auth.RegisterAccountDeleteHook("user", user.ClearStatusHistory)
-	auth.RegisterAccountDeleteHook("mail", mail.DeleteInbox)
-	auth.RegisterAccountDeleteHook("wallet", wallet.DeleteWallet)
-	auth.RegisterAccountDeleteHook("basewallet", wallet.DeleteBaseWallet)
-	auth.RegisterAccountDeleteHook("micro", micro.DeleteUserAgents)
-	auth.RegisterAccountDeleteHook("discord", discord.DeleteLinks)
-	auth.RegisterAccountDeleteHook("telegram", telegram.DeleteLinks)
-	auth.RegisterAccountDeleteHook("whatsapp", whatsapp.DeleteLinks)
-	auth.RegisterAccountDeleteHook("prefs", app.ClearUserPrefs)
-	auth.RegisterAccountDeleteHook("memory", memory.Clear)
 
 	// Enable indexing after all content is loaded
 	// This allows the priority queue to process new items first
