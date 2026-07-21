@@ -132,20 +132,21 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 		if statusHTML == "" {
 			statusHTML = `<span class="text-muted" style="font-size:12px">—</span>`
 		}
-		var actions []string
-		if u.ID != acc.ID {
-			if u.Banned {
-				actions = append(actions, fmt.Sprintf(`<form method="POST" class="d-inline"><input type="hidden" name="action" value="unban"><input type="hidden" name="user_id" value="%s"><input type="hidden" name="tab" value="%s"><button type="submit" style="font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid #22c55e;background:#fff;color:#22c55e;cursor:pointer">Unban</button></form>`, u.ID, tab))
-			} else {
-				actions = append(actions, fmt.Sprintf(`<form method="POST" class="d-inline"><input type="hidden" name="action" value="ban"><input type="hidden" name="user_id" value="%s"><input type="hidden" name="tab" value="%s"><button type="submit" style="font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid #c00;background:#fff;color:#c00;cursor:pointer" onclick="return confirm('Ban %s?')">Ban</button></form>`, u.ID, tab, u.ID))
-			}
-			actions = append(actions, fmt.Sprintf(`<form method="POST" class="d-inline" onsubmit="return confirm('Delete %s?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="user_id" value="%s"><input type="hidden" name="tab" value="%s"><button type="submit" class="btn-danger" style="font-size:12px;padding:2px 8px">Delete</button></form>`, u.ID, u.ID, tab))
-		}
-		sb.WriteString(fmt.Sprintf(`<tr><td><strong><a href="/@%s">%s</a></strong></td><td>%s</td><td class="created-col">%s</td><td>%s</td><td class="center" style="white-space:nowrap">%s</td></tr>`, u.ID, u.ID, u.Name, created, statusHTML, strings.Join(actions, " ")))
+		sb.WriteString(fmt.Sprintf(`<tr><td><strong><a href="/@%s">%s</a></strong></td><td>%s</td><td class="created-col">%s</td><td>%s</td><td class="center" style="white-space:nowrap">%s</td></tr>`, u.ID, u.ID, u.Name, created, statusHTML, userActions(u, acc.ID, tab)))
 	}
 	sb.WriteString(`</tbody></table>`)
 	html := app.RenderHTMLForRequest("Admin", "Users", sb.String(), r)
 	w.Write([]byte(html))
+}
+
+func userActions(user *auth.Account, currentUserID, tab string) string {
+	if user.ID == currentUserID {
+		return ""
+	}
+	if user.Banned {
+		return fmt.Sprintf(`<form method="POST" class="d-inline"><input type="hidden" name="action" value="unban"><input type="hidden" name="user_id" value="%s"><input type="hidden" name="tab" value="%s"><button type="submit" style="font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid #22c55e;background:#fff;color:#22c55e;cursor:pointer">Unban</button></form>`, user.ID, tab)
+	}
+	return fmt.Sprintf(`<form method="POST" class="d-inline"><input type="hidden" name="action" value="ban"><input type="hidden" name="user_id" value="%s"><input type="hidden" name="tab" value="%s"><button type="submit" style="font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid #c00;background:#fff;color:#c00;cursor:pointer" onclick="return confirm('Ban %s?')">Ban</button></form>`, user.ID, tab, user.ID)
 }
 
 // BlocklistHandler shows and manages the mail blocklist

@@ -3,6 +3,8 @@ package admin
 import (
 	"strings"
 	"testing"
+
+	"mu/internal/auth"
 )
 
 func TestBlocklistRowsEscapeValues(t *testing.T) {
@@ -26,5 +28,12 @@ func TestBlocklistRowsEscapeValues(t *testing.T) {
 				t.Fatalf("blocklist row does not escape attribute-breaking quote: %s", tt.html)
 			}
 		})
+	}
+}
+
+func TestUserActionsDoNotRenderDeleteForm(t *testing.T) {
+	actions := userActions(&auth.Account{ID: "member"}, "owner", "all")
+	if strings.Contains(actions, `name="action" value="delete"`) {
+		t.Fatalf("rendered obsolete delete action: %s", actions)
 	}
 }
