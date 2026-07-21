@@ -10,6 +10,7 @@ import (
 // TestNativeEnabledDefault: the go-micro agent is the default; only an explicit
 // falsey AGENT_NATIVE disables it.
 func TestNativeEnabledDefault(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // settings.Set persists to $HOME/.mu — keep it off the real one
 	defer settings.Set("AGENT_NATIVE", "")
 	settings.Set("AGENT_NATIVE", "")
 	if !nativeEnabled() {

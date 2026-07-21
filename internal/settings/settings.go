@@ -38,9 +38,19 @@ func Get(key string) string {
 }
 
 // Set stores a value persistently. Does not affect the environment.
+//
+// The write is read-modify-write: the file is re-read first so keys written
+// by another process since our Load (e.g. `mu setup` beside a running server)
+// survive this save instead of being clobbered by a stale in-memory map. If
+// the file is missing or unreadable the in-memory map is the base, matching
+// Load's behavior.
 func Set(key, value string) {
 	mu.Lock()
 	defer mu.Unlock()
+	loaded := map[string]string{}
+	if err := data.LoadJSON("settings.json", &loaded); err == nil {
+		values = loaded
+	}
 	if value == "" {
 		delete(values, key)
 	} else {

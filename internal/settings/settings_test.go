@@ -105,6 +105,39 @@ func TestAllReturnsCopyOfSavedSettings(t *testing.T) {
 	}
 }
 
+func TestSetMergesKeysWrittenByAnotherProcess(t *testing.T) {
+	resetForTest(t)
+
+	Set("MU_TEST_SETTING", "saved-value")
+
+	// Simulate a second process whose in-memory map never saw the key above
+	// (e.g. a running server while `mu setup` writes settings).
+	mu.Lock()
+	values = map[string]string{}
+	mu.Unlock()
+
+	Set("MU_OTHER_SETTING", "other-value")
+
+	if got := Get("MU_TEST_SETTING"); got != "saved-value" {
+		t.Fatalf("Set clobbered key written by another process: Get = %q, want saved-value", got)
+	}
+	if got := Get("MU_OTHER_SETTING"); got != "other-value" {
+		t.Fatalf("Get after Set = %q, want other-value", got)
+	}
+
+	// Both keys must be on disk, not just in memory.
+	mu.Lock()
+	values = map[string]string{}
+	mu.Unlock()
+	Load()
+	if got := Get("MU_TEST_SETTING"); got != "saved-value" {
+		t.Fatalf("Get after reload = %q, want saved-value", got)
+	}
+	if got := Get("MU_OTHER_SETTING"); got != "other-value" {
+		t.Fatalf("Get after reload = %q, want other-value", got)
+	}
+}
+
 func TestSetPersistsSettingsUnderHome(t *testing.T) {
 	resetForTest(t)
 	home := os.Getenv("HOME")

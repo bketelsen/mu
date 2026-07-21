@@ -35,6 +35,7 @@ func TestQueryNativeLive(t *testing.T) {
 	if key == "" {
 		t.Skip("set ATLAS_API_KEY to run")
 	}
+	t.Setenv("HOME", t.TempDir()) // settings.Set persists to $HOME/.mu — keep it off the real one
 	settings.Set("ATLAS_API_KEY", key)
 	if err := service.Register("weather", WxProbe{}); err != nil {
 		t.Fatalf("register: %v", err)
