@@ -53,6 +53,8 @@ calls, private-memory writes, notifications, wallet credits, or dedup state.
 | `client/discord` | Gateway heartbeat, inbound messages, link codes, notification lookup | Transport/request-scoped | Inbound actions already require the sole linked owner. Notifications are reached only from the owner-bound mail callback. |
 | `client/telegram` | Inbound messages, links, notification lookup | Transport/request-scoped | Inbound actions already require the sole linked owner. Notifications are reached only from the owner-bound mail callback. |
 | `client/whatsapp` | Inbound messages, links, notification lookup | Transport/request-scoped | Inbound actions already require the sole linked owner. Notifications are reached only from the owner-bound mail callback. |
+| Outside Task 8B package list: `chat/chat.go:519,602,1158,1159` | Room-scoped workers, message persistence, summaries, and idle-room cleanup | Sampled system/room scope | These workers act on room IDs and room message state, not a captured human account identity. |
+| Outside Task 8B package list: `images/images.go:62`, `places/{saved,city,index,places}.go`, `markets/markets.go:122` | Image scheduler, public-place persistence/indexing, market refresh | Sampled system scope | These loops operate on public/system data and do not impersonate an owner or access owner-private stores. |
 
 ## Explicitly allowed system identity uses
 
@@ -69,3 +71,96 @@ subscriptions, webhook handlers, queue/job terminology, persisted account-ID
 records, `auth.GetAllAccounts`, `auth.Owner`, and `app.SystemUserID` across
 `main.go`, `agent`, `agent/micro`, `apps`, `blog`, `mail`, `news/digest`,
 `social`, `stream`, `user`, `wallet`, and `client`.
+
+## Regression Evidence
+
+Wallet webhook tests exercise `HandleStripeWebhook` with a real signed checkout
+event and assert the HTTP 200 response plus no wallet/transaction state or dedup
+marker for both stale and no-owner targets. Memory extraction tests replace only
+package-private production defaults for `ai.Ask` and `memory.Set`; the defaults
+remain those production functions.
+
+RED (memory observation seams absent):
+
+```text
+# mu/agent [mu/agent.test]
+agent/memory_extract_test.go:37:22: undefined: askBackground
+agent/memory_extract_test.go:37:37: undefined: setMemory
+agent/memory_extract_test.go:39:4: undefined: askBackground
+agent/memory_extract_test.go:43:4: undefined: setMemory
+agent/memory_extract_test.go:44:23: undefined: askBackground
+agent/memory_extract_test.go:44:38: undefined: setMemory
+FAIL	mu/agent [build failed]
+FAIL
+```
+
+GREEN:
+
+```text
+$ go test ./agent -run TestExtractMemoryOnlyRunsForCurrentOwner -count=1
+ok  	mu/agent	0.167s
+$ go test ./wallet -run TestStripeWebhookDiscardsNonOwnerTargetsWithoutPersistingState -count=1
+ok  	mu/wallet	0.123s
+```
+
+Focused covering run:
+
+```text
+$ go test ./agent ./wallet ./internal/auth -count=1
+ok  	mu/agent	0.170s
+ok  	mu/wallet	0.357s
+ok  	mu/internal/auth	0.049s
+```
+
+Full short-suite covering run:
+
+```text
+$ go test ./... -short
+ok  	mu	(cached)
+ok  	mu/admin	(cached)
+ok  	mu/agent	(cached)
+ok  	mu/agent/micro	(cached)
+ok  	mu/apps	(cached)
+ok  	mu/apps/micro	(cached)
+ok  	mu/blog	(cached)
+ok  	mu/chat	(cached)
+ok  	mu/client/discord	(cached)
+ok  	mu/client/telegram	(cached)
+ok  	mu/client/whatsapp	(cached)
+ok  	mu/docs	(cached)
+ok  	mu/home	(cached)
+ok  	mu/images	(cached)
+ok  	mu/internal/a2a	(cached)
+?   	mu/internal/agents	[no test files]
+ok  	mu/internal/ai	(cached)
+ok  	mu/internal/ai/copilot	(cached)
+ok  	mu/internal/api	(cached)
+ok  	mu/internal/app	(cached)
+ok  	mu/internal/auth	(cached)
+ok  	mu/internal/cli	(cached)
+ok  	mu/internal/data	(cached)
+ok  	mu/internal/env	(cached)
+ok  	mu/internal/event	(cached)
+ok  	mu/internal/flag	(cached)
+ok  	mu/internal/memory	(cached)
+ok  	mu/internal/safefetch	(cached)
+ok  	mu/internal/service	(cached)
+ok  	mu/internal/settings	(cached)
+ok  	mu/internal/setup	(cached)
+ok  	mu/internal/snapshot	(cached)
+?   	mu/internal/testutil	[no test files]
+ok  	mu/internal/userdb	(cached)
+ok  	mu/mail	(cached)
+ok  	mu/markets	(cached)
+ok  	mu/news	(cached)
+ok  	mu/news/digest	(cached)
+ok  	mu/places	(cached)
+ok  	mu/recall	(cached)
+ok  	mu/search	(cached)
+ok  	mu/social	(cached)
+ok  	mu/stream	(cached)
+ok  	mu/user	(cached)
+ok  	mu/video	(cached)
+ok  	mu/wallet	0.326s
+ok  	mu/weather	(cached)
+```

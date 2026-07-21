@@ -14,6 +14,11 @@ import (
 	"mu/internal/memory"
 )
 
+var (
+	askBackground = ai.Ask
+	setMemory     = memory.Set
+)
+
 // extractMemory checks if the user's prompt contains something to
 // remember (preferences, facts about themselves, interests). Runs
 // async after the response so it doesn't slow down the answer.
@@ -41,7 +46,7 @@ func extractOwnerMemory(accountID, prompt string) {
 		return
 	}
 
-	result, err := ai.Ask(&ai.Prompt{
+	result, err := askBackground(&ai.Prompt{
 		System: `Extract any personal preference or fact the user is sharing about themselves.
 Output ONLY valid JSON: {"key":"short label","value":"what to remember"}
 If the message does NOT contain a personal preference or fact, output: {}
@@ -64,7 +69,7 @@ Examples:
 		return
 	}
 	if extracted.Key != "" && extracted.Value != "" {
-		memory.Set(accountID, extracted.Key, extracted.Value)
+		setMemory(accountID, extracted.Key, extracted.Value)
 		app.Log("memory", "Saved for %s: %s = %s", accountID, extracted.Key, extracted.Value)
 	}
 }
