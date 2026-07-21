@@ -86,8 +86,13 @@ you know your allowance can absorb it.
 
 ## What still needs other keys
 
-- **Image generation** (`/images` prompt-to-image) requires `ATLAS_API_KEY` —
-  Copilot has no image-generation endpoint.
+- **Image generation** (`/images` prompt-to-image) — Copilot has no
+  image-generation endpoint. Point `IMAGE_BASE_URL` at any OpenAI-compatible
+  `/images/generations` server (a local Lemonade or Stable Diffusion box,
+  e.g. `http://gpu-box:8000/api/v1`), with optional `IMAGE_API_KEY` and
+  `IMAGE_MODEL`, or set `ATLAS_API_KEY` to use Atlas Cloud. When the server
+  returns the image inline (base64) Mu stores it and serves it from
+  `/images/file/`.
 - Everything non-AI (search, YouTube, mail, payments) uses its own keys as
   before; see [Environment Variables](/docs/environment-variables).
 

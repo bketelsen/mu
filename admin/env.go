@@ -26,6 +26,9 @@ var settingGroups = []settingGroup{
 		"COPILOT_CHAT_MODEL",
 		"COPILOT_BACKGROUND_MODEL",
 		"COPILOT_PREMIUM_MODEL",
+		"IMAGE_BASE_URL",
+		"IMAGE_API_KEY",
+		"IMAGE_MODEL",
 	}},
 	{"Search", []string{
 		"BRAVE_API_KEY",

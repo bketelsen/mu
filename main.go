@@ -1383,6 +1383,7 @@ func main() {
 	// serve markets page
 	http.HandleFunc("/markets", markets.Handler)
 	http.HandleFunc("/images", images.Handler)
+	http.HandleFunc("/images/file/", images.FileHandler)
 
 	// serve social page
 	http.HandleFunc("/social", social.Handler)
