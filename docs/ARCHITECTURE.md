@@ -23,7 +23,7 @@ and WhatsApp direct messages also resolve to the owner.
 | `internal/api` | Authenticated REST, MCP, and A2A tool dispatch |
 | `internal/data` | Owner-scoped file persistence, indexing, and events |
 | `agent/` | Owner agent planning and tool execution |
-| `home/`, `chat/`, `mail/`, `news/`, `markets/`, `search/`, `places/` | Private owner services |
+| `home/`, `chat/`, `github/`, `mail/`, `news/`, `search/`, `places/` | Private owner services |
 | `wallet/` | Owner credits, card top-ups, and outbound x402 client |
 
 Each building block has `Load()` and an HTTP handler registered from `main.go`.

@@ -72,7 +72,6 @@ func registerCommands(token string) {
 	commands := []map[string]string{
 		{"command": "ask", "description": "Ask the AI agent anything"},
 		{"command": "news", "description": "Latest news headlines"},
-		{"command": "markets", "description": "Live market prices"},
 		{"command": "weather", "description": "Weather forecast"},
 		{"command": "usage", "description": "Your usage stats"},
 	}
@@ -174,7 +173,7 @@ func handleMessage(token string, userID int64, username, firstName string, chatI
 		cmd := strings.Split(parts[0], "@")[0] // remove @botname
 		switch cmd {
 		case "/start":
-			sendTelegram(token, chatID, "Hi! I'm Micro — your agent across news, mail, markets, weather, search and more. Ask me anything.\n\nIn groups, use /ask followed by your question.")
+			sendTelegram(token, chatID, "Hi! I'm Micro — your agent across news, mail, weather, search and more. Ask me anything.\n\nIn groups, use /ask followed by your question.")
 			return
 		case "/ask", "/mu", "/agent":
 			if len(parts) > 1 {
@@ -185,8 +184,6 @@ func handleMessage(token string, userID int64, username, firstName string, chatI
 			}
 		case "/news":
 			text = "latest news"
-		case "/markets":
-			text = "crypto market prices"
 		case "/weather":
 			if len(parts) > 1 {
 				text = "weather in " + parts[1]

@@ -85,7 +85,7 @@ func TestEmptyMessageReplyRequiresOwnerLink(t *testing.T) {
 	if got := emptyMessageReply(true, ""); got != "Link this bot to your Mu owner account before using it." {
 		t.Fatalf("unlinked reply = %q", got)
 	}
-	if got := emptyMessageReply(true, ownerIDForTest(t)); got != "Ask me anything — I'm Micro, your agent across news, mail, markets, weather, search and more." {
+	if got := emptyMessageReply(true, ownerIDForTest(t)); got != "Ask me anything — I'm Micro, your agent across news, GitHub, mail, weather, search and more." {
 		t.Fatalf("owner reply = %q", got)
 	}
 	if got := emptyMessageReply(false, ownerIDForTest(t)); got != "" {

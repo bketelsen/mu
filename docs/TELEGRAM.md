@@ -15,6 +15,6 @@ Mu uses Telegram long polling and needs no inbound webhook.
 ## Use and privacy
 
 Send the linked bot a direct message or a supported command such as `/ask`,
-`/news`, `/markets`, `/weather`, or `/usage`. Each request runs as the owner.
+`/news`, `/weather`, or `/usage`. Each request runs as the owner.
 Unlinking removes the association. Do not send owner credentials or link codes
 outside a private direct message.

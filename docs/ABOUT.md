@@ -1,7 +1,7 @@
 # About Mu
 
 Mu is a private, single-owner home server for news, mail, search, weather,
-markets, video, and an AI agent. It is one Go binary that you run and control.
+GitHub, video, and an AI agent. It is one Go binary that you run and control.
 
 ## One owner
 
@@ -17,7 +17,7 @@ storage and never represent separate local users.
 ## Services
 
 Mu's agent works across private services including RSS news, web search,
-markets, weather, video, places, mail, notes, apps, and the home dashboard.
+GitHub, weather, video, places, mail, notes, apps, and the home dashboard.
 The system is designed to serve its owner rather than advertising, engagement,
 or profile discovery.
 

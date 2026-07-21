@@ -271,7 +271,6 @@ var Template = `
           <a href="/agent"><img src="/agent.svg?` + Version + `"><span class="label">Agent</span></a>
           <a href="/chat"><img src="/chat.png?` + Version + `"><span class="label">Chat</span></a>
           <a href="/news"><img src="/news.png?` + Version + `"><span class="label">News</span></a>
-          <a href="/markets"><img src="/markets.svg?` + Version + `"><span class="label">Markets</span></a>
           <a href="/weather"><img src="/weather.svg?` + Version + `"><span class="label">Weather</span></a>
           <a href="/blog"><img src="/post.png?` + Version + `"><span class="label">Blog</span></a>
           <a id="nav-mail" href="/mail"><img src="/mail.png?` + Version + `"><span class="label">Mail</span><span id="nav-mail-badge"></span></a>
@@ -280,6 +279,7 @@ var Template = `
           <a href="/images"><img src="/images.svg?` + Version + `"><span class="label">Images</span></a>
           <a href="/search"><img src="/search.svg?` + Version + `"><span class="label">Search</span></a>
           <a href="/places"><img src="/places.svg?` + Version + `"><span class="label">Places</span></a>
+          <a href="/github"><img src="/github.svg?` + Version + `"><span class="label">GitHub</span></a>
           <a href="/app/saved"><img src="/saved.svg?` + Version + `"><span class="label">Saved</span></a>
           <a href="/apps"><img src="/apps.svg?` + Version + `"><span class="label">Apps</span></a>
           <a id="nav-wallet" href="/wallet"><img src="/wallet.png?` + Version + `"><span class="label">Wallet</span></a>
@@ -319,7 +319,7 @@ var Template = `
 // introduced later can default to visible instead of being hidden by the
 // HomeCards allowlist. Keep in sync with the panels and home/cards.json.
 var homeCardUniverse = []string{
-	"blog", "news", "markets", "social", "video", "images", "mail", "web",
+	"blog", "news", "social", "video", "images", "mail", "web",
 }
 
 var CardTemplate = `
@@ -665,7 +665,7 @@ func Account(w http.ResponseWriter, r *http.Request) {
 	// Home card preferences
 	allCards := []struct{ id, label string }{
 		{"blog", "Blog"}, {"news", "News"},
-		{"markets", "Markets"}, {"social", "Social"}, {"video", "Video"},
+		{"social", "Social"}, {"video", "Video"},
 		{"images", "Images"}, {"mail", "Mail"}, {"web", "Search"},
 	}
 	optInCards := map[string]bool{"mail": true, "web": true}

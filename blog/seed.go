@@ -36,7 +36,7 @@ func ensureSeedPosts() {
 	}
 }
 
-const buildAppsPostContent = "Mu is a set of everyday services you own — news, mail, markets, weather, and the rest — with an agent that drives them. But not everything belongs in the core. You shouldn't have to fork Mu to get a bookmarks tool, a reading list, or whatever small thing fits *your* day. That's what apps are for.\n\n" +
+const buildAppsPostContent = "Mu is a set of everyday services you own — news, mail, weather, video, and the rest — with an agent that drives them. But not everything belongs in the core. You shouldn't have to fork Mu to get a bookmarks tool, a reading list, or whatever small thing fits *your* day. That's what apps are for.\n\n" +
 	"A Mu app is just an HTML page with a little JavaScript. What makes it more than a static page is the SDK — a global `mu` object that gives the page real backend building blocks, without you standing up a backend.\n\n" +
 	"```html\n<script src=\"/apps/sdk.js\"></script>\n```\n\n" +
 	"## Who's using it\n\n`mu.user()` tells you who is signed in, so an app can greet them and keep their data separate from everyone else's:\n\n" +
@@ -46,8 +46,8 @@ const buildAppsPostContent = "Mu is a set of everyday services you own — news,
 	"The owner is set on the server from your session — never from the page — so an app can't read or write someone else's private data even if it tries.\n\n" +
 	"## Reach the web, server-side\n\n`mu.web.fetch` makes an HTTP request from the server, so your app gets past CORS and can keep API keys off the client. It's SSRF-guarded — public hosts only:\n\n" +
 	"```javascript\nconst res = await mu.web.fetch('https://api.example.com/data');\nconst data = JSON.parse(res.body);\n```\n\n" +
-	"## The agent, in your app\n\n`mu.ai(prompt)` for a one-shot answer, `mu.agent(prompt)` for the full tool-using agent — plus typed wrappers for every service (`mu.weather`, `mu.markets`, `mu.news`, and more):\n\n" +
-	"```javascript\nconst tldr = await mu.ai('Summarise this', { context: text });\nconst answer = await mu.agent('What changed in the markets today and why?');\n```\n\n" +
+	"## The agent, in your app\n\n`mu.ai(prompt)` for a one-shot answer, `mu.agent(prompt)` for the full tool-using agent — plus typed wrappers for services such as `mu.weather`, `mu.news`, and `mu.video`:\n\n" +
+	"```javascript\nconst tldr = await mu.ai('Summarise this', { context: text });\nconst answer = await mu.agent('What are the latest headlines about the local transit strike?');\n```\n\n" +
 	"## A real example: bookmarks\n\nHere's the whole backend of an app that saves links — privately or shared — and fetches each page's title for you. Three primitives, working together:\n\n" +
 	"```javascript\nasync function add(url, isPublic) {\n  const res = await mu.web.fetch(url);                                  // read the page\n  const title = (/<title[^>]*>([\\s\\S]*?)<\\/title>/i.exec(res.body) || [])[1] || url;\n  await mu.db.create('bookmarks', { url, title }, { public: isPublic }); // save it\n}\nconst mine   = await mu.db.list('bookmarks', { scope: 'mine' });\nconst shared = await mu.db.list('bookmarks', { scope: 'public' });\n```\n\n" +
 	"No server to deploy, no database to provision, no CORS proxy to run. The **Bookmarks** and **Notes** apps ship built-in — open them, or fork them from the editor to make your own.\n\n" +

@@ -25,7 +25,6 @@ const (
 	TypeUser   = "user"   // human typed in the console
 	TypeAgent  = "agent"  // @micro response
 	TypeSystem = "system" // mail notification, account event
-	TypeMarket = "market" // price movement
 	TypeNews   = "news"   // breaking headline
 )
 
@@ -85,7 +84,7 @@ func save() error {
 }
 
 // Publish appends an event to the stream. This is the single entry
-// point — every publisher (user, agent, system, markets, or news)
+// point — every publisher (user, agent, system, or news)
 // calls this. System events are throttled per type so the
 // console doesn't flood with automated content.
 func Publish(e *Event) {

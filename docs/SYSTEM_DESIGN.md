@@ -1,7 +1,7 @@
 # System Design
 
 Mu is a private, single-owner home server. A single Go binary runs the home
-dashboard, AI agent, mail, news, search, markets, weather, video, places, and
+dashboard, AI agent, mail, news, search, GitHub, weather, video, places, and
 apps through in-process Go Micro services.
 
 ## Layers

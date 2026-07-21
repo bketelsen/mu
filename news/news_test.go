@@ -236,7 +236,7 @@ func TestNewsSearchArticlesFallsBackToLiveFeed(t *testing.T) {
 			ID:          "markets-1",
 			Title:       "Markets close higher",
 			Description: "Equities rally into the close.",
-			URL:         "https://example.com/markets",
+			URL:         "https://example.com/finance",
 			Category:    "Business",
 			PostedAt:    now.Add(-1 * time.Hour),
 		},

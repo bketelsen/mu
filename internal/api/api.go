@@ -589,37 +589,6 @@ func init() {
 		},
 	})
 
-	Endpoints = append(Endpoints, &Endpoint{
-		Name:        "Markets",
-		Path:        "/markets",
-		Method:      "GET",
-		Description: "Get live market prices for cryptocurrencies, futures, and commodities",
-		Params: []*Param{
-			{
-				Name:        "category",
-				Value:       "string",
-				Description: "Category: crypto, futures, or commodities (default: crypto)",
-			},
-		},
-		Response: []*Value{
-			{
-				Type: "JSON",
-				Params: []*Param{
-					{
-						Name:        "category",
-						Value:       "string",
-						Description: "The requested category",
-					},
-					{
-						Name:        "data",
-						Value:       "array",
-						Description: "Array of market items with symbol, price, type",
-					},
-				},
-			},
-		},
-	})
-
 	// Weather endpoints
 	Endpoints = append(Endpoints, &Endpoint{
 		Name:        "Weather Forecast",
@@ -738,7 +707,7 @@ func init() {
 		Name:        "MCP Server",
 		Path:        "/mcp",
 		Method:      "POST",
-		Description: "Owner-authenticated Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, and markets. Metered tools use the owner's wallet credits. x402 is available only for owner-initiated outbound calls to remote services.",
+		Description: "Owner-authenticated Model Context Protocol server for AI tool integration. Tools include GitHub, chat, news, blog, video, mail, search, wallet, weather, and places. Metered tools use the owner's wallet credits. x402 is available only for owner-initiated outbound calls to remote services.",
 		Params: []*Param{
 			{
 				Name:        "jsonrpc",

@@ -26,6 +26,7 @@ import (
 	"mu/client/telegram"
 	"mu/client/whatsapp"
 	"mu/docs"
+	"mu/github"
 	"mu/home"
 	"mu/images"
 	"mu/internal/a2a"
@@ -42,7 +43,6 @@ import (
 	"mu/internal/setup"
 	"mu/internal/userdb"
 	"mu/mail"
-	"mu/markets"
 	"mu/news"
 	"mu/news/digest"
 	"mu/places"
@@ -148,6 +148,8 @@ func main() {
 	// load the data index
 	data.Load()
 	app.Load()
+	github.Load()
+	github.RegisterTools()
 
 	// load admin/flags
 	admin.Load()
@@ -174,8 +176,7 @@ func main() {
 	// load weather
 	weather.Load()
 
-	// load markets, images, wallet
-	markets.Load()
+	// load images and wallet
 	images.Load()
 	wallet.Load()
 	app.DiscordLinkCodeFunc = discord.GenerateLinkCode
@@ -230,10 +231,6 @@ func main() {
 		bal := wallet.GetBalance(accountID)
 		if bal > 0 {
 			parts = append(parts, fmt.Sprintf("- Wallet: %d credits", bal))
-		}
-		// Market prices — top movers.
-		if prices := markets.TopMovers(3); prices != "" {
-			parts = append(parts, "- Markets: "+prices)
 		}
 		// Persistent memory — things the user has told you to remember.
 		if mem := memory.ForContext(accountID); mem != "" {
@@ -636,25 +633,6 @@ func main() {
 		return `{"status":"ok"}`, nil
 	})
 
-	// markets — live prices, returned as model-ready text (AI-first).
-	api.RegisterTool(api.Tool{
-		Name:        "markets_list",
-		Aliases:     []string{"markets"},
-		Description: "Get live market prices for cryptocurrencies, futures, commodities and currencies.",
-		Params: []api.ToolParam{
-			{Name: "category", Type: "string", Description: "crypto, futures, commodities or currencies (default crypto)", Required: false},
-		},
-		Handle: func(args map[string]any) (string, error) {
-			category, _ := args["category"].(string)
-			var rsp markets.PricesResponse
-			if err := service.Call(context.Background(), "markets", "Server.Prices",
-				&markets.PricesRequest{Category: category}, &rsp); err != nil {
-				return "", err
-			}
-			return rsp.Text, nil
-		},
-	})
-
 	// image_generate — text-to-image via Atlas Cloud (metered, per-user).
 	// Charging happens inside images.Generate so every path bills exactly once;
 	// WalletOp here gates affordability and advertises the per-call price.
@@ -791,7 +769,6 @@ func main() {
 	// an agent answer (and the daily brief) can carry both text and the same
 	// card the home screen shows. Cards render from each service's live data;
 	// wiring them here keeps internal/api free of service imports.
-	api.SetCard("markets_list", "Markets", markets.MarketsHTML)
 	api.SetCard("news_list", "News", news.Headlines)
 	api.SetCard("social_list", "Social", social.CardHTML)
 	api.SetCard("video_list", "Videos", video.Latest)
@@ -973,7 +950,7 @@ func main() {
 	// Register agent MCP tool (also exposed as POST /agent/run on the REST page).
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "agent",
-		Description: "Ask the AI agent a question. The agent can search news, markets, web, video, weather, places, and more to answer your question.",
+		Description: "Ask the AI agent a question. The agent can search GitHub, news, web, video, weather, places, and more to answer your question.",
 		Method:      "POST",
 		Path:        "/agent/run",
 		WalletOp:    "agent_query",
@@ -1039,6 +1016,7 @@ func main() {
 
 	// serve video
 	http.HandleFunc("/video", video.Handler)
+	http.HandleFunc("/github", github.Handler)
 
 	// serve news
 	http.HandleFunc("/news", news.Handler)
@@ -1170,8 +1148,6 @@ func main() {
 	// serve mail inbox
 	http.HandleFunc("/mail", mail.Handler)
 
-	// serve markets page
-	http.HandleFunc("/markets", markets.Handler)
 	http.HandleFunc("/images", images.Handler)
 	http.HandleFunc("/images/file/", images.FileHandler)
 

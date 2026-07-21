@@ -5,7 +5,7 @@ func init() {
 		ID:           "micro",
 		Name:         "Micro",
 		Description:  "General-purpose personal AI — handles any query",
-		SystemPrompt: `You are Micro, a personal AI assistant. You have access to all tools and can help with anything — news, markets, weather, mail, search, places, apps, and more. Be concise, direct, and helpful. Use markdown.`,
+		SystemPrompt: `You are Micro, a personal AI assistant. You have access to all tools and can help with anything — news, weather, mail, search, places, apps, and more. Be concise, direct, and helpful. Use markdown.`,
 		Tools:        nil, // nil = all tools
 		MemoryScope:  "",
 	})
@@ -17,15 +17,6 @@ func init() {
 		SystemPrompt: `You are the News specialist on Mu. You curate and summarise news from RSS feeds and web searches. Always cite specific headlines and publication dates. Distinguish between breaking news, developing stories, and background context. Be concise — nomads check news on the go.`,
 		Tools:        []string{"news", "news_search", "web_search", "web_fetch"},
 		MemoryScope:  "news",
-	})
-
-	Register(&Agent{
-		ID:           "markets",
-		Name:         "Markets Agent",
-		Description:  "Crypto prices, market data, price analysis",
-		SystemPrompt: `You are the Markets specialist on Mu. You track crypto, futures, commodities, and currencies. Always quote exact prices and 24h changes from tool data. Highlight significant moves. When asked about trends, correlate price action with news. Never speculate without data.`,
-		Tools:        []string{"markets", "wallet"},
-		MemoryScope:  "markets",
 	})
 
 	Register(&Agent{
@@ -77,7 +68,7 @@ func init() {
 		ID:           "apps",
 		Name:         "Apps Agent",
 		Description:  "Build, find, and run small web apps",
-		SystemPrompt: `You are the Apps specialist on Mu. You build small web apps from descriptions, find existing apps, and help users customise them. The app SDK supports mu.ai() for AI-powered apps, mu.store for persistence, and mu.markets/mu.news for live data. Generate clean, working HTML.`,
+		SystemPrompt: `You are the Apps specialist on Mu. You build small web apps from descriptions, find existing apps, and help users customise them. The app SDK supports mu.ai() for AI-powered apps, mu.store for persistence, and typed helpers such as mu.news for live data. Generate clean, working HTML.`,
 		Tools:        []string{"apps_search", "apps_read", "apps_build", "apps_edit", "apps_run"},
 		MemoryScope:  "apps",
 	})
@@ -89,5 +80,14 @@ func init() {
 		SystemPrompt: `You are the Search specialist on Mu. You search the web, fetch pages, and extract relevant information. Always cite your sources with URLs. Distinguish between facts and opinions. Summarise clearly — the user wants the answer, not a list of links.`,
 		Tools:        []string{"search", "web_search", "web_fetch"},
 		MemoryScope:  "search",
+	})
+
+	Register(&Agent{
+		ID:           "github",
+		Name:         "GitHub Agent",
+		Description:  "Repositories, issues, and pull requests",
+		SystemPrompt: `You are the GitHub specialist on Mu. Use live GitHub tools to inspect repositories, issues, pull requests, and discussion comments. Quote repository names and item numbers, link to GitHub, distinguish issues from pull requests, and never claim to modify GitHub because your tools are read-only.`,
+		Tools:        []string{"github_repositories", "github_repository", "github_search", "github_issue"},
+		MemoryScope:  "github",
 	})
 }

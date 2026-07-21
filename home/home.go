@@ -19,7 +19,6 @@ import (
 	"mu/internal/auth"
 	"mu/internal/event"
 	"mu/mail"
-	"mu/markets"
 	"mu/news"
 	"mu/social"
 	"mu/video"
@@ -122,7 +121,6 @@ func Load() {
 		"blog":    blog.Preview,
 		"chat":    ChatCard,
 		"news":    newsCard,
-		"markets": markets.MarketsHTML,
 		"video":   video.Latest,
 		"apps":    apps.Preview,
 		"social":  social.CardHTML,
@@ -457,9 +455,6 @@ function fetchW(la,lo){
 				}
 			}
 		}
-		if movers := markets.TopMovers(2); movers != "" {
-			suggestions = append(suggestions, movers)
-		}
 		suggestions = append(suggestions, "Today's news", "What's happening?")
 
 		var chips string
@@ -495,7 +490,7 @@ function fetchW(la,lo){
 	if viewerAcc != nil {
 		allCardDefs := []struct{ id, label string }{
 			{"blog", "Blog"}, {"news", "News"},
-			{"markets", "Markets"}, {"social", "Social"}, {"video", "Video"},
+			{"social", "Social"}, {"video", "Video"},
 			{"images", "Images"}, {"mail", "Mail"}, {"web", "Search"},
 		}
 		optIn := map[string]bool{"mail": true, "web": true}
@@ -588,11 +583,10 @@ function fetchW(la,lo){
 	}
 
 	tooltips := map[string]string{
-		"blog":    "Microblog posts with daily AI-generated digests",
-		"news":    "Headlines from RSS feeds, sorted by time",
-		"markets": "Live crypto, futures, and commodity prices",
-		"social":  "Public discussion threads",
-		"video":   "Latest videos from curated channels",
+		"blog":   "Microblog posts with daily AI-generated digests",
+		"news":   "Headlines from RSS feeds, sorted by time",
+		"social": "Public discussion threads",
+		"video":  "Latest videos from curated channels",
 	}
 
 	var leftHTML, rightHTML []string

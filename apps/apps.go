@@ -1124,7 +1124,6 @@ func handleRun(w http.ResponseWriter, r *http.Request, slug string) {
     // Platform APIs — typed wrappers for every building block
     weather:function(o){return get('/weather?lat='+o.lat+'&lon='+o.lon+(o.pollen?'&pollen=1':''))},
     news:function(){return get('/news')},
-    markets:function(o){return get('/markets'+(o&&o.category?'?category='+o.category:''))},
     video:function(){return get('/video')},
     blog:{
       list:function(){return get('/blog')},

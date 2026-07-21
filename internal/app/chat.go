@@ -134,7 +134,7 @@ if(!SESSION){
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function protectCurrencyDollars(s){return String(s||'').replace(/\$(?=\d)/g,'$\u2060');}
 
-var SUGGEST=['Give me a morning brief','What is moving in markets?','Weather in San Francisco','Find today\'s AI news'];
+var SUGGEST=['Give me a morning brief','Search for nearby coffee shops','Weather in San Francisco','Find today\'s AI news'];
 function showSuggestions(){
   if(HIDE_SUGGEST){sugDiv.innerHTML='';if(hintDiv)hintDiv.innerHTML='';return;}
   if(conv.innerHTML.trim()){sugDiv.innerHTML='';if(hintDiv)hintDiv.innerHTML='';return;}

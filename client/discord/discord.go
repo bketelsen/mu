@@ -371,7 +371,7 @@ func handleMessage(m discordMessage) {
 func emptyMessageReply(isDirect bool, linkedAccount string) string {
 	switch classifyMessage(isDirect, linkedAccount) {
 	case accessOwner:
-		return "Ask me anything — I'm Micro, your agent across news, mail, markets, weather, search and more."
+		return "Ask me anything — I'm Micro, your agent across news, GitHub, mail, weather, search and more."
 	case accessNeedsLink:
 		return "Link this bot to your Mu owner account before using it."
 	}

@@ -30,6 +30,7 @@ export ANTHROPIC_API_KEY="..."       # or ATLAS_API_KEY
 export OPENAI_BASE_URL="http://localhost:11434/v1"
 export OPENAI_API_KEY="ollama"
 export COPILOT_GITHUB_TOKEN="..."
+export GITHUB_TOKEN="github_pat_..."
 export BRAVE_API_KEY="..."
 export YOUTUBE_API_KEY="..."
 export GOOGLE_API_KEY="..."
@@ -41,6 +42,11 @@ export DKIM_PRIVATE_KEY="-----BEGIN ..."
 
 Set one AI provider for chat and agent features. `MAIL_PORT`, `MAIL_DOMAIN`,
 and optional DKIM values configure external mail delivery.
+
+`GITHUB_TOKEN` is a fine-grained GitHub token for Mu's owner-only, read-only
+repository, issue, and pull-request service. Grant metadata, issues, and pull
+request read access only to repositories Mu should expose. It is separate from
+`COPILOT_GITHUB_TOKEN`.
 
 ## Credits and outbound x402
 

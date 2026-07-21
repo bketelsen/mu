@@ -334,3 +334,23 @@ func TestBackLink(t *testing.T) {
 		t.Error("expected back link text")
 	}
 }
+
+func TestCSSExcludesMarketCardStyles(t *testing.T) {
+	css, err := htmlFiles.ReadFile("html/mu.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, selector := range []string{
+		"/* Market card */",
+		".card-market",
+		".card-symbol",
+		".card-price",
+		".card-change",
+		".card-up",
+		".card-down",
+	} {
+		if strings.Contains(string(css), selector) {
+			t.Fatalf("removed Market card CSS remains: %s", selector)
+		}
+	}
+}

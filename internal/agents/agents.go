@@ -9,7 +9,7 @@ import (
 
 // Handler renders the owner API landing page.
 func Handler(w http.ResponseWriter, r *http.Request) {
-	body := `<p style="max-width:560px;text-align:center;color:#555;font-size:16px;line-height:1.6;margin:0 auto 28px">Mu's MCP and REST interfaces are private owner interfaces. Authenticate with an owner Personal Access Token to use news, markets, weather, search, mail, and other services programmatically.</p>
+	body := `<p style="max-width:560px;text-align:center;color:#555;font-size:16px;line-height:1.6;margin:0 auto 28px">Mu's MCP and REST interfaces are private owner interfaces. Authenticate with an owner Personal Access Token to use GitHub, news, weather, search, mail, and other services programmatically.</p>
 
 <div class="pcards">
   <a class="pcard" href="/mcp"><h3>MCP endpoint</h3><p>Use the authenticated owner MCP endpoint at <code>/mcp</code>.</p></a>

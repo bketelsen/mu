@@ -22,7 +22,7 @@ CLI at your server with `mu config set url https://mu.example.com` or `MU_URL`.
 ```bash
 mu news
 mu news_search "ai safety"
-mu chat "summarise today's markets"
+mu chat "summarise today's news"
 mu agent "check my mail and list follow-ups"
 mu weather_forecast --lat 51.5 --lon -0.12
 ```

@@ -102,13 +102,6 @@ func handleInteraction(raw json.RawMessage) {
 		prompt = inter.getOption("prompt")
 	case "news":
 		prompt = "latest news"
-	case "markets":
-		cat := inter.getOption("category")
-		if cat != "" {
-			prompt = cat + " market prices"
-		} else {
-			prompt = "crypto market prices"
-		}
 	case "weather":
 		loc := inter.getOption("location")
 		if loc != "" {

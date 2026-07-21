@@ -76,7 +76,7 @@ Examples:
 
 // UserContextFunc is set by main.go to provide personalised context
 // for the agent's responses. Returns a string with the user's current
-// state (unread mail, market prices, etc.) that gets injected into the
+// state (unread mail, etc.) that gets injected into the
 // synthesis prompt.
 var UserContextFunc func(accountID string) string
 
@@ -163,7 +163,7 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 	planSystem := "You are an AI agent. Given a user question, output ONLY a JSON array of tool calls.\n\n" +
 		toolsForPlan +
 		"\n\nOutput format: [{\"tool\":\"tool_name\",\"args\":{}}]\nUse at most 5 tool calls. Output [] if no tools needed." +
-		"\n\nIMPORTANT: For personal questions like 'do I have mail', 'what's the weather', 'news today', 'btc price' — ALWAYS use the appropriate tool. Never say you can't access something. You have tools for everything."
+		"\n\nIMPORTANT: For personal questions like 'do I have mail', 'what's the weather', or 'news today' — ALWAYS use the appropriate tool. Never say you can't access something. You have tools for everything."
 	if userCtx != "" {
 		planSystem += "\n\nUser context:\n" + userCtx
 	}
@@ -227,16 +227,15 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 	var synthSystem string
 	if len(ragParts) == 0 && userCtx == "" {
 		synthSystem = "You are Micro, the agent on Mu at micro.mu. Today is " + today + ". " +
-			"Mu is a personal home server — the everyday internet (news, mail, search, weather, video, markets) handled by one agent (you) the user talks to and runs themselves. " +
-			"You check their mail, look up prices, search the web, read the news, and give personalised answers. " +
-			"Mu includes: the agent, news, markets, weather, mail, blog, chat, video, web search, and apps — each a real service, built on go-micro and self-hostable. " +
+			"Mu is a personal home server — the everyday internet (news, mail, search, weather, video) handled by one agent (you) the user talks to and runs themselves. " +
+			"You check their mail, search the web, read the news, and give personalised answers. " +
+			"Mu includes: the agent, news, weather, mail, blog, chat, video, web search, and apps — each a real service, built on go-micro and self-hostable. " +
 			"No ads, no tracking. Answer conversationally. Be helpful and concise. Use markdown."
 	} else {
 		synthSystem = "You are Micro, a personal AI assistant. Today is " + today + ". " +
 			"Answer concisely using the tool results and user context below. Use markdown. " +
 			"For web_search results, preserve the user's query intent exactly, cite the listed source URLs, and if confidence is low say the results do not clearly support the requested answer and ask for a refinement. " +
 			"For news results, include the article URL next to each headline whenever the tool result provides one; if a headline has no URL, do not invent one. " +
-			"For market-mover prompts, prioritize the largest 24h movers and their prices first. Keep the answer to a brief bullets-only summary unless the user asks for depth. Only mention news when the tool results include directly explanatory headlines or sources. " +
 			"Do not answer with progress narration like 'let me check' or 'I'll pull the data'; the tools have already run, so provide the final answer or say exactly what is unavailable. " +
 			"If the user context already contains the answer (e.g. unread mail count), use it directly."
 	}

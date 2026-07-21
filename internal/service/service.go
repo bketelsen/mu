@@ -2,7 +2,7 @@
 //
 // It owns the shared go-micro infrastructure — registry, client, broker,
 // store — and hosts mu's domain capabilities as in-process go-micro services.
-// Every domain (news, markets, weather, …) registers a handler here; the HTTP
+// Every domain (news, weather, search, …) registers a handler here; the HTTP
 // layer and the agent reach those capabilities by calling the service through
 // this package, so go-micro is the spine and HTTP is only a front.
 //
