@@ -16,6 +16,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"testing"
 
 	"go-micro.dev/v6/broker"
 	"go-micro.dev/v6/client"
@@ -93,6 +94,9 @@ func Init() {
 // survives a restart with no external infrastructure. Falls back to an
 // in-memory store if the directory can't be created.
 func newDurableStore() store.Store {
+	if testing.Testing() {
+		return store.NewMemoryStore()
+	}
 	dir := os.ExpandEnv("$HOME/.mu/store")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return store.NewMemoryStore()

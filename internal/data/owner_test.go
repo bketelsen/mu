@@ -1,9 +1,6 @@
 package data
 
-import (
-	"os"
-	"testing"
-)
+import "testing"
 
 func ids(entries []*IndexEntry) map[string]bool {
 	m := map[string]bool{}
@@ -16,7 +13,7 @@ func ids(entries []*IndexEntry) map[string]bool {
 // TestOwnerScopingInMemory verifies the in-memory index never surfaces one
 // account's private entries to an unscoped search or to another account.
 func TestOwnerScopingInMemory(t *testing.T) {
-	os.Setenv("HOME", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 	UseSQLite = false
 	ClearIndex()
 

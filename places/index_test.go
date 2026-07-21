@@ -1,7 +1,6 @@
 package places
 
 import (
-	"os"
 	"sync"
 	"testing"
 )
@@ -60,7 +59,7 @@ func TestSanitizeFTSQuery(t *testing.T) {
 func TestIndexAndSearchPlaces(t *testing.T) {
 	// Use a temp directory for the test database
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
 
 	// Reset the once so a fresh DB is created under tmpDir
 	placesDBOne = sync.Once{}
@@ -114,7 +113,7 @@ func TestIndexAndSearchPlaces(t *testing.T) {
 
 func TestIndexPlacesUpdatesExisting(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
 	placesDBOne = sync.Once{}
 	placesDB = nil
 
@@ -142,7 +141,7 @@ func TestIndexPlacesUpdatesExisting(t *testing.T) {
 // is wiped on init so that stale rows cannot block fresh Google Places results.
 func TestSchemaVersionWipesOldData(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
 
 	// ---- Phase 1: simulate an old (unversioned) database ----
 	// Open the DB directly and populate it without a schema_version table.
@@ -202,7 +201,7 @@ func TestSchemaVersionWipesOldData(t *testing.T) {
 // correct schema version is NOT wiped on re-init.
 func TestSchemaVersionPreservesData(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
 	placesDBOne = sync.Once{}
 	placesDB = nil
 
@@ -242,7 +241,7 @@ func TestSchemaVersionPreservesData(t *testing.T) {
 // returned zero results after a 1 km search returned two.
 func TestWiderRadiusIncludesNarrowerResults(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
 	placesDBOne = sync.Once{}
 	placesDB = nil
 

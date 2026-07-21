@@ -45,6 +45,7 @@ var (
 	usageMu      sync.Mutex
 	usageRecords []UsageRecord
 	usageStarted time.Time
+	usageLegacy  bool
 )
 
 func init() {
@@ -56,10 +57,18 @@ func init() {
 	} else if err := data.LoadJSON("ai_usage.json", &stored); err == nil && len(stored.Records) > 0 {
 		usageRecords = stored.Records
 		usageStarted = stored.Since
-		// Migrate: save as new file
-		saveUsage()
+		usageLegacy = true
 	} else {
 		usageStarted = time.Now()
+	}
+}
+
+func migrateUsage() {
+	usageMu.Lock()
+	defer usageMu.Unlock()
+	if usageLegacy {
+		saveUsage()
+		usageLegacy = false
 	}
 }
 
