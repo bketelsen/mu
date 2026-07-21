@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"mu/internal/event"
@@ -57,6 +58,12 @@ func WithKeywordOnly() SearchOption {
 // even if a caller forgets to validate its inputs.
 func dataPath(key string) (string, error) {
 	base := filepath.Join(os.ExpandEnv("$HOME/.mu"), "data")
+	if testing.Testing() {
+		rel, err := filepath.Rel(os.TempDir(), base)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return "", fmt.Errorf("data: refusing non-temporary test path %q", base)
+		}
+	}
 	file := filepath.Join(base, key)
 	rel, err := filepath.Rel(base, file)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {

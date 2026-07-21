@@ -27,6 +27,7 @@ var (
 	apiLogMu      sync.Mutex
 	apiLogEntries []*APILogEntry
 	apiLogDirty   bool
+	apiLogOnce    sync.Once
 )
 
 func init() {
@@ -34,18 +35,25 @@ func init() {
 	if err == nil && len(b) > 0 {
 		json.Unmarshal(b, &apiLogEntries)
 	}
-	// Start background saver
-	go func() {
-		for {
-			time.Sleep(10 * time.Second)
-			apiLogMu.Lock()
-			if apiLogDirty {
-				data.SaveJSON("api_log.json", apiLogEntries)
-				apiLogDirty = false
+}
+
+// Load starts persistence that should only run in the server process. Keeping
+// it out of init prevents packages imported by tests from writing live data.
+func Load() {
+	migrateUsage()
+	apiLogOnce.Do(func() {
+		go func() {
+			for {
+				time.Sleep(10 * time.Second)
+				apiLogMu.Lock()
+				if apiLogDirty {
+					data.SaveJSON("api_log.json", apiLogEntries)
+					apiLogDirty = false
+				}
+				apiLogMu.Unlock()
 			}
-			apiLogMu.Unlock()
-		}
-	}()
+		}()
+	})
 }
 
 // RecordAPICall appends an external API call record.

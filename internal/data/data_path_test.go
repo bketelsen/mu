@@ -1,6 +1,17 @@
 package data
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestDataPathRejectsNonTemporaryHomeInTests(t *testing.T) {
+	t.Setenv("HOME", filepath.Clean(filepath.Join(os.TempDir(), "..", "mu-live-home")))
+	if _, err := dataPath("accounts.json"); err == nil {
+		t.Fatal("dataPath allowed a test to access a non-temporary home")
+	}
+}
 
 func TestDataPathConfines(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())

@@ -111,6 +111,7 @@ func main() {
 
 	// load the data index
 	data.Load()
+	app.Load()
 
 	// load admin/flags
 	admin.Load()

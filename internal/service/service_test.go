@@ -2,9 +2,25 @@ package service
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"go-micro.dev/v6/store"
 )
+
+func TestNewDurableStoreUsesMemoryDuringTests(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	s := newDurableStore()
+	if err := s.Write(&store.Record{Key: "test", Value: []byte("value")}); err != nil {
+		t.Fatalf("memory store write failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".mu", "store")); !os.IsNotExist(err) {
+		t.Fatalf("test store created a persistent directory: %v", err)
+	}
+}
 
 func TestBypassProxyForLoopbackSetsMissingProxyEnv(t *testing.T) {
 	t.Setenv("NO_PROXY", "")
