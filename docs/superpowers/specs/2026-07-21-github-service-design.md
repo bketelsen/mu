@@ -46,7 +46,7 @@ The top-level `github/` package owns the integration and contains focused units:
 The legacy `/mcp` registry receives four admin-checked tools:
 
 - `github_repositories`: list or search repositories visible to the token.
-- `github_repository`: inspect one repository and optionally list its issues or pull requests.
+- `github_repository`: inspect one repository; a `resource` mode of `metadata`, `issues`, or `pulls` selects repository metadata (the default) or a paginated item list.
 - `github_search`: search issues and pull requests, either globally or within a repository.
 - `github_issue`: inspect one issue or pull request with its comments.
 
@@ -69,7 +69,7 @@ Add `GITHUB_TOKEN` to the settings and `/admin/env` allowlist. Resolve it throug
 
 The GitHub token is separate from `COPILOT_GITHUB_TOKEN`. The Copilot token is never reused because its scopes, lifecycle, and purpose differ.
 
-The setup state recommends a fine-grained token with read-only access to repository metadata, issues, pull requests, and only the repositories the administrator wants Mu to expose. No write permission is required. The token is never logged, returned through a tool, embedded in HTML, or persisted by the GitHub package.
+The setup state recommends a fine-grained token with read-only access to repository metadata, issues, pull requests, and only the repositories the administrator wants Mu to expose. Repository contents permission is not required. No write permission is required. The token is never logged, returned through a tool, embedded in HTML, or persisted by the GitHub package.
 
 ## Service Contract
 
@@ -93,9 +93,8 @@ The client uses GitHub's versioned REST API at `https://api.github.com`:
 - `GET /user/repos` lists repositories visible to the token, including owned, collaborating, and organization repositories, sorted by recent updates.
 - `GET /search/repositories` searches repositories.
 - `GET /repos/{owner}/{repo}` reads repository metadata.
-- `GET /repos/{owner}/{repo}/issues` lists issues.
 - `GET /repos/{owner}/{repo}/pulls` lists pull requests.
-- `GET /search/issues` searches issues and pull requests using GitHub qualifiers.
+- `GET /search/issues` lists issue-only repository pages with `repo:`, `is:issue`, and state qualifiers and searches issues or pull requests with explicit type qualifiers. Using qualified search avoids the repository issues endpoint's behavior of mixing pull requests into issue results and preserves accurate issue-only pagination.
 - `GET /repos/{owner}/{repo}/issues/{number}` reads common issue or pull-request conversation data.
 - `GET /repos/{owner}/{repo}/issues/{number}/comments` reads chronological discussion comments.
 - `GET /repos/{owner}/{repo}/pulls/{number}` adds pull-request branches, merge state, and other pull-specific metadata when the item is a pull request.
