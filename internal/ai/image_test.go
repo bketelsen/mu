@@ -16,7 +16,7 @@ func clearImageEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	for _, k := range []string{
-		"IMAGE_BASE_URL", "IMAGE_API_KEY", "IMAGE_MODEL",
+		"IMAGE_BASE_URL", "IMAGE_API_KEY", "IMAGE_MODEL", "IMAGE_SIZE",
 		"ATLAS_API_KEY", "OPENAI_API_KEY",
 	} {
 		t.Setenv(k, "")
@@ -44,6 +44,7 @@ func TestGenerateImageOpenAIBase64(t *testing.T) {
 	t.Setenv("IMAGE_BASE_URL", srv.URL+"/api/v1/") // trailing slash must not double up
 	t.Setenv("IMAGE_API_KEY", "lemonade-key")
 	t.Setenv("IMAGE_MODEL", "sdxl-turbo")
+	t.Setenv("IMAGE_SIZE", "1024x1024")
 
 	url, err := GenerateImage("a lighthouse at dusk")
 	if err != nil {
@@ -55,7 +56,7 @@ func TestGenerateImageOpenAIBase64(t *testing.T) {
 	if gotAuth != "Bearer lemonade-key" {
 		t.Errorf("Authorization = %q, want Bearer lemonade-key", gotAuth)
 	}
-	if gotBody["model"] != "sdxl-turbo" || gotBody["prompt"] != "a lighthouse at dusk" {
+	if gotBody["model"] != "sdxl-turbo" || gotBody["prompt"] != "a lighthouse at dusk" || gotBody["size"] != "1024x1024" {
 		t.Errorf("request body = %v", gotBody)
 	}
 	if !strings.HasPrefix(url, "/images/file/") || !strings.HasSuffix(url, ".png") {
@@ -118,6 +119,9 @@ func TestGenerateImageEndpointBeatsAtlasAndOmitsModel(t *testing.T) {
 	}
 	if _, ok := gotBody["model"]; ok {
 		t.Errorf("model %v sent without IMAGE_MODEL set — must be omitted", gotBody["model"])
+	}
+	if _, ok := gotBody["size"]; ok {
+		t.Errorf("size %v sent without IMAGE_SIZE set — must be omitted", gotBody["size"])
 	}
 }
 

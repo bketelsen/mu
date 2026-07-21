@@ -29,6 +29,7 @@ var settingGroups = []settingGroup{
 		"IMAGE_BASE_URL",
 		"IMAGE_API_KEY",
 		"IMAGE_MODEL",
+		"IMAGE_SIZE",
 	}},
 	{"Search", []string{
 		"BRAVE_API_KEY",

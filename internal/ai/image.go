@@ -83,10 +83,14 @@ func GenerateImage(prompt string) (string, error) {
 // stored in the data dir and served back via /images/file/.
 func generateImageOpenAI(ctx context.Context, base, prompt string) (string, error) {
 	payload := map[string]any{"prompt": prompt}
-	// No default here: local servers generate with whatever model they have
-	// loaded when none is named.
+	// No defaults here: local servers generate with whatever model they have
+	// loaded when none is named, and at their configured resolution when no
+	// size is given.
 	if m := strings.TrimSpace(settings.Get("IMAGE_MODEL")); m != "" {
 		payload["model"] = m
+	}
+	if s := strings.TrimSpace(settings.Get("IMAGE_SIZE")); s != "" {
+		payload["size"] = s // OpenAI wire format, e.g. "1024x1024"
 	}
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/images/generations", bytes.NewReader(body))

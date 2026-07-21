@@ -89,8 +89,10 @@ you know your allowance can absorb it.
 - **Image generation** (`/images` prompt-to-image) — Copilot has no
   image-generation endpoint. Point `IMAGE_BASE_URL` at any OpenAI-compatible
   `/images/generations` server (a local Lemonade or Stable Diffusion box,
-  e.g. `http://gpu-box:8000/api/v1`), with optional `IMAGE_API_KEY` and
-  `IMAGE_MODEL`, or set `ATLAS_API_KEY` to use Atlas Cloud. When the server
+  e.g. `http://gpu-box:8000/api/v1`), with optional `IMAGE_API_KEY`,
+  `IMAGE_MODEL` and `IMAGE_SIZE` (OpenAI format, e.g. `1024x1024`; unset
+  means the server's own default), or set `ATLAS_API_KEY` to use Atlas
+  Cloud. When the server
   returns the image inline (base64) Mu stores it and serves it from
   `/images/file/`.
 - Everything non-AI (search, YouTube, mail, payments) uses its own keys as
