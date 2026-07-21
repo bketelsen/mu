@@ -311,7 +311,7 @@ func handleMessage(m discordMessage) {
 	content = strings.TrimSpace(content)
 
 	if content == "" {
-		sendMessage(m.ChannelID, "Ask me anything — I'm Micro, your agent across news, mail, markets, weather, search and more.")
+		sendMessage(m.ChannelID, "Ask me anything — I'm Micro, your agent across news, mail, weather, search and more.")
 		return
 	}
 

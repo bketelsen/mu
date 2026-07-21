@@ -12,7 +12,7 @@ func TestGuestChatFirstRunGuidance(t *testing.T) {
 		`placeholder="Try: give me a morning brief"`,
 		"No account needed for your first 3 questions.",
 		"Give me a morning brief",
-		"What is moving in markets?",
+		"Search for nearby coffee shops",
 		`href="/signup"`,
 		`href="/login?redirect=/agent"`,
 	}
