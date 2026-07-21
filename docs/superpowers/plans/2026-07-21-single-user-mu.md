@@ -430,6 +430,17 @@ func TestMigrateCleanupFailureIsRetryable(t *testing.T) {
 	fail = false
 	if _, err := MigrateSingleOwner(func() (string, error) { return "/backup/data-2", nil }); err != nil { t.Fatal(err) }
 }
+
+func TestMigrateNeverSelectsStoredMicroAccount(t *testing.T) {
+	resetMigrationState(t, map[string]*Account{
+		"micro": {ID: "micro", Admin: true, Created: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)},
+		"owner": {ID: "owner", Admin: true, Created: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)},
+	})
+	result, err := MigrateSingleOwner(func() (string, error) { return "/backup/data", nil })
+	if err != nil { t.Fatal(err) }
+	if result.OwnerID != "owner" { t.Fatalf("owner = %q, want owner", result.OwnerID) }
+	if _, ok := accounts["micro"]; ok { t.Fatal("stored micro login account survived migration") }
+}
 ```
 
 Add these cases to the same file:
@@ -480,7 +491,7 @@ Expected: FAIL because the migration API and named hooks do not exist.
 
 - [ ] **Step 3: Implement migration selection and named synchronous hooks**
 
-In `migration.go`, define `singleOwnerMigrationVersion = 1`, persist `single_owner_migration.json`, sort candidate admins by `Created` ascending then `ID`, and sort deletion IDs before invoking hooks. Use this sequence:
+In `migration.go`, define `singleOwnerMigrationVersion = 1`, persist `single_owner_migration.json`, always classify account ID `micro` as a non-surviving legacy login record, sort the remaining candidate admins by `Created` ascending then `ID`, and sort deletion IDs before invoking hooks. If `micro` is the only stored account, back up and delete it, then return to setup. Use this sequence:
 
 ```go
 backupPath, err := backup()
