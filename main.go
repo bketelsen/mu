@@ -357,22 +357,20 @@ func main() {
 	admin.RefreshBlogCache = blog.RefreshCache
 
 	// Register account deletion hooks — each package cleans up its own data.
-	auth.AccountDeleteHooks = append(auth.AccountDeleteHooks,
-		blog.DeletePostsByAuthor,
-		social.DeleteByAuthor,
-		apps.DeleteAppsByAuthor,
-		stream.ClearByAuthor,
-		user.ClearStatusHistory,
-		mail.DeleteInbox,
-		func(id string) { wallet.DeleteWallet(id) },
-		func(id string) { wallet.DeleteBaseWallet(id) },
-		func(id string) { micro.DeleteUserAgents(id) },
-		func(id string) { discord.DeleteLinks(id) },
-		func(id string) { telegram.DeleteLinks(id) },
-		func(id string) { whatsapp.DeleteLinks(id) },
-		func(id string) { app.ClearUserPrefs(id) },
-		memory.Clear,
-	)
+	auth.RegisterAccountDeleteHook("blog", blog.DeletePostsByAuthor)
+	auth.RegisterAccountDeleteHook("social", social.DeleteByAuthor)
+	auth.RegisterAccountDeleteHook("apps", apps.DeleteAppsByAuthor)
+	auth.RegisterAccountDeleteHook("stream", stream.ClearByAuthor)
+	auth.RegisterAccountDeleteHook("user", user.ClearStatusHistory)
+	auth.RegisterAccountDeleteHook("mail", mail.DeleteInbox)
+	auth.RegisterAccountDeleteHook("wallet", wallet.DeleteWallet)
+	auth.RegisterAccountDeleteHook("basewallet", wallet.DeleteBaseWallet)
+	auth.RegisterAccountDeleteHook("micro", micro.DeleteUserAgents)
+	auth.RegisterAccountDeleteHook("discord", discord.DeleteLinks)
+	auth.RegisterAccountDeleteHook("telegram", telegram.DeleteLinks)
+	auth.RegisterAccountDeleteHook("whatsapp", whatsapp.DeleteLinks)
+	auth.RegisterAccountDeleteHook("prefs", app.ClearUserPrefs)
+	auth.RegisterAccountDeleteHook("memory", memory.Clear)
 
 	// Enable indexing after all content is loaded
 	// This allows the priority queue to process new items first

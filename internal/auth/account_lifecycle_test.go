@@ -43,58 +43,6 @@ func TestBanAccountRejectsAdminsAndTogglesBannedState(t *testing.T) {
 	}
 }
 
-func TestDeleteAccountRemovesSessionsAndPersonalAccessTokens(t *testing.T) {
-	mutex.Lock()
-	oldAccounts := accounts
-	oldSessions := sessions
-	oldTokens := tokens
-	accounts = map[string]*Account{
-		"deleted-user": {ID: "deleted-user"},
-		"other-user":   {ID: "other-user"},
-	}
-	sessions = map[string]*Session{
-		"deleted-session": {ID: "deleted-session", Account: "deleted-user"},
-		"other-session":   {ID: "other-session", Account: "other-user"},
-	}
-	tokens = map[string]*Token{
-		"deleted-token": {ID: "deleted-token", Account: "deleted-user"},
-		"other-token":   {ID: "other-token", Account: "other-user"},
-	}
-	mutex.Unlock()
-	t.Cleanup(func() {
-		mutex.Lock()
-		accounts = oldAccounts
-		sessions = oldSessions
-		tokens = oldTokens
-		mutex.Unlock()
-	})
-
-	if err := DeleteAccount("deleted-user"); err != nil {
-		t.Fatalf("DeleteAccount returned error: %v", err)
-	}
-
-	mutex.Lock()
-	defer mutex.Unlock()
-	if _, ok := accounts["deleted-user"]; ok {
-		t.Fatal("account remained after DeleteAccount")
-	}
-	if _, ok := sessions["deleted-session"]; ok {
-		t.Fatal("session for deleted account remained after DeleteAccount")
-	}
-	if _, ok := tokens["deleted-token"]; ok {
-		t.Fatal("PAT for deleted account remained after DeleteAccount")
-	}
-	if _, ok := accounts["other-user"]; !ok {
-		t.Fatal("unrelated account was removed")
-	}
-	if _, ok := sessions["other-session"]; !ok {
-		t.Fatal("unrelated session was removed")
-	}
-	if _, ok := tokens["other-token"]; !ok {
-		t.Fatal("unrelated PAT was removed")
-	}
-}
-
 func TestGetSessionInvalidatesDeletedCookieSession(t *testing.T) {
 	mutex.Lock()
 	oldAccounts := accounts

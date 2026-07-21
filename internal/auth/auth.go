@@ -275,49 +275,6 @@ func GetAccountByName(name string) (*Account, error) {
 	return nil, errors.New("account not found")
 }
 
-// AccountDeleteHooks are called when an account is deleted. Each
-// building block registers a hook to clean up its own data. This
-// avoids auth importing every other package.
-var AccountDeleteHooks []func(accountID string)
-
-func DeleteAccount(id string) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	if _, ok := accounts[id]; !ok {
-		return errors.New("account does not exist")
-	}
-
-	delete(accounts, id)
-
-	// Delete sessions for this account.
-	for sid, sess := range sessions {
-		if sess.Account == id {
-			delete(sessions, sid)
-		}
-	}
-
-	// Delete PATs for this account.
-	for tid, tok := range tokens {
-		if tok.Account == id {
-			delete(tokens, tid)
-		}
-	}
-
-	data.SaveJSON("accounts.json", accounts)
-	data.SaveJSON("sessions.json", sessions)
-	data.SaveJSON("tokens.json", tokens)
-
-	// Run all registered cleanup hooks outside the lock.
-	go func() {
-		for _, hook := range AccountDeleteHooks {
-			hook(id)
-		}
-	}()
-
-	return nil
-}
-
 func Login(id, secret string) (*Session, error) {
 	mutex.Lock()
 	defer mutex.Unlock()

@@ -64,10 +64,6 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 				u.Admin = !u.Admin
 				auth.UpdateAccount(u)
 			}
-		case "delete":
-			if userID != acc.ID {
-				auth.DeleteAccount(userID)
-			}
 		case "ban":
 			auth.BanAccount(userID)
 		case "unban":

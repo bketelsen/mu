@@ -559,15 +559,16 @@ func ModerateAIResponse(askerID, response string) bool {
 
 // ClearStatusHistory wipes both the current status and the full history
 // for a user. Used by admin console to clean up after spam.
-func ClearStatusHistory(userID string) {
+func ClearStatusHistory(userID string) error {
 	profileMutex.Lock()
 	defer profileMutex.Unlock()
 	if p, ok := profiles[userID]; ok {
 		p.Status = ""
 		p.History = nil
 		p.UpdatedAt = time.Now()
-		data.SaveJSON("profiles.json", profiles)
+		return data.SaveJSON("profiles.json", profiles)
 	}
+	return nil
 }
 
 // ClearAllStatuses wipes every user's status + history. Nuclear option

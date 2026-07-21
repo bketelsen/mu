@@ -27,8 +27,8 @@ func init() {
 	}
 }
 
-func savePrefs() {
-	data.SaveJSON("prefs.json", prefs)
+func savePrefs() error {
+	return data.SaveJSON("prefs.json", prefs)
 }
 
 func getUserPrefs(userID string) *UserPrefs {
@@ -148,9 +148,9 @@ func GetBlockedUsers(userID string) map[string]time.Time {
 }
 
 // ClearUserPrefs removes all preferences for a deleted user.
-func ClearUserPrefs(userID string) {
+func ClearUserPrefs(userID string) error {
 	prefsMu.Lock()
 	defer prefsMu.Unlock()
 	delete(prefs, userID)
-	savePrefs()
+	return savePrefs()
 }

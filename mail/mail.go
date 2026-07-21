@@ -2037,10 +2037,10 @@ func GetRecentMessages(limit int) []*Message {
 }
 
 // DeleteInbox removes all mail for a user.
-func DeleteInbox(userID string) {
+func DeleteInbox(userID string) error {
 	mutex.Lock()
 	delete(inboxes, userID)
 	mutex.Unlock()
 	// Re-save all mail data.
-	save()
+	return save()
 }

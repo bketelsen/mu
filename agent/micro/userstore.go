@@ -92,12 +92,13 @@ func DeleteUserAgentFor(accountID, id string) {
 }
 
 // DeleteUserAgents removes all of an account's agents (account teardown).
-func DeleteUserAgents(accountID string) {
+func DeleteUserAgents(accountID string) error {
 	loadUserAgents()
 	uaMu.Lock()
 	defer uaMu.Unlock()
 	if _, ok := userAgents[accountID]; ok {
 		delete(userAgents, accountID)
-		data.SaveJSON(uaFile, userAgents)
+		return data.SaveJSON(uaFile, userAgents)
 	}
+	return nil
 }

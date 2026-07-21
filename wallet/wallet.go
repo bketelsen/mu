@@ -798,11 +798,13 @@ func FormatCredits(credits int) string {
 }
 
 // DeleteWallet removes a user's wallet and transaction history.
-func DeleteWallet(userID string) {
+func DeleteWallet(userID string) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 	delete(wallets, userID)
 	delete(transactions, userID)
-	data.SaveJSON("wallets.json", wallets)
-	data.SaveJSON("transactions.json", transactions)
+	if err := data.SaveJSON("wallets.json", wallets); err != nil {
+		return err
+	}
+	return data.SaveJSON("transactions.json", transactions)
 }

@@ -80,8 +80,8 @@ func Load() {
 	app.Log("stream", "Loaded %d events", len(events))
 }
 
-func save() {
-	data.SaveJSON("stream.json", events)
+func save() error {
+	return data.SaveJSON("stream.json", events)
 }
 
 // Publish appends an event to the stream. This is the single entry
@@ -252,7 +252,7 @@ func Clear() {
 }
 
 // ClearByAuthor removes all events from a specific author.
-func ClearByAuthor(authorID string) {
+func ClearByAuthor(authorID string) error {
 	mu.Lock()
 	var filtered []*Event
 	for _, e := range events {
@@ -261,8 +261,9 @@ func ClearByAuthor(authorID string) {
 		}
 	}
 	events = filtered
-	save()
+	err := save()
 	mu.Unlock()
+	return err
 }
 
 // All returns a sorted copy of all events (for admin/export).

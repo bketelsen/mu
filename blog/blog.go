@@ -1815,7 +1815,7 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 
 // DeletePostsByAuthor removes all posts and comments by a user.
 // Called when an account is deleted.
-func DeletePostsByAuthor(authorID string) {
+func DeletePostsByAuthor(authorID string) error {
 	mutex.Lock()
 	var kept []*Post
 	for _, p := range posts {
@@ -1838,7 +1838,12 @@ func DeletePostsByAuthor(authorID string) {
 	populateComments()
 	updateCacheUnlocked()
 	mutex.Unlock()
-	save()
-	data.SaveJSON("comments.json", comments)
+	if err := save(); err != nil {
+		return err
+	}
+	if err := data.SaveJSON("comments.json", comments); err != nil {
+		return err
+	}
 	event.Publish(event.Event{Type: "blog_updated"})
+	return nil
 }

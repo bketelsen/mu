@@ -219,7 +219,7 @@ func Load() {
 }
 
 // save persists all apps to disk.
-func save() {
+func save() error {
 	mutex.RLock()
 	list := make([]*App, 0, len(apps))
 	for _, a := range apps {
@@ -231,7 +231,7 @@ func save() {
 		return list[i].CreatedAt.Before(list[j].CreatedAt)
 	})
 
-	data.SaveJSON("apps.json", list)
+	return data.SaveJSON("apps.json", list)
 }
 
 // Preview returns HTML for the home dashboard card.
@@ -1934,7 +1934,7 @@ const sdkJS = `// Mu App SDK
 `
 
 // DeleteAppsByAuthor removes all apps by a user.
-func DeleteAppsByAuthor(authorID string) {
+func DeleteAppsByAuthor(authorID string) error {
 	mutex.Lock()
 	for slug, a := range apps {
 		if a.AuthorID == authorID {
@@ -1942,5 +1942,5 @@ func DeleteAppsByAuthor(authorID string) {
 		}
 	}
 	mutex.Unlock()
-	save()
+	return save()
 }

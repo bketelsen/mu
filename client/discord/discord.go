@@ -86,7 +86,7 @@ func GetLinkedAccount(discordID string) string {
 }
 
 // DeleteLinks removes all links for a Mu account (account deletion).
-func DeleteLinks(muAccount string) {
+func DeleteLinks(muAccount string) error {
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for k, v := range links {
@@ -94,7 +94,7 @@ func DeleteLinks(muAccount string) {
 			delete(links, k)
 		}
 	}
-	data.SaveJSON("discord_links.json", links)
+	return data.SaveJSON("discord_links.json", links)
 }
 
 // autoCreateAccount creates a Mu account from a Discord user and links it.

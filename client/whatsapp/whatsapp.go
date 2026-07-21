@@ -335,7 +335,7 @@ func getLinkedAccount(phone string) string {
 	return links[phone]
 }
 
-func DeleteLinks(muAccount string) {
+func DeleteLinks(muAccount string) error {
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for k, v := range links {
@@ -343,7 +343,7 @@ func DeleteLinks(muAccount string) {
 			delete(links, k)
 		}
 	}
-	data.SaveJSON("whatsapp_links.json", links)
+	return data.SaveJSON("whatsapp_links.json", links)
 }
 
 func autoCreateAccount(phone string) string {

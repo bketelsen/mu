@@ -88,14 +88,15 @@ func GetOrCreateWallet(accountID string) (*BaseWallet, error) {
 }
 
 // DeleteBaseWallet removes an account's on-chain wallet (account teardown).
-func DeleteBaseWallet(accountID string) {
+func DeleteBaseWallet(accountID string) error {
 	loadWallets()
 	walletMu.Lock()
 	defer walletMu.Unlock()
 	if _, ok := userWallets[accountID]; ok {
 		delete(userWallets, accountID)
-		data.SaveJSON(walletsFile, userWallets)
+		return data.SaveJSON(walletsFile, userWallets)
 	}
+	return nil
 }
 
 // USDCBalance returns the wallet's USDC balance as a formatted decimal string
