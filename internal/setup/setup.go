@@ -16,17 +16,17 @@ import (
 )
 
 // Needed reports whether the instance still needs first-run setup — i.e. no
-// admin account exists yet. Once an admin exists the flow closes and routing
+// owner account exists yet. Once an owner exists the flow closes and routing
 // stops sending people here.
 func Needed() bool {
-	return !auth.AdminExists()
+	return !auth.OwnerExists()
 }
 
 // Handler serves GET /setup (the form) and POST /setup (apply). It is only open
-// while no admin exists; afterwards it redirects to /login so it can't be used
-// to mint a second admin.
+// while no owner exists; afterwards it redirects to /login so it can't be used
+// to mint a second account.
 func Handler(w http.ResponseWriter, r *http.Request) {
-	if auth.AdminExists() {
+	if auth.OwnerExists() {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
@@ -65,15 +65,10 @@ func applySetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create the admin account. auth.Create bootstraps the first account as
-	// admin; promote explicitly too in case ADMIN is set to someone else.
+	// Create the owner account. auth.Create establishes its owner privileges.
 	if err := auth.Create(&auth.Account{ID: id, Name: id, Secret: secret, Created: time.Now()}); err != nil {
 		w.Write([]byte(render(err.Error())))
 		return
-	}
-	if acc, err := auth.GetAccount(id); err == nil && !acc.Admin {
-		acc.Admin = true
-		auth.UpdateAccount(acc)
 	}
 
 	sess, err := auth.Login(id, secret)

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +21,12 @@ var mutex sync.Mutex
 var accounts = map[string]*Account{}
 var sessions = map[string]*Session{}
 var tokens = map[string]*Token{} // PAT tokens: tokenID -> Token
+
+var (
+	ErrNoOwner          = errors.New("owner is not configured")
+	ErrOwnerExists      = errors.New("Mu already has an owner")
+	ErrMultipleAccounts = errors.New("legacy accounts require single-owner migration")
+)
 
 // User presence tracking
 var presenceMutex sync.RWMutex
@@ -119,13 +124,43 @@ func init() {
 	json.Unmarshal(b, &tokens)
 }
 
+func ownerLocked() (*Account, error) {
+	if len(accounts) == 0 {
+		return nil, ErrNoOwner
+	}
+	if len(accounts) != 1 {
+		return nil, ErrMultipleAccounts
+	}
+	for _, acc := range accounts {
+		return acc, nil
+	}
+	return nil, ErrNoOwner
+}
+
+func Owner() (*Account, error) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	return ownerLocked()
+}
+
+func OwnerExists() bool {
+	_, err := Owner()
+	return err == nil
+}
+
+func IsOwner(accountID string) bool {
+	mutex.Lock()
+	defer mutex.Unlock()
+	owner, err := ownerLocked()
+	return err == nil && owner.ID == accountID
+}
+
 func Create(acc *Account) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	_, exists := accounts[acc.ID]
-	if exists {
-		return errors.New("Account already exists")
+	if len(accounts) != 0 {
+		return ErrOwnerExists
 	}
 
 	// hash the secret
@@ -135,44 +170,14 @@ func Create(acc *Account) error {
 	}
 
 	acc.Secret = string(hash)
-
-	// Admin bootstrap for self-hosting: without this a fresh instance has no
-	// admin and /admin/env is unreachable. The operator named in the ADMIN env
-	// var (comma-separated ids/usernames/emails) is made an admin; if ADMIN is
-	// unset, the very first account on a fresh instance becomes admin.
-	if shouldBootstrapAdmin(acc, len(accounts) == 0) {
-		acc.Admin = true
-	}
+	acc.Admin = true
+	acc.Approved = true
+	acc.Banned = false
 
 	accounts[acc.ID] = acc
 	data.SaveJSON("accounts.json", accounts)
 
 	return nil
-}
-
-// shouldBootstrapAdmin reports whether a newly created account should be granted
-// admin. ADMIN (or MU_ADMIN) explicitly lists admins; when neither is set the
-// first account on an empty instance is bootstrapped so the operator can reach
-// /admin/env. An existing admin is never demoted (this only runs at creation).
-func shouldBootstrapAdmin(acc *Account, isFirst bool) bool {
-	list := os.Getenv("ADMIN")
-	if list == "" {
-		list = os.Getenv("MU_ADMIN")
-	}
-	if list == "" {
-		return isFirst // no explicit config — bootstrap the first account
-	}
-	for _, want := range strings.Split(list, ",") {
-		want = strings.ToLower(strings.TrimSpace(want))
-		if want == "" {
-			continue
-		}
-		if want == strings.ToLower(acc.ID) || want == strings.ToLower(acc.Name) ||
-			(acc.Email != "" && want == strings.ToLower(acc.Email)) {
-			return true
-		}
-	}
-	return false // ADMIN set but this account isn't on the list
 }
 
 func Delete(acc *Account) error {
@@ -326,6 +331,13 @@ func Login(id, secret string) (*Session, error) {
 	if err != nil {
 		return nil, errors.New("invalid account secret")
 	}
+	owner, err := ownerLocked()
+	if err != nil {
+		return nil, err
+	}
+	if owner.ID != acc.ID {
+		return nil, errors.New("account is not owner")
+	}
 
 	guid := uuid.New().String()
 
@@ -350,9 +362,16 @@ func CreateSession(id string) (*Session, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	_, ok := accounts[id]
+	acc, ok := accounts[id]
 	if !ok {
 		return nil, errors.New("account does not exist")
+	}
+	owner, err := ownerLocked()
+	if err != nil {
+		return nil, err
+	}
+	if owner.ID != acc.ID {
+		return nil, errors.New("account is not owner")
 	}
 
 	guid := uuid.New().String()
@@ -391,11 +410,11 @@ func GetSession(r *http.Request) (*Session, error) {
 	if err == nil && c != nil {
 		sess, err := ParseToken(c.Value)
 		if err == nil {
-			// Validate that the account still exists
+			// Reject sessions belonging to accounts outside the singleton owner.
 			mutex.Lock()
-			_, accountExists := accounts[sess.Account]
+			owner, ownerErr := ownerLocked()
+			accountExists := ownerErr == nil && owner.ID == sess.Account
 			if !accountExists {
-				// Account was deleted, invalidate the session
 				delete(sessions, sess.ID)
 			}
 			mutex.Unlock()
@@ -430,7 +449,8 @@ func GetSession(r *http.Request) (*Session, error) {
 		sess, err := ParseToken(token)
 		if err == nil {
 			mutex.Lock()
-			_, accountExists := accounts[sess.Account]
+			owner, ownerErr := ownerLocked()
+			accountExists := ownerErr == nil && owner.ID == sess.Account
 			if !accountExists {
 				delete(sessions, sess.ID)
 			}
@@ -798,6 +818,13 @@ func ValidatePAT(rawToken string) (string, error) {
 			// Check if expired
 			if !token.ExpiresAt.IsZero() && time.Now().After(token.ExpiresAt) {
 				return "", errors.New("token expired")
+			}
+			owner, err := ownerLocked()
+			if err != nil {
+				return "", err
+			}
+			if owner.ID != token.Account {
+				return "", errors.New("account is not owner")
 			}
 
 			// Update last used time
