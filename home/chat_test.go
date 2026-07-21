@@ -5,30 +5,15 @@ import (
 	"testing"
 )
 
-func TestGuestChatFirstRunGuidance(t *testing.T) {
+func TestGuestChatGuidesOwnerToLogin(t *testing.T) {
 	html := chatComponent(true)
 
-	checks := []string{
-		`placeholder="Try: give me a morning brief"`,
-		"No account needed for your first 3 questions.",
-		"Give me a morning brief",
-		"Search for nearby coffee shops",
-		`href="/signup"`,
-		`href="/login?redirect=/agent"`,
+	if !strings.Contains(html, `href="/login?redirect=/agent"`) {
+		t.Fatalf("guest chat HTML missing owner login link")
 	}
-	for _, want := range checks {
-		if !strings.Contains(html, want) {
-			t.Fatalf("guest chat HTML missing %q", want)
+	for _, forbidden := range []string{"No account needed", "Sign up", `href="/setup"`} {
+		if strings.Contains(html, forbidden) {
+			t.Fatalf("guest chat HTML contains %q", forbidden)
 		}
-	}
-}
-
-func TestSignedInChatDoesNotShowGuestLimitHint(t *testing.T) {
-	html := chatComponent(false)
-	if !strings.Contains(html, "No account needed for your first 3 questions.") {
-		t.Fatalf("shared script should contain guest hint text")
-	}
-	if !strings.Contains(html, "var GUEST=false") {
-		t.Fatalf("signed-in chat should render GUEST=false")
 	}
 }

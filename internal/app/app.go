@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"mu/internal/auth"
@@ -22,63 +21,6 @@ import (
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
 )
-
-// Signup rate limiting per IP — defends against bulk account creation.
-// Configurable via SIGNUP_MAX_PER_IP and SIGNUP_WINDOW_HOURS env vars.
-var (
-	signupMu       sync.Mutex
-	signupAttempts = map[string]*signupBucket{}
-)
-
-type signupBucket struct {
-	count   int
-	resetAt time.Time
-}
-
-// SignupRateLimit returns true if the IP is allowed to sign up.
-// It also records the attempt against the bucket on success.
-// Configurable via SIGNUP_MAX_PER_IP (default 3) and SIGNUP_WINDOW_HOURS (default 24).
-func SignupRateLimit(ip string) bool {
-	if ip == "" || ip == "127.0.0.1" || ip == "::1" {
-		return true // never rate-limit localhost (self-hosted, dev)
-	}
-	maxPerIP := envInt("SIGNUP_MAX_PER_IP", 3)
-	window := time.Duration(envInt("SIGNUP_WINDOW_HOURS", 24)) * time.Hour
-
-	signupMu.Lock()
-	defer signupMu.Unlock()
-
-	now := time.Now()
-	b, ok := signupAttempts[ip]
-	if !ok || now.After(b.resetAt) {
-		b = &signupBucket{count: 0, resetAt: now.Add(window)}
-		signupAttempts[ip] = b
-	}
-	if b.count >= maxPerIP {
-		return false
-	}
-	b.count++
-
-	// Opportunistic GC to avoid unbounded growth.
-	if len(signupAttempts) > 10000 {
-		for k, v := range signupAttempts {
-			if now.After(v.resetAt) {
-				delete(signupAttempts, k)
-			}
-		}
-	}
-	return true
-}
-
-func envInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		var n int
-		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
-			return n
-		}
-	}
-	return def
-}
 
 // Version for cache busting static assets (generated at startup)
 var Version = fmt.Sprintf("%d", time.Now().Unix())
@@ -137,6 +79,18 @@ func Log(pkg string, format string, args ...interface{}) {
 		fmt.Printf(prefix+format+"\n", args...)
 	}
 	appendSysLog(pkg, format, args...)
+}
+
+// RedactChannelMessage prevents account-link commands from reaching logs.
+func RedactChannelMessage(message string) string {
+	fields := strings.Fields(message)
+	if len(fields) > 0 {
+		switch strings.ToLower(fields[0]) {
+		case "link", "unlink":
+			return "[redacted account link command]"
+		}
+	}
+	return message
 }
 
 // Response holds data for responding in either JSON or HTML format
@@ -406,7 +360,7 @@ var LoginTemplate = `<html lang="en">
 	  <p class="text-muted">or</p>
 	  <button onclick="loginWithPasskey()">Login with Passkey</button>
 	</div>
-	<p class="text-center mt-5"><a href="/signup">Sign up</a> if you don't have an account</p>
+	<p class="text-center mt-5">Run <a href="/setup">first-time setup</a> if this is a new server.</p>
 	<script>
 	if (window.PublicKeyCredential) {
 	  PublicKeyCredential.isConditionalMediationAvailable && PublicKeyCredential.isConditionalMediationAvailable().then(function(){});
@@ -481,178 +435,6 @@ var LoginTemplate = `<html lang="en">
 </html>
 `
 
-var SignupTemplate = `<html lang="en">
-  <head>
-    <title>Signup | Mu</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content, viewport-fit=cover" />
-    <meta name="referrer" content="no-referrer"/>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/mu.css?` + Version + `">
-  </head>
-  <body>
-    <div id="head">
-      <div id="brand">
-        <a href="/">Mu</a>
-      </div>
-    </div>
-    <div id="container">
-      <div id="content">
-	<form id="signup" action="/signup" method="POST">
-	  <h1>Signup</h1>
-	  %s
-	  <input id="id" name="id" placeholder="Username (4-24 chars, lowercase)" required>
-	  <input id="name" name="name" placeholder="Name (optional)">
-  	  <input id="secret" name="secret" type="password" placeholder="Password (min 6 chars)" required>
-	  %s
-	  %s
-	  <br>
-	  <button>Signup</button>
-	</form>
-	<p class="text-center mt-5"><a href="/login">Login</a> if you have an account</p>
-      </div>
-    </div>
-  </body>
-</html>
-`
-
-// inviteCode is a package-level var used to thread the invite code
-// through signup renders without changing every call site.
-var currentInviteCode string
-
-// renderSignup renders the signup template with a fresh captcha challenge
-// and the given error HTML (or empty string).
-func renderSignup(errHTML string) string {
-	c := NewCaptchaChallenge()
-	inviteField := ""
-	if currentInviteCode != "" {
-		inviteField = fmt.Sprintf(`<input type="hidden" name="invite" value="%s">`, currentInviteCode)
-	}
-	html := fmt.Sprintf(SignupTemplate, errHTML, CaptchaHTML(c), inviteField)
-	if btn := googleButtonHTML("Continue with Google"); btn != "" {
-		html = strings.Replace(html, `<h1>Signup</h1>`, `<h1>Signup</h1>`+btn, 1)
-	}
-	return html
-}
-
-// renderRequestInvitePage shows the "request an invite" form that
-// replaces the dead-end "invite only" page. Captcha-protected and
-// rate-limited by IP so it can't be flooded.
-func renderRequestInvitePage(w http.ResponseWriter, r *http.Request, message string) {
-	c := NewCaptchaChallenge()
-	msg := message
-	if msg == "" {
-		msg = `<p>Mu is currently invite-only. Leave your email and we'll send you an invite when we open up more seats.</p>`
-	}
-	body := fmt.Sprintf(`<div class="card" style="max-width:440px;margin:0 auto">
-<h3>Request an invite</h3>
-%s
-<form method="POST" action="/request-invite" style="margin-top:12px">
-  <input type="email" name="email" placeholder="your@email.com" required style="width:100%%;margin-bottom:8px">
-  <input type="text" name="reason" placeholder="Why you'd like to join (optional)" maxlength="500" style="width:100%%;margin-bottom:8px">
-  %s
-  <button type="submit">Request invite</button>
-</form>
-<p class="text-muted text-sm mt-3">Already have an invite? <a href="/login">Log in</a> or paste your link.</p>
-</div>`, msg, CaptchaHTML(c))
-	w.Write([]byte(RenderHTML("Request an Invite", "Request an invite to Mu", body)))
-}
-
-// InviteHandler lets any logged-in user invite someone by email.
-func InviteHandler(w http.ResponseWriter, r *http.Request) {
-	_, acc, err := auth.RequireSession(r)
-	if err != nil {
-		RedirectToLogin(w, r)
-		return
-	}
-
-	if r.Method == "POST" {
-		r.ParseForm()
-		email := strings.TrimSpace(r.FormValue("email"))
-		if email == "" {
-			BadRequest(w, r, "Email is required")
-			return
-		}
-		code, err := auth.CreateInvite(email, acc.ID)
-		if err != nil {
-			ServerError(w, r, "Failed to create invite: "+err.Error())
-			return
-		}
-		link := PublicURL() + "/signup?invite=" + code
-		if EmailSender != nil {
-			plain := fmt.Sprintf("%s invited you to join Mu.\n\nSign up here: %s", acc.Name, link)
-			html := fmt.Sprintf(`<p>%s invited you to join Mu.</p><p><a href="%s">Sign up here</a></p>`, htmlpkg.EscapeString(acc.Name), link)
-			EmailSender(email, acc.Name+" invited you to Mu", plain, html)
-		}
-		body := fmt.Sprintf(`<div class="card">
-<h4>Invite sent</h4>
-<p>Invite sent to <strong>%s</strong></p>
-<p><a href="/invite">Invite another</a> · <a href="/home">Home</a></p>
-</div>`, htmlpkg.EscapeString(email))
-		w.Write([]byte(RenderHTML("Invite Sent", "Invite sent", body)))
-		return
-	}
-
-	body := `<p><a href="/home">← Home</a></p>
-<div class="card">
-<h4>Invite someone to Mu</h4>
-<p class="text-sm">Enter their email — they'll get a signup link.</p>
-<form method="POST" action="/invite" style="margin-top:8px">
-	<input type="email" name="email" placeholder="friend@example.com" required class="form-input" style="width:100%">
-	<button type="submit" class="mt-2">Send invite</button>
-</form>
-</div>`
-	w.Write([]byte(RenderHTML("Invite", "Invite someone to Mu", body)))
-}
-
-// RequestInvite handles POST /request-invite — someone is asking to
-// join. Validates captcha + rate limit, stores the request for admin
-// review.
-func RequestInvite(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-		renderRequestInvitePage(w, r, "")
-		return
-	}
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	r.ParseForm()
-
-	if err := VerifyCaptchaRequest(r); err != nil {
-		renderRequestInvitePage(w, r, fmt.Sprintf(`<p class="text-error">%s</p>`, err.Error()))
-		return
-	}
-
-	// Per-IP rate limit reuses the signup bucket — same spam concern.
-	ip := ClientIP(r)
-	if !SignupRateLimit(ip) {
-		renderRequestInvitePage(w, r, `<p class="text-error">Too many requests from your network. Please try again later.</p>`)
-		return
-	}
-
-	email := strings.TrimSpace(r.FormValue("email"))
-	reason := strings.TrimSpace(r.FormValue("reason"))
-	if email == "" || !strings.Contains(email, "@") {
-		renderRequestInvitePage(w, r, `<p class="text-error">Please enter a valid email address.</p>`)
-		return
-	}
-
-	if err := auth.CreateInviteRequest(email, reason, ip); err != nil {
-		renderRequestInvitePage(w, r, fmt.Sprintf(`<p class="text-error">%s</p>`, err.Error()))
-		return
-	}
-	Log("auth", "Invite request from %s (%s)", email, ip)
-
-	body := fmt.Sprintf(`<div class="card" style="max-width:440px;margin:0 auto">
-<h3>Thanks — we got your request</h3>
-<p>We'll email <strong>%s</strong> if we have a seat for you.</p>
-<p class="mt-3"><a href="/">← Back</a></p>
-</div>`, htmlpkg.EscapeString(email))
-	w.Write([]byte(RenderHTML("Request Received", "Invite request received", body)))
-}
-
 // EmailSender is set by main.go and called to deliver verification
 // emails. It's a callback to avoid an import cycle (mail imports app).
 // If nil, email verification is unavailable on this instance.
@@ -660,7 +442,7 @@ var EmailSender func(to, subject, bodyPlain, bodyHTML string) error
 
 // DiscordLinkCodeFunc generates a one-time code for linking a Discord
 // account. Set by the discord package at startup.
-var DiscordLinkCodeFunc func(accountID string) string
+var DiscordLinkCodeFunc func(accountID string) (string, error)
 
 // PublicURL returns the externally-reachable base URL for the instance.
 // Falls back to relative paths when not configured.
@@ -777,137 +559,6 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Signup handler
-func Signup(w http.ResponseWriter, r *http.Request) {
-	// Thread the invite code through renders so the hidden field persists.
-	invCode := r.URL.Query().Get("invite")
-	if r.Method == "POST" {
-		if v := r.FormValue("invite"); v != "" {
-			invCode = v
-		}
-	}
-	currentInviteCode = invCode
-
-	// Invite codes are optional — if one is provided (referral link),
-	// it's consumed after signup for tracking. Signup works without one.
-	// When INVITE_ONLY=true, a valid code IS required.
-	if auth.InviteOnly() && invCode == "" {
-		renderRequestInvitePage(w, r, "")
-		return
-	}
-	if auth.InviteOnly() && invCode != "" {
-		if err := auth.ValidateInvite(invCode); err != nil {
-			w.Write([]byte(renderSignup(fmt.Sprintf(`<p class="text-error">%s</p>`, err.Error()))))
-			return
-		}
-	}
-
-	if r.Method == "GET" {
-		w.Write([]byte(renderSignup("")))
-		return
-	}
-
-	if r.Method == "POST" {
-		r.ParseForm()
-
-		// Captcha is checked before the IP rate limit so that a failed
-		// captcha doesn't burn an attempt against the IP bucket.
-		if err := VerifyCaptchaRequest(r); err != nil {
-			w.Write([]byte(renderSignup(fmt.Sprintf(`<p class="text-error">%s</p>`, err.Error()))))
-			return
-		}
-
-		// Per-IP signup rate limit (defends against bulk account creation).
-		ip := ClientIP(r)
-		if !SignupRateLimit(ip) {
-			Log("auth", "Signup rate limit hit for IP: %s", ip)
-			w.Write([]byte(renderSignup(`<p class="text-error">Too many sign-ups from your network. Please try again later.</p>`)))
-			return
-		}
-
-		id := r.Form.Get("id")
-		name := r.Form.Get("name")
-		secret := r.Form.Get("secret")
-
-		const usernamePattern = "^[a-z][a-z0-9_]{3,23}$"
-
-		usernameRegex := regexp.MustCompile(usernamePattern)
-
-		if len(id) == 0 {
-			w.Write([]byte(renderSignup(`<p class="text-error">Username is required</p>`)))
-			return
-		}
-
-		if !usernameRegex.MatchString(id) {
-			w.Write([]byte(renderSignup(`<p class="text-error">Invalid username format. Must start with a letter, be 4-24 characters, and contain only lowercase letters, numbers, and underscores</p>`)))
-			return
-		}
-
-		if reason := auth.ValidateUsername(id); reason != "" {
-			w.Write([]byte(renderSignup(fmt.Sprintf(`<p class="text-error">%s</p>`, reason))))
-			return
-		}
-
-		if len(secret) == 0 {
-			w.Write([]byte(renderSignup(`<p class="text-error">Password is required</p>`)))
-			return
-		}
-
-		if len(secret) < 6 {
-			w.Write([]byte(renderSignup(`<p class="text-error">Password must be at least 6 characters</p>`)))
-			return
-		}
-
-		// Use username as name if name is not provided
-		if len(name) == 0 {
-			name = id
-		}
-
-		if err := auth.Create(&auth.Account{
-			ID:      id,
-			Secret:  secret,
-			Name:    name,
-			Created: time.Now(),
-		}); err != nil {
-			w.Write([]byte(renderSignup(fmt.Sprintf(`<p class="text-error">%s</p>`, err.Error()))))
-			return
-		}
-
-		// Consume invite code if present (marks it as used).
-		if invCode != "" {
-			auth.ConsumeInvite(invCode, id)
-		}
-
-		// login
-		sess, err := auth.Login(id, secret)
-		if err != nil {
-			w.Write([]byte(renderSignup(`<p class="text-error">Account created but login failed. Please try logging in.</p>`)))
-			return
-		}
-
-		var secure bool
-
-		if h := r.Header.Get("X-Forwarded-Proto"); h == "https" {
-			secure = true
-		}
-
-		// set a new token
-		http.SetCookie(w, &http.Cookie{
-			Name:     "session",
-			Value:    sess.Token,
-			Path:     "/",
-			MaxAge:   2592000,
-			Secure:   secure,
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-		})
-
-		// return to home
-		http.Redirect(w, r, "/home", 302)
-		return
-	}
-}
-
 func Account(w http.ResponseWriter, r *http.Request) {
 	_, acc, err := auth.RequireSession(r)
 	if err != nil {
@@ -968,8 +619,12 @@ func Account(w http.ResponseWriter, r *http.Request) {
 		// Discord link code generation
 		if r.Form.Get("discord_link") != "" {
 			if DiscordLinkCodeFunc != nil {
-				code := DiscordLinkCodeFunc(acc.ID)
-				http.Redirect(w, r, "/account?discord_code="+code, http.StatusSeeOther)
+				code, err := DiscordLinkCodeFunc(acc.ID)
+				if err == nil {
+					http.Redirect(w, r, "/account?discord_code="+code, http.StatusSeeOther)
+				} else {
+					http.Redirect(w, r, "/account", http.StatusSeeOther)
+				}
 			} else {
 				http.Redirect(w, r, "/account", http.StatusSeeOther)
 			}
@@ -1065,7 +720,6 @@ func Account(w http.ResponseWriter, r *http.Request) {
 	content := fmt.Sprintf(`<div class="card">
 <h4>Profile</h4>
 <p><strong>%s</strong> · %s · Joined %s</p>
-<p><a href="/@%s">Public profile →</a></p>
 </div>
 
 %s
@@ -1090,14 +744,12 @@ func Account(w http.ResponseWriter, r *http.Request) {
 <h4>Settings</h4>
 %s
 <p><a href="/token">API Credentials →</a></p>
-<p><a href="/app/blocked">Blocked Users →</a></p>
 <p><a href="/app/saved">Saved →</a></p>
 <p style="margin-top:12px"><a href="/logout" class="text-error">Logout</a></p>
 </div>`,
 		acc.ID,
 		acc.Name,
 		acc.Created.Format("January 2, 2006"),
-		acc.ID,
 		emailCard,
 		googleCard,
 		languageOptions,
@@ -1136,12 +788,12 @@ func renderEmailCard(acc *auth.Account) string {
 
 	pending := ""
 	if acc.Email != "" {
-		pending = fmt.Sprintf(`<p class="text-muted text-sm">A verification link was sent to <strong>%s</strong>. Click it to unlock posting. Submit again to resend.</p>`, htmlpkg.EscapeString(acc.Email))
+		pending = fmt.Sprintf(`<p class="text-muted text-sm">A verification link was sent to <strong>%s</strong>. Click it to confirm your address. Submit again to resend.</p>`, htmlpkg.EscapeString(acc.Email))
 	}
 
 	return fmt.Sprintf(`<div class="card">
-<h4>Verify your email to post</h4>
-<p class="text-sm">Verifying your email unlocks status updates, replies, comments and blog posts. We do not share or sell your address.</p>
+<h4>Email</h4>
+<p class="text-sm">Add and confirm your email address. We do not share or sell your address.</p>
 %s
 <form action="/account" method="POST" class="d-flex items-center gap-3" style="margin-top:8px">
 	<input type="email" name="email" placeholder="you@example.com" value="%s" required>
@@ -1175,8 +827,8 @@ func handleVerifyStart(w http.ResponseWriter, r *http.Request, acc *auth.Account
 	}
 
 	link := PublicURL() + "/verify?token=" + tok
-	plain := fmt.Sprintf("Hi %s,\n\nClick the link below to verify your email and unlock posting on Mu:\n\n%s\n\nThis link expires in 24 hours. If you didn't request this, you can ignore this email.\n\n— Mu", acc.Name, link)
-	html := fmt.Sprintf(`<p>Hi %s,</p><p>Click the link below to verify your email and unlock posting on Mu:</p><p><a href="%s">%s</a></p><p>This link expires in 24 hours. If you didn't request this, you can ignore this email.</p><p>— Mu</p>`, htmlpkg.EscapeString(acc.Name), link, link)
+	plain := fmt.Sprintf("Hi %s,\n\nClick the link below to verify your email address on Mu:\n\n%s\n\nThis link expires in 24 hours. If you didn't request this, you can ignore this email.\n\n— Mu", acc.Name, link)
+	html := fmt.Sprintf(`<p>Hi %s,</p><p>Click the link below to verify your email address on Mu:</p><p><a href="%s">%s</a></p><p>This link expires in 24 hours. If you didn't request this, you can ignore this email.</p><p>— Mu</p>`, htmlpkg.EscapeString(acc.Name), link, link)
 
 	if err := EmailSender(email, "Verify your Mu account", plain, html); err != nil {
 		Log("auth", "Failed to send verification email to %s: %v", email, err)
@@ -1388,41 +1040,12 @@ func RenderHTML(title, desc, html string) string {
 }
 
 // RenderHTMLForRequest renders the given html in a template using the
-// user's language preference. Prepends the verify-to-post banner if the
-// authenticated user has an unverified account on a verification-gated
-// instance.
+// user's language preference.
 func RenderHTMLForRequest(title, desc, html string, r *http.Request) string {
 	lang := GetUserLanguage(r)
-	if banner := VerifyBanner(r); banner != "" {
-		html = banner + html
-	}
 	_, acc := auth.TrySession(r)
 	out := RenderHTMLWithLangAndAuth(title, desc, html, lang, acc)
 	return out
-}
-
-// VerifyBanner returns banner HTML inviting the user to verify their
-// email address, or an empty string if the banner doesn't apply (no
-// session, admin, already verified, or verification not required on
-// this instance).
-func VerifyBanner(r *http.Request) string {
-	if EmailSender == nil {
-		return ""
-	}
-	_, acc := auth.TrySession(r)
-	if acc == nil || acc.Admin || acc.Approved || acc.EmailVerified {
-		return ""
-	}
-	// Don't show the banner on the account page itself — the verify
-	// form is right there.
-	if r.URL.Path == "/account" || r.URL.Path == "/verify" {
-		return ""
-	}
-	return `<div class="verify-banner" style="background:#fff8e1;border:1px solid #f1d68c;border-radius:6px;padding:10px 14px;margin:0 0 14px;font-size:14px;color:#5b4a00;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-<strong>Verify your email to post.</strong>
-<span>Add and confirm an email on your account to unlock status updates, replies, comments and posts.</span>
-<a href="/account" style="margin-left:auto;background:#000;color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px">Verify →</a>
-</div>`
 }
 
 func navAuthHTML(acc *auth.Account) string {

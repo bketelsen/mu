@@ -196,7 +196,7 @@ func (s *Session) Logout() error {
 }
 
 // Rcpt is called when the RCPT TO command is received
-// Validates that the recipient is a local user OR allows external if authenticated OR from localhost
+// Validates local delivery against the singleton owner, while localhost may relay outbound mail.
 func (s *Session) Rcpt(to string, opts *smtpd.RcptOptions) error {
 	// Extract username from email address
 	toAddr, err := mail.ParseAddress(to)
@@ -242,18 +242,15 @@ func (s *Session) Rcpt(to string, opts *smtpd.RcptOptions) error {
 		}
 	}
 
-	// Domain matches - verify user exists and has mail access
-	acc, err := auth.GetAccount(username)
-	if err != nil {
-		app.Log("mail", "Rejected mail for non-existent user: %s", username)
+	// Domain matches - accept only the owner's local mailbox.
+	owner, err := auth.Owner()
+	if err != nil || !strings.EqualFold(username, owner.ID) {
+		app.Log("mail", "Rejected mail for non-owner recipient: %s", username)
 		return &smtpd.SMTPError{
 			Code:    550,
 			Message: "User not found",
 		}
 	}
-
-	// All registered users can receive mail
-	_ = acc
 
 	s.to = append(s.to, to)
 	app.Log("mail", "Accepting mail for local user: %s", username)
@@ -551,10 +548,10 @@ func (s *Session) Data(r io.Reader) error {
 			continue
 		}
 
-		// Look up the recipient account (local user)
-		toAcc, err := auth.GetAccount(toUsername)
-		if err != nil {
-			app.Log("mail", "Recipient not found: %s", toUsername)
+		// Local delivery can only target the singleton owner.
+		toAcc, err := auth.Owner()
+		if err != nil || !strings.EqualFold(toUsername, toAcc.ID) {
+			app.Log("mail", "Recipient is not the owner: %s", toUsername)
 			continue
 		}
 

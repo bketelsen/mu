@@ -57,7 +57,7 @@ func WithKeywordOnly() SearchOption {
 // (app slugs, collection names) cannot cause reads or writes outside the store,
 // even if a caller forgets to validate its inputs.
 func dataPath(key string) (string, error) {
-	base := filepath.Join(os.ExpandEnv("$HOME/.mu"), "data")
+	base := Dir()
 	if testing.Testing() {
 		rel, err := filepath.Rel(os.TempDir(), base)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
@@ -70,6 +70,11 @@ func dataPath(key string) (string, error) {
 		return "", fmt.Errorf("data: invalid key %q", key)
 	}
 	return file, nil
+}
+
+// Dir returns the directory used to store persistent data.
+func Dir() string {
+	return filepath.Join(os.ExpandEnv("$HOME/.mu"), "data")
 }
 
 // SaveFile saves data to disk

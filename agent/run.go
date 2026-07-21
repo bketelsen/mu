@@ -14,10 +14,21 @@ import (
 	"mu/internal/memory"
 )
 
+var (
+	askBackground = ai.Ask
+	setMemory     = memory.Set
+)
+
 // extractMemory checks if the user's prompt contains something to
 // remember (preferences, facts about themselves, interests). Runs
 // async after the response so it doesn't slow down the answer.
 func extractMemory(accountID, prompt string) {
+	auth.RunForOwner(accountID, func(owner *auth.Account) {
+		extractOwnerMemory(owner.ID, prompt)
+	})
+}
+
+func extractOwnerMemory(accountID, prompt string) {
 	lower := strings.ToLower(prompt)
 	// Quick check — only run the LLM if the prompt looks like it
 	// contains a memory-worthy statement.
@@ -35,7 +46,7 @@ func extractMemory(accountID, prompt string) {
 		return
 	}
 
-	result, err := ai.Ask(&ai.Prompt{
+	result, err := askBackground(&ai.Prompt{
 		System: `Extract any personal preference or fact the user is sharing about themselves.
 Output ONLY valid JSON: {"key":"short label","value":"what to remember"}
 If the message does NOT contain a personal preference or fact, output: {}
@@ -58,7 +69,7 @@ Examples:
 		return
 	}
 	if extracted.Key != "" && extracted.Value != "" {
-		memory.Set(accountID, extracted.Key, extracted.Value)
+		setMemory(accountID, extracted.Key, extracted.Value)
 		app.Log("memory", "Saved for %s: %s = %s", accountID, extracted.Key, extracted.Value)
 	}
 }
@@ -110,7 +121,7 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 		ip := app.ClientIP(r)
 		if !guestQueryAllowed(ip) {
 			w.WriteHeader(401)
-			app.RespondJSON(w, RunResponse{Error: "Sign up to keep using the AI agent. 3 free queries per day."})
+			app.RespondJSON(w, RunResponse{Error: "Owner login is required to use the AI agent. Run first-time setup if this is a new server."})
 			return
 		}
 		guestQueryRecord(ip)

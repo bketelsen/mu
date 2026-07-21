@@ -96,7 +96,7 @@ you know your allowance can absorb it.
   returns the image inline (base64) Mu stores it and serves it from
   `/images/file/`.
 - Everything non-AI (search, YouTube, mail, payments) uses its own keys as
-  before; see [Environment Variables](/docs/environment-variables).
+  before; see [Environment Variables](/docs/environment).
 
 ## Notes and caveats
 

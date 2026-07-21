@@ -77,16 +77,19 @@ func handleInteraction(raw json.RawMessage) {
 		return
 	}
 
+	// Guild interactions are shared context, including private-result commands.
+	isDM := inter.Member == nil
+	if !isDM {
+		return
+	}
 	discordID := inter.userID()
-	isChannelCmd := inter.Member != nil
-
 	accountID := GetLinkedAccount(discordID)
 
 	// Defer the response — tell Discord we're thinking
 	deferResponse(inter.ID, inter.Token)
 
-	if accountID == "" {
-		editResponse(inter.Token, "Send me a DM with `link <username>` to connect your Mu account first.")
+	if classifyMessage(true, accountID) != accessOwner {
+		editResponse(inter.Token, "Link this bot to your Mu owner account before using it.")
 		return
 	}
 
@@ -107,10 +110,6 @@ func handleInteraction(raw json.RawMessage) {
 			prompt = "weather forecast"
 		}
 	case "mail":
-		if isChannelCmd {
-			editResponse(inter.Token, "Mail is private — use this command in a DM.")
-			return
-		}
 		prompt = "read my email"
 	case "apps":
 		q := inter.getOption("query")
@@ -130,10 +129,6 @@ func handleInteraction(raw json.RawMessage) {
 		q := inter.getOption("query")
 		prompt = "search for " + q
 	case "balance":
-		if isChannelCmd {
-			editResponse(inter.Token, "Wallet balance is private — use this command in a DM.")
-			return
-		}
 		bw, err := wallet.GetOrCreateWallet(accountID)
 		if err != nil {
 			editResponse(inter.Token, "Wallet error: "+err.Error())
@@ -179,7 +174,7 @@ func handleInteraction(raw json.RawMessage) {
 	history := getHistory(discordID)
 	answer, err := agent.QueryWithOpts(accountID, prompt, agent.QueryOpts{
 		History: history,
-		Public:  isChannelCmd,
+		Public:  false,
 	})
 	if err != nil {
 		editResponse(inter.Token, "Error: "+err.Error())

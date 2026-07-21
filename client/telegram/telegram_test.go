@@ -1,66 +1,67 @@
 package telegram
 
 import (
+	"errors"
 	"testing"
+	"time"
 
 	"mu/agent"
+	"mu/internal/auth"
 )
 
-func TestSanitizeAccountID(t *testing.T) {
-	tests := []struct {
-		name       string
-		telegramID string
-		username   string
-		want       string
-	}{
-		{
-			name:       "lowercases and removes unsupported characters",
-			telegramID: "123456789",
-			username:   "Mu.User-Name!",
-			want:       "muusername",
-		},
-		{
-			name:       "pads short usernames with telegram suffix",
-			telegramID: "123456789",
-			username:   "Al",
-			want:       "al6789",
-		},
-		{
-			name:       "caps account IDs at auth limit",
-			telegramID: "123456789",
-			username:   "averyveryverylongtelegramusername",
-			want:       "averyveryverylongtelegra",
-		},
+func ownerIDForTest(t *testing.T) string {
+	t.Helper()
+	owner, err := auth.Owner()
+	if errors.Is(err, auth.ErrNoOwner) {
+		if err := auth.Create(&auth.Account{ID: "owner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		owner, err = auth.Owner()
 	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return owner.ID
+}
 
+func TestClassifyMessage(t *testing.T) {
+	ownerID := ownerIDForTest(t)
+	tests := []struct {
+		name   string
+		direct bool
+		linked string
+		want   messageAccess
+	}{
+		{"shared owner", false, ownerID, accessIgnore},
+		{"unlinked DM", true, "", accessNeedsLink},
+		{"stale legacy DM", true, "legacy", accessNeedsLink},
+		{"owner DM", true, ownerID, accessOwner},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := sanitizeAccountID(tt.telegramID, tt.username); got != tt.want {
-				t.Fatalf("sanitizeAccountID(%q, %q) = %q, want %q", tt.telegramID, tt.username, got, tt.want)
+			if got := classifyMessage(tt.direct, tt.linked); got != tt.want {
+				t.Fatalf("got %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestUniqueAccountIDPreservesSuffixForLongBase(t *testing.T) {
-	base := "averyveryverylongtelegra"
-	existing := map[string]bool{base: true}
-
-	got := uniqueAccountID(base, func(id string) bool { return existing[id] })
-	want := "averyveryverylongtelegr1"
-	if got != want {
-		t.Fatalf("uniqueAccountID() = %q, want %q", got, want)
+func TestEmptyMessageReplyRequiresOwnerLink(t *testing.T) {
+	if got := emptyMessageReply(true, ""); got != "Link this bot to your Mu owner account before using it." {
+		t.Fatalf("unlinked reply = %q", got)
 	}
-	if len(got) > 24 {
-		t.Fatalf("uniqueAccountID() length = %d, want <= 24", len(got))
+	if got := emptyMessageReply(true, ownerIDForTest(t)); got != "Ask me anything! In groups use `/ask your question`." {
+		t.Fatalf("owner reply = %q", got)
+	}
+	if got := emptyMessageReply(false, ownerIDForTest(t)); got != "" {
+		t.Fatalf("shared reply = %q", got)
 	}
 }
 
-func TestUniqueAccountIDExhaustion(t *testing.T) {
-	base := "taken"
-	got := uniqueAccountID(base, func(id string) bool { return true })
-	if got != "" {
-		t.Fatalf("uniqueAccountID() = %q, want empty string when exhausted", got)
+func TestLinkAccountRejectsNonOwner(t *testing.T) {
+	ownerIDForTest(t)
+	if err := linkAccount("telegram-test", "legacy"); err == nil {
+		t.Fatal("linkAccount accepted a non-owner account")
 	}
 }
 

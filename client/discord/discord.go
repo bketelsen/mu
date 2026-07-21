@@ -1,5 +1,5 @@
-// Package discord connects Mu to Discord as a bot. Users DM the bot
-// or mention it in a channel, and it runs the AI agent on their behalf.
+// Package discord connects Mu to Discord as a bot. The linked Mu owner
+// uses it through direct messages only.
 //
 // Setup:
 //  1. Create a bot at https://discord.com/developers/applications
@@ -7,13 +7,11 @@
 //  3. Set DISCORD_BOT_TOKEN env var
 //  4. Invite the bot to your server with the Messages scope
 //
-// Users link their Discord account to their Mu account by sending
-// "link <username>" as their first message.
+// The owner links their Discord account by sending "link <username> <password>"
+// or a one-time code in a direct message.
 package discord
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -61,21 +59,44 @@ func addHistory(discordID string, role, text string) {
 }
 
 func Load() {
-	data.LoadJSON("discord_links.json", &links)
+	loadLinks()
 	loadUsage()
 	go run()
+}
+
+func loadLinks() {
+	loaded := map[string]string{}
+	_ = data.LoadJSON("discord_links.json", &loaded)
+	linkMu.Lock()
+	links = loaded
+	linkMu.Unlock()
 }
 
 func Enabled() bool {
 	return settings.Get("DISCORD_BOT_TOKEN") != ""
 }
 
+type messageAccess = auth.MessageAccess
+
+const (
+	accessIgnore    = auth.AccessIgnore
+	accessNeedsLink = auth.AccessNeedsLink
+	accessOwner     = auth.AccessOwner
+)
+
+func classifyMessage(isDirect bool, linkedAccount string) messageAccess {
+	return auth.ClassifyMessage(isDirect, linkedAccount)
+}
+
 // LinkAccount maps a Discord user ID to a Mu account.
-func LinkAccount(discordID, muAccount string) {
+func LinkAccount(discordID, muAccount string) error {
+	if !auth.IsOwner(muAccount) {
+		return fmt.Errorf("only the Mu owner can be linked")
+	}
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	links[discordID] = muAccount
-	data.SaveJSON("discord_links.json", links)
+	return data.SaveJSON("discord_links.json", links)
 }
 
 // GetLinkedAccount returns the Mu account for a Discord user, or "".
@@ -86,7 +107,8 @@ func GetLinkedAccount(discordID string) string {
 }
 
 // DeleteLinks removes all links for a Mu account (account deletion).
-func DeleteLinks(muAccount string) {
+func DeleteLinks(muAccount string) error {
+	loadLinks()
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for k, v := range links {
@@ -94,57 +116,7 @@ func DeleteLinks(muAccount string) {
 			delete(links, k)
 		}
 	}
-	data.SaveJSON("discord_links.json", links)
-}
-
-// autoCreateAccount creates a Mu account from a Discord user and links it.
-func autoCreateAccount(discordID, username string) string {
-	// Sanitise Discord username for Mu (lowercase, alphanumeric, 4-24 chars)
-	id := strings.ToLower(username)
-	id = strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
-			return r
-		}
-		return -1
-	}, id)
-	if len(id) < 4 {
-		id = id + discordID[len(discordID)-4:]
-	}
-	if len(id) > 24 {
-		id = id[:24]
-	}
-
-	// Check if username is taken — append digits if so
-	baseID := id
-	for i := 0; i < 100; i++ {
-		if _, err := auth.GetAccount(id); err != nil {
-			break // not taken
-		}
-		id = fmt.Sprintf("%s%d", baseID, i+1)
-		if len(id) > 24 {
-			id = id[:24]
-		}
-	}
-
-	// Generate a random password (user doesn't need it — they auth via Discord)
-	passBytes := make([]byte, 16)
-	rand.Read(passBytes)
-	pass := hex.EncodeToString(passBytes)
-
-	acc := &auth.Account{
-		ID:      id,
-		Name:    username,
-		Secret:  pass,
-		Created: time.Now(),
-	}
-	if err := auth.Create(acc); err != nil {
-		app.Log("discord", "Auto-create account failed for %s: %v", username, err)
-		return ""
-	}
-
-	LinkAccount(discordID, id)
-	app.Log("discord", "Auto-created account %s for Discord user %s", id, username)
-	return id
+	return data.SaveJSON("discord_links.json", links)
 }
 
 // ── Discord Gateway ──
@@ -289,20 +261,11 @@ func handleMessage(m discordMessage) {
 		return
 	}
 
-	// Respond to DMs, mentions, or any message in a channel with the bot
+	// Shared guild channels are never an owner communication channel.
 	isDM := m.GuildID == ""
-	isMention := false
-	for _, mention := range m.Mentions {
-		if mention.ID == botID {
-			isMention = true
-			break
-		}
-	}
-	if !isDM && !isMention {
+	if !isDM {
 		return
 	}
-
-	app.Log("discord", "Received message (DM=%v mention=%v guild=%s): %.100s", isDM, isMention, m.GuildID, m.Content)
 
 	// Strip bot mention from content
 	content := m.Content
@@ -311,9 +274,12 @@ func handleMessage(m discordMessage) {
 	content = strings.TrimSpace(content)
 
 	if content == "" {
-		sendMessage(m.ChannelID, "Ask me anything — I'm Micro, your agent across news, mail, weather, search and more.")
+		if reply := emptyMessageReply(isDM, GetLinkedAccount(m.Author.ID)); reply != "" {
+			sendMessage(m.ChannelID, reply)
+		}
 		return
 	}
+	app.Log("discord", "Received DM: %.100s", app.RedactChannelMessage(content))
 
 	// Handle link command — one-time code or username+password
 	if strings.HasPrefix(strings.ToLower(content), "link ") {
@@ -326,18 +292,27 @@ func handleMessage(m discordMessage) {
 				sendMessage(m.ChannelID, "Invalid or expired code. Try `link <username> <password>` instead.")
 				return
 			}
-			LinkAccount(m.Author.ID, accountID)
+			if err := LinkAccount(m.Author.ID, accountID); err != nil {
+				sendMessage(m.ChannelID, "Couldn't save the account link. Try again later.")
+				return
+			}
 			sendMessage(m.ChannelID, fmt.Sprintf("Linked to **%s**.", accountID))
 			return
-		} else if len(parts) >= 2 && isDM {
-			// Username + password (DMs only for security)
+		} else if len(parts) >= 2 {
 			username := parts[0]
 			password := strings.Join(parts[1:], " ")
 			if _, err := auth.Login(username, password); err != nil {
 				sendMessage(m.ChannelID, "Invalid username or password.")
 				return
 			}
-			LinkAccount(m.Author.ID, username)
+			if !auth.IsOwner(username) {
+				sendMessage(m.ChannelID, "Only the Mu owner account can be linked.")
+				return
+			}
+			if err := LinkAccount(m.Author.ID, username); err != nil {
+				sendMessage(m.ChannelID, "Couldn't save the account link. Try again later.")
+				return
+			}
 			sendMessage(m.ChannelID, fmt.Sprintf("Linked to **%s**.", username))
 			return
 		}
@@ -354,29 +329,23 @@ func handleMessage(m discordMessage) {
 		return
 	}
 
-	// Look up or auto-create account
 	accountID := GetLinkedAccount(m.Author.ID)
-	if accountID == "" {
-		accountID = autoCreateAccount(m.Author.ID, m.Author.Username)
-		if accountID == "" {
-			sendMessage(m.ChannelID, "Couldn't create your account. Try again later.")
-			return
-		}
-		sendMessage(m.ChannelID, fmt.Sprintf("Welcome! I've created your account **%s**. Ask me anything.", accountID))
+	if classifyMessage(true, accountID) != accessOwner {
+		sendMessage(m.ChannelID, "Link this bot to your Mu owner account before using it.")
+		return
 	}
 
-	app.Log("discord", "Message from %s (%s): %s", m.Author.Username, accountID, content)
+	app.Log("discord", "Message from %s (%s): %s", m.Author.Username, accountID, app.RedactChannelMessage(content))
 	trackQuery(accountID)
 
 	// Show typing indicator
 	showTyping(m.ChannelID)
 
-	// Get conversation history and run agent with context.
-	// Channel messages are public — skip private data (mail, wallet).
+	// Owner DMs retain the owner's private context.
 	history := getHistory(m.Author.ID)
 	answer, err := agent.QueryWithOpts(accountID, content, agent.QueryOpts{
 		History: history,
-		Public:  !isDM,
+		Public:  false,
 	})
 	if err != nil {
 		app.Log("discord", "Agent error for %s: %v", accountID, err)
@@ -397,6 +366,16 @@ func handleMessage(m discordMessage) {
 
 	embed := formatAsEmbed(content, answer)
 	sendEmbed(m.ChannelID, embed)
+}
+
+func emptyMessageReply(isDirect bool, linkedAccount string) string {
+	switch classifyMessage(isDirect, linkedAccount) {
+	case accessOwner:
+		return "Ask me anything — I'm Micro, your agent across news, GitHub, mail, weather, search and more."
+	case accessNeedsLink:
+		return "Link this bot to your Mu owner account before using it."
+	}
+	return ""
 }
 
 // ── Discord HTTP API ──

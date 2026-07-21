@@ -5,9 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -23,9 +21,11 @@ var accounts = map[string]*Account{}
 var sessions = map[string]*Session{}
 var tokens = map[string]*Token{} // PAT tokens: tokenID -> Token
 
-// User presence tracking
-var presenceMutex sync.RWMutex
-var userPresence = map[string]time.Time{} // username -> last seen time
+var (
+	ErrNoOwner          = errors.New("owner is not configured")
+	ErrOwnerExists      = errors.New("Mu already has an owner")
+	ErrMultipleAccounts = errors.New("legacy accounts require single-owner migration")
+)
 
 type Account struct {
 	ID              string    `json:"id"`
@@ -37,11 +37,11 @@ type Account struct {
 	Widgets         []string  `json:"widgets,omitempty"`         // App IDs to show as home widgets
 	HomeCards       []string  `json:"home_cards,omitempty"`      // Card IDs the user has chosen to show (empty = all defaults)
 	HomeCardsSeen   []string  `json:"home_cards_seen,omitempty"` // Card IDs the customise panel has offered this user; anything newer defaults to visible
-	Approved        bool      `json:"approved,omitempty"`        // Admin-approved, bypasses new account restrictions
+	Approved        bool      `json:"approved,omitempty"`        // Legacy JSON compatibility only.
 	Email           string    `json:"email,omitempty"`
 	EmailVerified   bool      `json:"email_verified,omitempty"`
 	EmailVerifiedAt time.Time `json:"email_verified_at,omitempty"`
-	Banned          bool      `json:"banned,omitempty"` // Silently hidden from everyone except themselves
+	Banned          bool      `json:"banned,omitempty"` // Legacy JSON compatibility only.
 }
 
 // preHomeCardsSeen is the set of home cards that existed before per-user
@@ -119,13 +119,61 @@ func init() {
 	json.Unmarshal(b, &tokens)
 }
 
+func ownerLocked() (*Account, error) {
+	if len(accounts) == 0 {
+		return nil, ErrNoOwner
+	}
+	if len(accounts) != 1 {
+		return nil, ErrMultipleAccounts
+	}
+	for _, acc := range accounts {
+		return acc, nil
+	}
+	return nil, ErrNoOwner
+}
+
+func Owner() (*Account, error) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	return ownerLocked()
+}
+
+// RunForOwner executes fn only when targetID still identifies the sole owner.
+// Deferred work must not act on a deleted legacy account.
+func RunForOwner(targetID string, fn func(owner *Account)) {
+	owner, err := Owner()
+	if err != nil || owner.ID != targetID {
+		return
+	}
+	fn(owner)
+}
+
+func OwnerExists() bool {
+	_, err := Owner()
+	return err == nil
+}
+
+func IsOwner(accountID string) bool {
+	mutex.Lock()
+	defer mutex.Unlock()
+	owner, err := ownerLocked()
+	return err == nil && owner.ID == accountID
+}
+
+// CanWrite is the explicit identity check used by charged write middleware.
+func CanWrite(accountID string) bool {
+	return IsOwner(accountID)
+}
+
 func Create(acc *Account) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	_, exists := accounts[acc.ID]
-	if exists {
-		return errors.New("Account already exists")
+	if msg := ValidateUsername(acc.ID); msg != "" {
+		return errors.New(msg)
+	}
+	if len(accounts) != 0 {
+		return ErrOwnerExists
 	}
 
 	// hash the secret
@@ -135,55 +183,10 @@ func Create(acc *Account) error {
 	}
 
 	acc.Secret = string(hash)
-
-	// Admin bootstrap for self-hosting: without this a fresh instance has no
-	// admin and /admin/env is unreachable. The operator named in the ADMIN env
-	// var (comma-separated ids/usernames/emails) is made an admin; if ADMIN is
-	// unset, the very first account on a fresh instance becomes admin.
-	if shouldBootstrapAdmin(acc, len(accounts) == 0) {
-		acc.Admin = true
-	}
-
+	acc.Admin = true
+	acc.Approved = true
+	acc.Banned = false
 	accounts[acc.ID] = acc
-	data.SaveJSON("accounts.json", accounts)
-
-	return nil
-}
-
-// shouldBootstrapAdmin reports whether a newly created account should be granted
-// admin. ADMIN (or MU_ADMIN) explicitly lists admins; when neither is set the
-// first account on an empty instance is bootstrapped so the operator can reach
-// /admin/env. An existing admin is never demoted (this only runs at creation).
-func shouldBootstrapAdmin(acc *Account, isFirst bool) bool {
-	list := os.Getenv("ADMIN")
-	if list == "" {
-		list = os.Getenv("MU_ADMIN")
-	}
-	if list == "" {
-		return isFirst // no explicit config — bootstrap the first account
-	}
-	for _, want := range strings.Split(list, ",") {
-		want = strings.ToLower(strings.TrimSpace(want))
-		if want == "" {
-			continue
-		}
-		if want == strings.ToLower(acc.ID) || want == strings.ToLower(acc.Name) ||
-			(acc.Email != "" && want == strings.ToLower(acc.Email)) {
-			return true
-		}
-	}
-	return false // ADMIN set but this account isn't on the list
-}
-
-func Delete(acc *Account) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	if _, ok := accounts[acc.ID]; !ok {
-		return errors.New("account does not exist")
-	}
-
-	delete(accounts, acc.ID)
 	data.SaveJSON("accounts.json", accounts)
 
 	return nil
@@ -213,30 +216,6 @@ func UpdateAccount(acc *Account) error {
 	data.SaveJSON("accounts.json", accounts)
 
 	return nil
-}
-
-func GetAllAccounts() []*Account {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	list := make([]*Account, 0, len(accounts))
-	for _, acc := range accounts {
-		list = append(list, acc)
-	}
-	return list
-}
-
-// AdminExists reports whether any account has admin rights. Used to gate the
-// first-run setup flow: while no admin exists the instance is unconfigured.
-func AdminExists() bool {
-	mutex.Lock()
-	defer mutex.Unlock()
-	for _, acc := range accounts {
-		if acc.Admin {
-			return true
-		}
-	}
-	return false
 }
 
 // GetAccountByEmail finds an account by email (case-insensitive). Used for
@@ -270,49 +249,6 @@ func GetAccountByName(name string) (*Account, error) {
 	return nil, errors.New("account not found")
 }
 
-// AccountDeleteHooks are called when an account is deleted. Each
-// building block registers a hook to clean up its own data. This
-// avoids auth importing every other package.
-var AccountDeleteHooks []func(accountID string)
-
-func DeleteAccount(id string) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	if _, ok := accounts[id]; !ok {
-		return errors.New("account does not exist")
-	}
-
-	delete(accounts, id)
-
-	// Delete sessions for this account.
-	for sid, sess := range sessions {
-		if sess.Account == id {
-			delete(sessions, sid)
-		}
-	}
-
-	// Delete PATs for this account.
-	for tid, tok := range tokens {
-		if tok.Account == id {
-			delete(tokens, tid)
-		}
-	}
-
-	data.SaveJSON("accounts.json", accounts)
-	data.SaveJSON("sessions.json", sessions)
-	data.SaveJSON("tokens.json", tokens)
-
-	// Run all registered cleanup hooks outside the lock.
-	go func() {
-		for _, hook := range AccountDeleteHooks {
-			hook(id)
-		}
-	}()
-
-	return nil
-}
-
 func Login(id, secret string) (*Session, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -325,6 +261,13 @@ func Login(id, secret string) (*Session, error) {
 	err := bcrypt.CompareHashAndPassword([]byte(acc.Secret), []byte(secret))
 	if err != nil {
 		return nil, errors.New("invalid account secret")
+	}
+	owner, err := ownerLocked()
+	if err != nil {
+		return nil, err
+	}
+	if owner.ID != acc.ID {
+		return nil, errors.New("account is not owner")
 	}
 
 	guid := uuid.New().String()
@@ -350,9 +293,16 @@ func CreateSession(id string) (*Session, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	_, ok := accounts[id]
+	acc, ok := accounts[id]
 	if !ok {
 		return nil, errors.New("account does not exist")
+	}
+	owner, err := ownerLocked()
+	if err != nil {
+		return nil, err
+	}
+	if owner.ID != acc.ID {
+		return nil, errors.New("account is not owner")
 	}
 
 	guid := uuid.New().String()
@@ -391,11 +341,11 @@ func GetSession(r *http.Request) (*Session, error) {
 	if err == nil && c != nil {
 		sess, err := ParseToken(c.Value)
 		if err == nil {
-			// Validate that the account still exists
+			// Reject sessions belonging to accounts outside the singleton owner.
 			mutex.Lock()
-			_, accountExists := accounts[sess.Account]
+			owner, ownerErr := ownerLocked()
+			accountExists := ownerErr == nil && owner.ID == sess.Account
 			if !accountExists {
-				// Account was deleted, invalidate the session
 				delete(sessions, sess.ID)
 			}
 			mutex.Unlock()
@@ -426,11 +376,12 @@ func GetSession(r *http.Request) (*Session, error) {
 			}, nil
 		}
 
-		// Try as session token (returned by login/signup MCP tools)
+		// Try as an existing owner session token.
 		sess, err := ParseToken(token)
 		if err == nil {
 			mutex.Lock()
-			_, accountExists := accounts[sess.Account]
+			owner, ownerErr := ownerLocked()
+			accountExists := ownerErr == nil && owner.ID == sess.Account
 			if !accountExists {
 				delete(sessions, sess.ID)
 			}
@@ -490,7 +441,7 @@ func RequireAdmin(r *http.Request) (*Session, *Account, error) {
 		return nil, nil, err
 	}
 
-	if !acc.Admin {
+	if !IsOwner(acc.ID) {
 		return nil, nil, errors.New("admin access required")
 	}
 
@@ -545,185 +496,6 @@ func ValidateToken(tk string) error {
 	}
 
 	return errors.New("invalid token")
-}
-
-// UpdatePresence updates the last seen time for a user
-func UpdatePresence(username string) {
-	presenceMutex.Lock()
-	defer presenceMutex.Unlock()
-	userPresence[username] = time.Now()
-}
-
-// IsOnline checks if a user is online (seen within last 3 minutes)
-func IsOnline(username string) bool {
-	presenceMutex.RLock()
-	defer presenceMutex.RUnlock()
-
-	lastSeen, exists := userPresence[username]
-	if !exists {
-		return false
-	}
-
-	return time.Since(lastSeen) < 3*time.Minute
-}
-
-// GetOnlineUsers returns a list of currently online usernames
-func GetOnlineUsers() []string {
-	presenceMutex.RLock()
-	defer presenceMutex.RUnlock()
-
-	var online []string
-	now := time.Now()
-
-	for username, lastSeen := range userPresence {
-		if now.Sub(lastSeen) < 3*time.Minute {
-			online = append(online, username)
-		}
-	}
-
-	return online
-}
-
-// VerificationRequired is set by main.go and reports whether email
-// verification is currently required to post on this instance. When it
-// returns false (e.g. mail isn't configured) CanPost falls back to the
-// older "any account can post" rule. Defaults to false (no verification)
-// so self-hosters without mail aren't accidentally locked out.
-var VerificationRequired func() bool
-
-// CanPost checks if an account is allowed to create content.
-// Rules:
-//   - Admins and approved accounts can always post.
-//   - If verification is not required on this instance (no mail
-//     configured), any account can post.
-//   - Otherwise the account must have a verified email address.
-func CanPost(accountID string) bool {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	acc, exists := accounts[accountID]
-	if !exists {
-		return false
-	}
-
-	if acc.Admin || acc.Approved {
-		return true
-	}
-
-	// Must be at least 24 hours old.
-	if time.Since(acc.Created) < 24*time.Hour {
-		return false
-	}
-
-	if VerificationRequired == nil || !VerificationRequired() {
-		return true
-	}
-
-	return acc.EmailVerified
-}
-
-// PostBlockReason returns a human-readable reason an account cannot post,
-// or an empty string if it can. Used by handlers to render helpful errors.
-func PostBlockReason(accountID string) string {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	acc, exists := accounts[accountID]
-	if !exists {
-		return "Account not found"
-	}
-	if acc.Admin || acc.Approved {
-		return ""
-	}
-	if time.Since(acc.Created) < 24*time.Hour {
-		remaining := (24*time.Hour - time.Since(acc.Created)).Round(time.Minute)
-		return fmt.Sprintf("New accounts must wait 24 hours before posting. %s remaining.", remaining)
-	}
-	if VerificationRequired != nil && VerificationRequired() && !acc.EmailVerified {
-		return "Verify your email at /account before posting."
-	}
-	return ""
-}
-
-// IsNewAccount checks if account is less than 24 hours old
-func IsNewAccount(accountID string) bool {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	acc, exists := accounts[accountID]
-	if !exists {
-		return false
-	}
-
-	// Admins and approved accounts are never considered "new"
-	if acc.Admin || acc.Approved {
-		return false
-	}
-
-	return time.Since(acc.Created) < 24*time.Hour
-}
-
-// IsBanned returns true if the account is banned. Content from banned
-// users is silently hidden from everyone except the user themselves —
-// they don't know they're muted.
-func IsBanned(accountID string) bool {
-	mutex.Lock()
-	defer mutex.Unlock()
-	acc, exists := accounts[accountID]
-	if !exists {
-		return false
-	}
-	return acc.Banned
-}
-
-// BanAccount silently mutes a user. Their content is hidden from
-// all other users, but they can still browse and post (to themselves).
-// Admins can never be banned — this is a hard safety guard.
-func BanAccount(accountID string) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-	acc, exists := accounts[accountID]
-	if !exists {
-		return errors.New("account not found")
-	}
-	if acc.Admin {
-		return errors.New("cannot ban an admin account")
-	}
-	acc.Banned = true
-	data.SaveJSON("accounts.json", accounts)
-	return nil
-}
-
-// UnbanAccount lifts a ban.
-func UnbanAccount(accountID string) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-	acc, exists := accounts[accountID]
-	if !exists {
-		return errors.New("account not found")
-	}
-	acc.Banned = false
-	data.SaveJSON("accounts.json", accounts)
-	return nil
-}
-
-// ApproveAccount marks an account as approved, bypassing new account restrictions
-func ApproveAccount(accountID string) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	acc, exists := accounts[accountID]
-	if !exists {
-		return errors.New("account not found")
-	}
-	acc.Approved = true
-	data.SaveJSON("accounts.json", accounts)
-	return nil
-}
-
-// GetOnlineCount returns the number of online users
-func GetOnlineCount() int {
-	return len(GetOnlineUsers())
 }
 
 // ============================================
@@ -798,6 +570,13 @@ func ValidatePAT(rawToken string) (string, error) {
 			// Check if expired
 			if !token.ExpiresAt.IsZero() && time.Now().After(token.ExpiresAt) {
 				return "", errors.New("token expired")
+			}
+			owner, err := ownerLocked()
+			if err != nil {
+				return "", err
+			}
+			if owner.ID != token.Account {
+				return "", errors.New("account is not owner")
 			}
 
 			// Update last used time

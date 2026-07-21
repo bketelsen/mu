@@ -2,12 +2,37 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"mu/internal/auth"
 )
+
+func ownerRequest(t *testing.T, method, target string, body *strings.Reader) *http.Request {
+	t.Helper()
+	owner, err := auth.Owner()
+	if errors.Is(err, auth.ErrNoOwner) {
+		if err := auth.Create(&auth.Account{ID: "owner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		owner, err = auth.Owner()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := auth.CreateSession(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(method, target, body)
+	req.AddCookie(&http.Cookie{Name: "session", Value: sess.Token})
+	return req
+}
 
 func TestMCPHandler_GETReturnsPage(t *testing.T) {
 	req := httptest.NewRequest("GET", "/mcp", nil)
@@ -67,7 +92,7 @@ func TestMCPHandler_InvalidJSON(t *testing.T) {
 
 func TestMCPHandler_Initialize(t *testing.T) {
 	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
+	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
 	MCPHandler(w, req)
@@ -102,7 +127,7 @@ func TestMCPHandler_Initialize(t *testing.T) {
 
 func TestMCPHandler_ToolsList(t *testing.T) {
 	body := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
+	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
 	MCPHandler(w, req)
@@ -162,7 +187,7 @@ func TestMCPHandler_ToolsList(t *testing.T) {
 
 func TestMCPHandler_ToolsCallUnknown(t *testing.T) {
 	body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"unknown_tool","arguments":{}}}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
+	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
 	MCPHandler(w, req)
@@ -181,7 +206,7 @@ func TestMCPHandler_ToolsCallUnknown(t *testing.T) {
 
 func TestMCPHandler_Ping(t *testing.T) {
 	body := `{"jsonrpc":"2.0","id":4,"method":"ping"}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
+	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
 	MCPHandler(w, req)
@@ -257,7 +282,7 @@ func TestMCPHandler_ToolsCallForwardsAuth(t *testing.T) {
 	defer func() { tools = tools[:len(tools)-1] }()
 
 	body := `{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"test_auth","arguments":{}}}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
+	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token-123")
 	req.Header.Set(TokenHeader, "micro-token-456")
 	w := httptest.NewRecorder()
@@ -373,7 +398,7 @@ func TestMCPHandler_QuotaCheckAllows(t *testing.T) {
 	defer func() { tools = origTools }()
 
 	body := `{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"test_quota_pass","arguments":{}}}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
+	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
 	MCPHandler(w, req)
@@ -413,7 +438,7 @@ func TestMCPHandler_IncludedToolsSkipQuotaCheck(t *testing.T) {
 	defer func() { tools = origTools }()
 
 	body := `{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"test_free","arguments":{}}}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
+	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
 	MCPHandler(w, req)
@@ -449,7 +474,7 @@ func TestMCPHandler_CustomHandler(t *testing.T) {
 	defer func() { tools = origTools }()
 
 	body := `{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"test_custom","arguments":{"msg":"hello"}}}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
+	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
 	MCPHandler(w, req)
@@ -493,7 +518,7 @@ func TestMCPHandler_CustomHandlerError(t *testing.T) {
 	defer func() { tools = origTools }()
 
 	body := `{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"test_custom_err","arguments":{}}}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
+	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
 	w := httptest.NewRecorder()
 
 	MCPHandler(w, req)
@@ -622,21 +647,13 @@ func TestRegisterTool(t *testing.T) {
 	}
 }
 
-func TestExecuteToolAsUsesDirectNewsSearchProvider(t *testing.T) {
-	oldGuestNewsSearch := GuestNewsSearch
-	GuestNewsSearch = func(query string) (string, error) {
-		if query != "AI news" {
-			t.Fatalf("expected trimmed query to reach news provider, got %q", query)
-		}
-		return `{"results":[{"title":"AI story","url":"https://example.com/ai"}]}`, nil
-	}
-	defer func() { GuestNewsSearch = oldGuestNewsSearch }()
-
-	text, isErr, err := ExecuteToolAs("guest-account-without-session", "news_search", map[string]any{"query": " AI news "})
-	if err != nil || isErr {
-		t.Fatalf("expected direct news_search provider to succeed, isErr=%v err=%v", isErr, err)
-	}
-	if !strings.Contains(text, "AI story") || !strings.Contains(text, "https://example.com/ai") {
-		t.Fatalf("expected provider text with source-linked article, got %s", text)
+func TestExecuteToolDoesNotUseGuestNewsSearch(t *testing.T) {
+	old := GuestNewsSearch
+	GuestNewsSearch = func(string) (string, error) { return "guest result", nil }
+	t.Cleanup(func() { GuestNewsSearch = old })
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	text, isErr, err := ExecuteTool(req, "news_search", map[string]any{"query": "private"})
+	if err == nil || !isErr || !strings.Contains(strings.ToLower(text), "authentication") {
+		t.Fatalf("ExecuteTool = %q, %v, %v", text, isErr, err)
 	}
 }

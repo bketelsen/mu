@@ -172,10 +172,9 @@ func Category(label, href string) string {
 	return `<span class="category">` + escaped + `</span>`
 }
 
-// AuthorLink renders an author name as a profile link.
+// AuthorLink renders escaped author text.
 func AuthorLink(authorID, authorName string) string {
-	return fmt.Sprintf(`<a href="/@%s" class="text-muted">%s</a>`,
-		authorID, html.EscapeString(authorName))
+	return `<span class="text-muted">` + html.EscapeString(authorName) + `</span>`
 }
 
 // ItemMeta renders a metadata line with parts separated by " · ".

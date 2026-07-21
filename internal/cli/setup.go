@@ -14,8 +14,8 @@ import (
 
 // runSetup is the `mu setup` wizard: a headless-friendly companion to the web
 // /setup page. It writes the AI provider into the shared settings store so the
-// next `mu --serve` comes up configured. Admin creation happens on first web
-// signup (or via the ADMIN env var), which it explains at the end.
+// next `mu --serve` comes up configured. Owner creation happens in first-run
+// web setup (or via the ADMIN env var), which it explains at the end.
 func runSetup(_ []string) int {
 	settings.Load() // don't clobber existing settings
 

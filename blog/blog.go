@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	htmlpkg "html"
 	"net/http"
 	"regexp"
 	"sort"
@@ -213,51 +214,10 @@ func Load() {
 	// CreatePost — e.g. the news digest on startup — panics on a nil map.
 	postsMap = make(map[string]*Post)
 
-	// Load existing posts from disk. A missing or unreadable file just means no
-	// posts yet — fall through so seeding and cache-building still run.
-	if b, err := data.LoadFile("blog.json"); err != nil {
-		posts = []*Post{}
-	} else if err := json.Unmarshal(b, &posts); err != nil {
-		posts = []*Post{}
-	}
+	loadPersistedPosts()
 
 	// Publish the built-in announcement post if it isn't already there.
 	ensureSeedPosts()
-
-	// Sort posts by most recent activity (updated or created) newest first
-	sort.Slice(posts, func(i, j int) bool {
-		ti := posts[i].UpdatedAt
-		if ti.IsZero() {
-			ti = posts[i].CreatedAt
-		}
-		tj := posts[j].UpdatedAt
-		if tj.IsZero() {
-			tj = posts[j].CreatedAt
-		}
-		return ti.After(tj)
-	})
-
-	// Build postsMap for O(1) lookups
-	postsMap = make(map[string]*Post)
-	for _, post := range posts {
-		postsMap[post.ID] = post
-	}
-
-	// Load comments
-	commentData, err := data.LoadFile("comments.json")
-	if err == nil {
-		json.Unmarshal(commentData, &comments)
-	} else {
-		comments = []*Comment{}
-	}
-
-	// Sort comments by creation time (oldest first for threading)
-	sort.Slice(comments, func(i, j int) bool {
-		return comments[i].CreatedAt.Before(comments[j].CreatedAt)
-	})
-
-	// Link comments to posts
-	populateComments()
 
 	// Update cached HTML
 	updateCache()
@@ -287,6 +247,38 @@ func Load() {
 	data.RegisterDeleter("blog", DeletePost)
 }
 
+// loadPersistedPosts hydrates blog data without registering services or starting work.
+func loadPersistedPosts() {
+	var loadedPosts []*Post
+	if b, err := data.LoadFile("blog.json"); err == nil {
+		_ = json.Unmarshal(b, &loadedPosts)
+	}
+	var loadedComments []*Comment
+	if b, err := data.LoadFile("comments.json"); err == nil {
+		_ = json.Unmarshal(b, &loadedComments)
+	}
+
+	mutex.Lock()
+	posts, comments = loadedPosts, loadedComments
+	sort.Slice(posts, func(i, j int) bool {
+		ti, tj := posts[i].UpdatedAt, posts[j].UpdatedAt
+		if ti.IsZero() {
+			ti = posts[i].CreatedAt
+		}
+		if tj.IsZero() {
+			tj = posts[j].CreatedAt
+		}
+		return ti.After(tj)
+	})
+	postsMap = make(map[string]*Post, len(posts))
+	for _, post := range posts {
+		postsMap[post.ID] = post
+	}
+	sort.Slice(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
+	populateComments()
+	mutex.Unlock()
+}
+
 // postDeleter implements flag.ContentDeleter interface
 type postDeleter struct{}
 
@@ -305,34 +297,6 @@ func (d *postDeleter) Get(id string) interface{} {
 		Author:    post.Author,
 		CreatedAt: post.CreatedAt,
 	}
-}
-
-// GetNewAccountBlogPosts returns blog posts from new accounts for the moderation page.
-func GetNewAccountBlogPosts() []flag.PostContent {
-	mutex.RLock()
-	defer mutex.RUnlock()
-
-	var result []flag.PostContent
-	for _, post := range posts {
-		// Skip flagged/hidden posts
-		if flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
-			continue
-		}
-
-		// Only include posts from new accounts
-		if post.AuthorID != "" && auth.IsNewAccount(post.AuthorID) {
-			result = append(result, flag.PostContent{
-				ID:        post.ID,
-				Title:     post.Title,
-				Content:   post.Content,
-				Author:    post.Author,
-				AuthorID:  post.AuthorID,
-				CreatedAt: post.CreatedAt,
-			})
-		}
-	}
-
-	return result
 }
 
 func (d *postDeleter) RefreshCache() {
@@ -401,21 +365,17 @@ func updateCacheUnlocked() {
 		return ti.After(tj)
 	})
 
-	// Generate preview for home page (latest 1 post, exclude flagged and new accounts)
+	// Generate preview for home page (latest public, unflagged post).
 	var preview []string
 	count := 0
 	for i := 0; i < len(posts) && count < 1; i++ {
 		post := posts[i]
 		// Skip flagged posts
-		if flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
+		if flag.IsHidden("post", post.ID) {
 			continue
 		}
 		// Skip private posts (home page shows only public posts)
 		if post.Private {
-			continue
-		}
-		// Skip posts from new accounts (< 24 hours old)
-		if post.AuthorID != "" && auth.IsNewAccount(post.AuthorID) {
 			continue
 		}
 		count++
@@ -453,10 +413,7 @@ func updateCacheUnlocked() {
 			title = "Untitled"
 		}
 
-		authorLink := post.Author
-		if post.AuthorID != "" {
-			authorLink = fmt.Sprintf(`<a href="/@%s">%s</a>`, post.AuthorID, post.Author)
-		}
+		authorLink := htmlpkg.EscapeString(post.Author)
 
 		tagsHtml := ""
 		if post.Tags != "" {
@@ -512,7 +469,7 @@ func updateCacheUnlocked() {
 	var fullList []string
 	for _, post := range posts {
 		// Skip flagged posts
-		if flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
+		if flag.IsHidden("post", post.ID) {
 			continue
 		}
 
@@ -522,9 +479,6 @@ func updateCacheUnlocked() {
 		}
 
 		// Skip posts from new accounts (< 24 hours old)
-		if post.AuthorID != "" && auth.IsNewAccount(post.AuthorID) {
-			continue
-		}
 
 		title := post.Title
 		if title == "" {
@@ -551,10 +505,7 @@ func updateCacheUnlocked() {
 		// Add links and YouTube embeds
 		content = Linkify(content)
 
-		authorLink := post.Author
-		if post.AuthorID != "" {
-			authorLink = fmt.Sprintf(`<a href="/@%s">%s</a>`, post.AuthorID, post.Author)
-		}
+		authorLink := htmlpkg.EscapeString(post.Author)
 
 		tagsHtml := ""
 		if post.Tags != "" {
@@ -642,13 +593,10 @@ func previewUncached() string {
 	for i := 0; i < len(posts) && count < 1; i++ {
 		post := posts[i]
 		// Skip flagged posts
-		if flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
+		if flag.IsHidden("post", post.ID) {
 			continue
 		}
 		// Skip posts from new accounts (< 24 hours old)
-		if post.AuthorID != "" && auth.IsNewAccount(post.AuthorID) {
-			continue
-		}
 		count++
 
 		content := post.Content
@@ -670,10 +618,7 @@ func previewUncached() string {
 			title = "Untitled"
 		}
 
-		authorLink := post.Author
-		if post.AuthorID != "" {
-			authorLink = fmt.Sprintf(`<a href="/@%s">%s</a>`, post.AuthorID, post.Author)
-		}
+		authorLink := htmlpkg.EscapeString(post.Author)
 
 		tagsHtml := ""
 		if post.Tags != "" {
@@ -732,10 +677,7 @@ func renderPostPreview(post *Post) string {
 
 	content = Linkify(content)
 
-	authorLink := post.Author
-	if post.AuthorID != "" {
-		authorLink = fmt.Sprintf(`<a href="/@%s" class="text-muted">%s</a>`, post.AuthorID, post.Author)
-	}
+	authorLink := htmlpkg.EscapeString(post.Author)
 
 	item := fmt.Sprintf(`<div class="post-item">
 		<h3><a href="/blog/post?id=%s">%s</a></h3>
@@ -785,7 +727,7 @@ func handleGetBlog(w http.ResponseWriter, r *http.Request) {
 		// Filter out flagged posts and private posts (unless admin)
 		var visiblePosts []*Post
 		for _, post := range posts {
-			if !flag.IsHidden("post", post.ID) || auth.IsBanned(post.AuthorID) {
+			if !flag.IsHidden("post", post.ID) {
 				// Skip private posts for non-admins
 				if post.Private && !isAdmin {
 					continue
@@ -934,10 +876,9 @@ func handleGetBlog(w http.ResponseWriter, r *http.Request) {
 		var actions string
 		_, acc := auth.TrySession(r)
 		if acc != nil && acc.Admin {
-			// Admin: show write and moderate links
+			// Owners can write posts.
 			actions = `<div class="mb-4">
 				<a href="/blog?write=true" class="btn">+ Write</a>
-				<a href="/admin/moderate" class="text-muted text-sm ml-4">Moderate</a>
 			</div>`
 		} else if acc != nil {
 			// Regular user: show only write link
@@ -1472,10 +1413,7 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 	// Add links and YouTube embeds for full post view
 	contentHTML := Linkify(post.Content)
 
-	authorLink := post.Author
-	if post.AuthorID != "" {
-		authorLink = fmt.Sprintf(`<a href="/@%s" class="text-muted">%s</a>`, post.AuthorID, post.Author)
-	}
+	authorLink := htmlpkg.EscapeString(post.Author)
 
 	// Admin controls (edit/delete for author or admin)
 	_, acc := auth.TrySession(r)
@@ -1580,10 +1518,7 @@ func renderComments(postID string, r *http.Request) string {
 		if !isAdmin && flag.IsHidden("comment", comment.ID) {
 			continue
 		}
-		authorLink := comment.Author
-		if comment.AuthorID != "" {
-			authorLink = fmt.Sprintf(`<a href="/@%s">%s</a>`, comment.AuthorID, comment.Author)
-		}
+		authorLink := htmlpkg.EscapeString(comment.Author)
 
 		renderedContent := app.RenderString(comment.Content)
 		commentsHTML.WriteString(fmt.Sprintf(`
@@ -1815,7 +1750,8 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 
 // DeletePostsByAuthor removes all posts and comments by a user.
 // Called when an account is deleted.
-func DeletePostsByAuthor(authorID string) {
+func DeletePostsByAuthor(authorID string) error {
+	loadPersistedPosts()
 	mutex.Lock()
 	var kept []*Post
 	for _, p := range posts {
@@ -1838,7 +1774,12 @@ func DeletePostsByAuthor(authorID string) {
 	populateComments()
 	updateCacheUnlocked()
 	mutex.Unlock()
-	save()
-	data.SaveJSON("comments.json", comments)
+	if err := save(); err != nil {
+		return err
+	}
+	if err := data.SaveJSON("comments.json", comments); err != nil {
+		return err
+	}
 	event.Publish(event.Event{Type: "blog_updated"})
+	return nil
 }

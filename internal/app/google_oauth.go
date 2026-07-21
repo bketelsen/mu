@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	htmlpkg "html"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 // settings/env at request time and never embedded or logged.
 
 var oauthHTTP = &http.Client{Timeout: 12 * time.Second}
+var fetchGoogleUser = googleUserInfo
 
 func googleClientID() string     { return strings.TrimSpace(settings.Get("GOOGLE_CLIENT_ID")) }
 func googleClientSecret() string { return strings.TrimSpace(settings.Get("GOOGLE_CLIENT_SECRET")) }
@@ -48,13 +50,13 @@ func requestSecure(r *http.Request) bool {
 	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
-// GoogleLogin starts sign-in via Google (find-or-create an account).
+// GoogleLogin starts sign-in via Google for the existing owner account.
 func GoogleLogin(w http.ResponseWriter, r *http.Request) { startGoogle(w, r, false) }
 
 // GoogleConnect links Google to the *current* logged-in account so they can
 // sign in with Google afterwards. Requires a session.
 func GoogleConnect(w http.ResponseWriter, r *http.Request) {
-	if _, _, err := auth.RequireSession(r); err != nil {
+	if _, acc, err := auth.RequireSession(r); err != nil || !auth.IsOwner(acc.ID) {
 		RedirectToLogin(w, r)
 		return
 	}
@@ -95,7 +97,7 @@ func startGoogle(w http.ResponseWriter, r *http.Request, link bool) {
 }
 
 // GoogleCallback handles Google's redirect: verify state, exchange the code,
-// fetch the user, find-or-create their account, and start a session.
+// fetch the user, resolve the linked owner account, and start a session.
 func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if !GoogleConfigured() {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -120,7 +122,7 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Google sign-in failed, please try again", http.StatusBadGateway)
 		return
 	}
-	info, err := googleUserInfo(token)
+	info, err := fetchGoogleUser(token)
 	if err != nil || info.Email == "" {
 		Log("auth", "google userinfo failed: %v", err)
 		http.Error(w, "Google sign-in failed, please try again", http.StatusBadGateway)
@@ -135,9 +137,9 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	acc := findOrCreateGoogleAccount(info)
-	if acc == nil {
-		http.Error(w, "Could not create your account", http.StatusInternalServerError)
+	acc, err := resolveGoogleOwner(info)
+	if err != nil {
+		http.Error(w, "Google account is not linked to this Mu owner", http.StatusForbidden)
 		return
 	}
 	if acc.Banned {
@@ -210,75 +212,16 @@ func googleUserInfo(accessToken string) (*googleUser, error) {
 	return &u, nil
 }
 
-// findOrCreateGoogleAccount links by email, or provisions a new account with a
-// username derived from the email. Google users have a random secret (they sign
-// in via Google, not a password).
-func findOrCreateGoogleAccount(info *googleUser) *auth.Account {
-	email := strings.ToLower(strings.TrimSpace(info.Email))
-	if acc, err := auth.GetAccountByEmail(email); err == nil && acc != nil {
-		return acc
-	}
-	id := uniqueUsernameFromEmail(email)
-	name := strings.TrimSpace(info.Name)
-	if name == "" {
-		name = id
-	}
-	err := auth.Create(&auth.Account{
-		ID:              id,
-		Name:            name,
-		Secret:          randToken(24),
-		Email:           email,
-		EmailVerified:   true,
-		EmailVerifiedAt: time.Now(),
-		Created:         time.Now(),
-	})
+func resolveGoogleOwner(info *googleUser) (*auth.Account, error) {
+	owner, err := auth.Owner()
 	if err != nil {
-		Log("auth", "google account create failed: %v", err)
-		return nil
+		return nil, err
 	}
-	acc, _ := auth.GetAccount(id)
-	return acc
-}
-
-// uniqueUsernameFromEmail builds a valid, unused username from an email address.
-func uniqueUsernameFromEmail(email string) string {
-	local := email
-	if i := strings.IndexByte(email, '@'); i > 0 {
-		local = email[:i]
+	email := strings.ToLower(strings.TrimSpace(info.Email))
+	if email == "" || !info.EmailVerified || strings.ToLower(owner.Email) != email || !owner.EmailVerified {
+		return nil, errors.New("Google account is not linked to this Mu owner")
 	}
-	var b strings.Builder
-	for _, c := range strings.ToLower(local) {
-		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' {
-			b.WriteByte(byte(c))
-		}
-	}
-	base := strings.TrimLeft(b.String(), "0123456789_")
-	if len(base) < 4 {
-		base += "user"
-	}
-	if len(base) > 20 {
-		base = base[:20]
-	}
-	if base == "" {
-		base = "user"
-	}
-	candidate := base
-	for i := 0; i < 10000; i++ {
-		if i > 0 {
-			candidate = fmt.Sprintf("%s%d", base, i)
-			if len(candidate) > 24 {
-				candidate = candidate[:24]
-			}
-		}
-		if _, err := auth.GetAccount(candidate); err == nil {
-			continue // taken
-		}
-		if reason := auth.ValidateUsername(candidate); reason != "" {
-			continue // reserved/invalid
-		}
-		return candidate
-	}
-	return base + randToken(2)
+	return owner, nil
 }
 
 // linkGoogleToCurrentAccount attaches the Google identity to the logged-in
@@ -286,7 +229,7 @@ func uniqueUsernameFromEmail(email string) string {
 // here. Refuses if another account already owns that email.
 func linkGoogleToCurrentAccount(w http.ResponseWriter, r *http.Request, info *googleUser) {
 	_, acc, err := auth.RequireSession(r)
-	if err != nil {
+	if err != nil || !auth.IsOwner(acc.ID) {
 		RedirectToLogin(w, r)
 		return
 	}

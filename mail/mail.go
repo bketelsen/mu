@@ -77,14 +77,8 @@ func Load() {
 	// Initialize encryption
 	initEncryption()
 
-	b, err := data.LoadFile("mail.json")
-	if err != nil {
-		messages = []*Message{}
-		inboxes = make(map[string]*Inbox)
-	} else if err := json.Unmarshal(b, &messages); err != nil {
-		messages = []*Message{}
-		inboxes = make(map[string]*Inbox)
-	} else {
+	loadPersistedMessages()
+	if len(messages) > 0 {
 		app.Log("mail", "Loaded %d messages", len(messages))
 
 		// Decrypt messages loaded from disk
@@ -123,6 +117,18 @@ func Load() {
 	if err := LoadDKIMConfig(dkimDomain, dkimSelector); err != nil {
 		app.Log("mail", "DKIM signing disabled: %v", err)
 	}
+}
+
+// loadPersistedMessages hydrates mail state without configuring SMTP or DKIM.
+func loadPersistedMessages() {
+	var loaded []*Message
+	if b, err := data.LoadFile("mail.json"); err == nil {
+		_ = json.Unmarshal(b, &loaded)
+	}
+	mutex.Lock()
+	messages = loaded
+	rebuildInboxes()
+	mutex.Unlock()
 }
 
 // fixThreading repairs broken threading relationships and computes ThreadID after loading
@@ -1019,8 +1025,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			if isSent {
 				authorDisplay = "You"
 			} else if !IsExternalEmail(m.FromID) {
-				// Internal user - add profile link
-				authorDisplay = fmt.Sprintf(`<a href="/@%s" class="mail-link">%s</a>`, m.FromID, m.FromID)
+				authorDisplay = html.EscapeString(m.FromID)
 			} else if m.From != m.FromID {
 				// External email with display name
 				authorDisplay = m.From
@@ -1047,11 +1052,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		if msg.FromID == acc.ID {
 			otherParty = msg.ToID
 		}
-		// Format other party with profile link if internal user
-		otherPartyDisplay := otherParty
-		if !IsExternalEmail(otherParty) {
-			otherPartyDisplay = fmt.Sprintf(`<a href="/@%s" class="mail-link-muted">%s</a>`, otherParty, otherParty)
-		}
+		otherPartyDisplay := html.EscapeString(otherParty)
 
 		// Add block link if other party is external email and user is admin
 		blockButton := ""
@@ -1129,28 +1130,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			pageTitle = subject
 		}
 
-		// Build datalist of users for autocomplete (exclude self)
-		users := auth.GetAllAccounts()
-		var dl strings.Builder
-		dl.WriteString(`<datalist id="mail-users">`)
-		for _, u := range users {
-			if u.ID == acc.ID {
-				continue
-			}
-			label := u.ID
-			if u.Name != "" && u.Name != u.ID {
-				label = u.Name + " (@" + u.ID + ")"
-			}
-			dl.WriteString(fmt.Sprintf(`<option value="%s">%s</option>`, html.EscapeString(u.ID), html.EscapeString(label)))
-		}
-		dl.WriteString(`</datalist>`)
-		datalist := dl.String()
-
 		composeForm := fmt.Sprintf(`
 			<form method="POST" action="/mail" class="mail-form">
 				<input type="hidden" name="reply_to" value="%s">
-				<input type="text" name="to" placeholder="To: username or email" value="%s" required autocomplete="off" list="mail-users">
-				%s
+				<input type="text" name="to" placeholder="To: email" value="%s" required autocomplete="off">
 				<input type="text" name="subject" placeholder="Subject" value="%s" required>
 				<textarea name="body" rows="10" placeholder="Write your message..." required></textarea>
 			<div class="d-flex gap-3 items-center">
@@ -1161,7 +1144,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		<div class="mt-5">
 			<a href="%s" class="text-muted">← Back</a>
 		</div>
-		`, replyTo, to, datalist, subject, backLink, backLink)
+		`, replyTo, to, subject, backLink, backLink)
 
 		w.Write([]byte(app.RenderHTML(pageTitle, "", composeForm)))
 		return
@@ -2037,10 +2020,18 @@ func GetRecentMessages(limit int) []*Message {
 }
 
 // DeleteInbox removes all mail for a user.
-func DeleteInbox(userID string) {
+func DeleteInbox(userID string) error {
+	loadPersistedMessages()
 	mutex.Lock()
-	delete(inboxes, userID)
+	var kept []*Message
+	for _, message := range messages {
+		if message.FromID != userID && message.ToID != userID {
+			kept = append(kept, message)
+		}
+	}
+	messages = kept
+	rebuildInboxes()
+	err := save()
 	mutex.Unlock()
-	// Re-save all mail data.
-	save()
+	return err
 }

@@ -12,7 +12,6 @@ import (
 type UserPrefs struct {
 	Saved     map[string]time.Time `json:"saved"`     // "type:id" → saved time
 	Dismissed map[string]time.Time `json:"dismissed"` // "type:id" → dismissed time
-	Blocked   map[string]time.Time `json:"blocked"`   // userID → blocked time
 }
 
 var (
@@ -27,8 +26,8 @@ func init() {
 	}
 }
 
-func savePrefs() {
-	data.SaveJSON("prefs.json", prefs)
+func savePrefs() error {
+	return data.SaveJSON("prefs.json", prefs)
 }
 
 func getUserPrefs(userID string) *UserPrefs {
@@ -37,7 +36,6 @@ func getUserPrefs(userID string) *UserPrefs {
 		p = &UserPrefs{
 			Saved:     map[string]time.Time{},
 			Dismissed: map[string]time.Time{},
-			Blocked:   map[string]time.Time{},
 		}
 		prefs[userID] = p
 	}
@@ -95,36 +93,6 @@ func IsDismissed(userID, contentType, contentID string) bool {
 	return dismissed
 }
 
-// BlockUser blocks all content from a specific user
-func BlockUser(userID, blockedUserID string) {
-	prefsMu.Lock()
-	defer prefsMu.Unlock()
-	p := getUserPrefs(userID)
-	p.Blocked[blockedUserID] = time.Now()
-	savePrefs()
-}
-
-// UnblockUser unblocks a user
-func UnblockUser(userID, blockedUserID string) {
-	prefsMu.Lock()
-	defer prefsMu.Unlock()
-	p := getUserPrefs(userID)
-	delete(p.Blocked, blockedUserID)
-	savePrefs()
-}
-
-// IsBlocked checks if the user has blocked this author
-func IsBlocked(userID, authorID string) bool {
-	prefsMu.RLock()
-	defer prefsMu.RUnlock()
-	p, ok := prefs[userID]
-	if !ok {
-		return false
-	}
-	_, blocked := p.Blocked[authorID]
-	return blocked
-}
-
 // GetSavedItems returns all saved item keys for a user
 func GetSavedItems(userID string) map[string]time.Time {
 	prefsMu.RLock()
@@ -136,21 +104,10 @@ func GetSavedItems(userID string) map[string]time.Time {
 	return p.Saved
 }
 
-// GetBlockedUsers returns all blocked user IDs for a user
-func GetBlockedUsers(userID string) map[string]time.Time {
-	prefsMu.RLock()
-	defer prefsMu.RUnlock()
-	p, ok := prefs[userID]
-	if !ok {
-		return nil
-	}
-	return p.Blocked
-}
-
 // ClearUserPrefs removes all preferences for a deleted user.
-func ClearUserPrefs(userID string) {
+func ClearUserPrefs(userID string) error {
 	prefsMu.Lock()
 	defer prefsMu.Unlock()
 	delete(prefs, userID)
-	savePrefs()
+	return savePrefs()
 }

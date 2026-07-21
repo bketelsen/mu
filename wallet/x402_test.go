@@ -8,23 +8,6 @@ import (
 	"testing"
 )
 
-func TestCreditsToAtomic(t *testing.T) {
-	cases := []struct {
-		credits, decimals int
-		want              string
-	}{
-		{5, 6, "50000"},     // $0.05 USDC
-		{1, 6, "10000"},     // $0.01 USDC
-		{0, 6, "10000"},     // floored to 1 credit
-		{100, 6, "1000000"}, // $1.00
-	}
-	for _, c := range cases {
-		if got := creditsToAtomic(c.credits, c.decimals); got != c.want {
-			t.Errorf("creditsToAtomic(%d,%d)=%s want %s", c.credits, c.decimals, got, c.want)
-		}
-	}
-}
-
 func TestNormalizeNetwork(t *testing.T) {
 	for in, want := range map[string]string{
 		"base":         "eip155:8453",
@@ -81,26 +64,5 @@ func TestCDPBearer(t *testing.T) {
 	}
 	if claims["uri"] != "POST api.cdp.coinbase.com/platform/v2/x402/verify" {
 		t.Errorf("bad uri claim: %v", claims["uri"])
-	}
-}
-
-func TestBuildPaymentRequirementsShape(t *testing.T) {
-	x402PayTo = "0x9a717EFF039622231C65ADbF7B2A002b544b06A9"
-	x402NetworkID = "eip155:8453"
-	defer func() { x402PayTo = "" }()
-
-	reqs := BuildPaymentRequirements("chat_query", "https://m3o.com/mcp")
-	if len(reqs) == 0 {
-		t.Fatal("expected at least one requirement")
-	}
-	r := reqs[0]
-	if r.Scheme != "exact" || r.Network != "eip155:8453" || r.PayTo != x402PayTo {
-		t.Errorf("bad requirement: %+v", r)
-	}
-	if r.MaxAmountRequired == "" || strings.Contains(r.MaxAmountRequired, "$") {
-		t.Errorf("maxAmountRequired must be atomic units, got %q", r.MaxAmountRequired)
-	}
-	if r.Extra["name"] == "" || r.Extra["version"] == "" {
-		t.Errorf("extra must carry EIP-712 name/version, got %v", r.Extra)
 	}
 }

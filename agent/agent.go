@@ -771,7 +771,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		if !guestQueryAllowed(ip) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":"Sign up to keep using the AI agent. 3 free queries per day."}`))
+			w.Write([]byte(`{"error":"Owner login is required to use the AI agent. Run first-time setup if this is a new server."}`))
 			return
 		}
 		guestQueryRecord(ip)

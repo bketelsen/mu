@@ -2,8 +2,11 @@ package main
 
 import (
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
+	"mu/internal/auth"
 	"mu/wallet"
 )
 
@@ -27,6 +30,69 @@ func TestIsServerMode(t *testing.T) {
 				t.Fatalf("isServerMode(%v) = %v, want %v", tt.args, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAdminRoutesExcludeLocalUserManagement(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, route := range []string{"/admin/users", "/admin/moderate"} {
+		if strings.Contains(string(source), route) {
+			t.Errorf("main route registration retains %s", route)
+		}
+	}
+	for _, route := range []string{"/admin/blocklist", "/admin/spam", "/admin/console", "/admin/delete"} {
+		if !strings.Contains(string(source), route) {
+			t.Errorf("main route registration is missing %s", route)
+		}
+	}
+}
+
+func TestRoutesExcludeProfilesFederationAndPresence(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, route := range []string{
+		"/.well-known/webfinger",
+		"/presence",
+		"/ping",
+		"strings.HasPrefix(r.URL.Path, \"/@\")",
+	} {
+		if strings.Contains(string(source), route) {
+			t.Errorf("main route registration retains %s", route)
+		}
+	}
+	if !strings.Contains(string(source), `http.HandleFunc("/user/status", user.StatusHandler)`) {
+		t.Error("owner-private status route is missing")
+	}
+}
+
+func TestExecutableSourcesExcludeProfileDiscovery(t *testing.T) {
+	for _, file := range []string{
+		"blog/blog.go",
+		"mail/mail.go",
+		"stream/handlers.go",
+		"internal/app/app.go",
+		"internal/app/ui.go",
+		"internal/api/api.go",
+	} {
+		source, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(source), "/@") {
+			t.Errorf("%s retains executable profile discovery", file)
+		}
+	}
+}
+
+func TestVersionInfoDoesNotExposeServiceTopology(t *testing.T) {
+	info := versionInfo()
+	if _, ok := info["services"]; ok {
+		t.Fatalf("public version exposes services: %#v", info)
 	}
 }
 
@@ -77,5 +143,23 @@ func TestArgFloat(t *testing.T) {
 				t.Fatalf("argFloat(%v) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMigrateSingleOwnerUsesDataBackup(t *testing.T) {
+	oldBackup := backupData
+	oldRun := runOwnerMigration
+	called := false
+	backupData = func() (string, error) { called = true; return "/tmp/mu-backup", nil }
+	runOwnerMigration = func(backup func() (string, error)) (auth.MigrationResult, error) {
+		path, err := backup()
+		return auth.MigrationResult{Migrated: true, BackupPath: path, OwnerID: "owner"}, err
+	}
+	t.Cleanup(func() { backupData, runOwnerMigration = oldBackup, oldRun })
+	if err := migrateSingleOwner(); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("startup migration did not invoke data backup")
 	}
 }

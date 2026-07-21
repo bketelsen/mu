@@ -85,21 +85,12 @@ func Load() {
 	// (below) so the rebuild publishes to the go-micro store + broker.
 	cardSnap = snapshot.New("social")
 
-	// Load saved messages (migrate from social_posts.json if needed)
-	b, err := data.LoadFile("social.json")
-	if err != nil {
-		b, err = data.LoadFile("social_posts.json")
-	}
-	if err == nil {
-		var cached []*Message
-		if json.Unmarshal(b, &cached) == nil {
-			mutex.Lock()
-			messages = cached
-			updateCacheLocked()
-			mutex.Unlock()
-			indexMessages(cached)
-		}
-	}
+	loadPersistedMessages()
+	mutex.Lock()
+	updateCacheLocked()
+	cached := append([]*Message(nil), messages...)
+	mutex.Unlock()
+	indexMessages(cached)
 
 	loadedAt = time.Now()
 
@@ -107,6 +98,21 @@ func Load() {
 	go detectBreakingStories()
 
 	app.Log("social", "Loaded %d messages", len(messages))
+}
+
+// loadPersistedMessages hydrates social messages without starting background work.
+func loadPersistedMessages() {
+	b, err := data.LoadFile("social.json")
+	if err != nil {
+		b, err = data.LoadFile("social_posts.json")
+	}
+	var loaded []*Message
+	if err == nil {
+		_ = json.Unmarshal(b, &loaded)
+	}
+	mutex.Lock()
+	messages = loaded
+	mutex.Unlock()
 }
 
 // detectBreakingStories checks the news feed for stories covered by multiple
@@ -518,13 +524,13 @@ func handleGetFeed(w http.ResponseWriter, r *http.Request) {
 	copy(all, messages)
 	mutex.RUnlock()
 
-	// Filter out flagged/banned messages and replies (only show threads in feed)
+	// Filter out flagged messages and replies (only show threads in feed).
 	var visible []*Message
 	for _, p := range all {
 		if p.ReplyTo != "" {
 			continue
 		}
-		if flag.IsHidden("social", p.ID) || auth.IsBanned(p.AuthorID) {
+		if flag.IsHidden("social", p.ID) {
 			continue
 		}
 		visible = append(visible, p)
@@ -735,7 +741,7 @@ func generateThreadHTML(p *Message, replies []*Message, r *http.Request) string 
 
 	// Messages (chronological — oldest first, so conversation reads naturally)
 	for _, reply := range replies {
-		if flag.IsHidden("social", reply.ID) || auth.IsBanned(reply.AuthorID) {
+		if flag.IsHidden("social", reply.ID) {
 			continue
 		}
 		rc := htmlpkg.EscapeString(reply.Content)
@@ -885,7 +891,7 @@ func generateCardHTML(allMessages []*Message) string {
 		if p.ReplyTo != "" {
 			continue // skip replies in home card
 		}
-		if flag.IsHidden("social", p.ID) || auth.IsBanned(p.AuthorID) {
+		if flag.IsHidden("social", p.ID) {
 			continue
 		}
 		if p.AuthorID == "_system" {
@@ -1002,7 +1008,7 @@ func generatePageHTML(visible []*Message, r *http.Request) string {
 		if acc != nil {
 			viewerID = acc.ID
 		}
-		if viewerID != "" && (app.IsBlocked(viewerID, p.AuthorID) || app.IsDismissed(viewerID, "social", p.ID)) {
+		if viewerID != "" && app.IsDismissed(viewerID, "social", p.ID) {
 			continue
 		}
 		content := htmlpkg.EscapeString(p.Content)
@@ -1260,7 +1266,8 @@ func FetchExternalPost(rawURL string) (*Message, error) {
 }
 
 // DeleteByAuthor removes all messages by a user.
-func DeleteByAuthor(authorID string) {
+func DeleteByAuthor(authorID string) error {
+	loadPersistedMessages()
 	mutex.Lock()
 	var kept []*Message
 	for _, m := range messages {
@@ -1271,5 +1278,5 @@ func DeleteByAuthor(authorID string) {
 	messages = kept
 	updateCacheLocked()
 	mutex.Unlock()
-	save()
+	return save()
 }

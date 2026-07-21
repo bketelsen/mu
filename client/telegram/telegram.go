@@ -5,13 +5,11 @@
 //  1. Message @BotFather on Telegram, create a bot, get the token
 //  2. Set TELEGRAM_BOT_TOKEN via /admin/env or env var
 //
-// Users are auto-created on first message (like Discord). Existing
-// users can link with "link <username> <password>".
+// The Mu owner links the bot with "link <username> <password>" in a direct
+// message; shared chats are ignored.
 package telegram
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -38,8 +36,16 @@ var (
 const maxHistory = 10
 
 func Load() {
-	data.LoadJSON("telegram_links.json", &links)
+	loadLinks()
 	go run()
+}
+
+func loadLinks() {
+	loaded := map[string]string{}
+	_ = data.LoadJSON("telegram_links.json", &loaded)
+	linkMu.Lock()
+	links = loaded
+	linkMu.Unlock()
 }
 
 func Enabled() bool {
@@ -133,17 +139,7 @@ func poll(token string) {
 			}
 			m := update.Message
 
-			// Check if this is a bot command or mention
-			isBotCommand := false
-			for _, e := range m.Entities {
-				if e.Type == "bot_command" || e.Type == "mention" {
-					isBotCommand = true
-					break
-				}
-			}
-
-			isDM := m.Chat.Type == "private"
-			if !isDM && !isBotCommand {
+			if m.Chat.Type != "private" {
 				continue
 			}
 
@@ -152,9 +148,24 @@ func poll(token string) {
 	}
 }
 
+type messageAccess = auth.MessageAccess
+
+const (
+	accessIgnore    = auth.AccessIgnore
+	accessNeedsLink = auth.AccessNeedsLink
+	accessOwner     = auth.AccessOwner
+)
+
+func classifyMessage(isDirect bool, linkedAccount string) messageAccess {
+	return auth.ClassifyMessage(isDirect, linkedAccount)
+}
+
 func handleMessage(token string, userID int64, username, firstName string, chatID int64, chatType, text string) {
 	telegramID := fmt.Sprintf("%d", userID)
 	isDM := chatType == "private"
+	if !isDM {
+		return
+	}
 
 	// Strip bot commands: /ask@botname query → query
 	if strings.HasPrefix(text, "/") {
@@ -203,7 +214,9 @@ func handleMessage(token string, userID int64, username, firstName string, chatI
 	text = strings.Join(cleaned, " ")
 
 	if text == "" {
-		sendTelegram(token, chatID, "Ask me anything! In groups use `/ask your question`.")
+		if reply := emptyMessageReply(isDM, getLinkedAccount(telegramID)); reply != "" {
+			sendTelegram(token, chatID, reply)
+		}
 		return
 	}
 
@@ -217,7 +230,14 @@ func handleMessage(token string, userID int64, username, firstName string, chatI
 				sendTelegram(token, chatID, "Invalid username or password.")
 				return
 			}
-			linkAccount(telegramID, uname)
+			if !auth.IsOwner(uname) {
+				sendTelegram(token, chatID, "Only the Mu owner account can be linked.")
+				return
+			}
+			if err := linkAccount(telegramID, uname); err != nil {
+				sendTelegram(token, chatID, "Couldn't save the account link. Try again later.")
+				return
+			}
 			sendTelegram(token, chatID, fmt.Sprintf("Linked to *%s*.", uname))
 			return
 		}
@@ -234,32 +254,22 @@ func handleMessage(token string, userID int64, username, firstName string, chatI
 		return
 	}
 
-	// Look up or auto-create account
 	accountID := getLinkedAccount(telegramID)
-	if accountID == "" {
-		name := firstName
-		if name == "" {
-			name = username
-		}
-		accountID = autoCreateAccount(telegramID, username, name)
-		if accountID == "" {
-			sendTelegram(token, chatID, "Couldn't create your account. Try again later.")
-			return
-		}
-		sendTelegram(token, chatID, fmt.Sprintf("Welcome! I've created your account *%s*. Ask me anything.", accountID))
+	if classifyMessage(true, accountID) != accessOwner {
+		sendTelegram(token, chatID, "Link this bot to your Mu owner account before using it.")
+		return
 	}
 
-	app.Log("telegram", "Message from %s (%s): %s", username, accountID, text)
+	app.Log("telegram", "Message from %s (%s): %s", username, accountID, app.RedactChannelMessage(text))
 
 	// Send typing indicator
 	sendAction(token, chatID, "typing")
 
-	// Run agent with conversation context
-	// Channel messages are public — no private data
+	// Owner DMs retain the owner's private context.
 	history := getHistory(telegramID)
 	answer, err := agent.QueryWithOpts(accountID, text, agent.QueryOpts{
 		History: history,
-		Public:  !isDM,
+		Public:  false,
 	})
 	if err != nil {
 		app.Log("telegram", "Agent error for %s: %v", accountID, err)
@@ -281,6 +291,16 @@ func handleMessage(token string, userID int64, username, firstName string, chatI
 	}
 
 	sendTelegram(token, chatID, answer)
+}
+
+func emptyMessageReply(isDirect bool, linkedAccount string) string {
+	switch classifyMessage(isDirect, linkedAccount) {
+	case accessOwner:
+		return "Ask me anything! In groups use `/ask your question`."
+	case accessNeedsLink:
+		return "Link this bot to your Mu owner account before using it."
+	}
+	return ""
 }
 
 func sendTelegram(token string, chatID int64, text string) {
@@ -348,11 +368,14 @@ func NotifyUser(muAccountID, message string) {
 
 // ── Account management ──
 
-func linkAccount(telegramID, muAccount string) {
+func linkAccount(telegramID, muAccount string) error {
+	if !auth.IsOwner(muAccount) {
+		return fmt.Errorf("only the Mu owner can be linked")
+	}
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	links[telegramID] = muAccount
-	data.SaveJSON("telegram_links.json", links)
+	return data.SaveJSON("telegram_links.json", links)
 }
 
 func getLinkedAccount(telegramID string) string {
@@ -361,7 +384,8 @@ func getLinkedAccount(telegramID string) string {
 	return links[telegramID]
 }
 
-func DeleteLinks(muAccount string) {
+func DeleteLinks(muAccount string) error {
+	loadLinks()
 	linkMu.Lock()
 	defer linkMu.Unlock()
 	for k, v := range links {
@@ -369,79 +393,7 @@ func DeleteLinks(muAccount string) {
 			delete(links, k)
 		}
 	}
-	data.SaveJSON("telegram_links.json", links)
-}
-
-func sanitizeAccountID(telegramID, username string) string {
-	id := strings.ToLower(username)
-	id = strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
-			return r
-		}
-		return -1
-	}, id)
-	if len(id) < 4 {
-		id = id + telegramID[len(telegramID)-min(4, len(telegramID)):]
-	}
-	if len(id) > 24 {
-		id = id[:24]
-	}
-	return id
-}
-
-func uniqueAccountID(baseID string, exists func(string) bool) string {
-	if !exists(baseID) {
-		return baseID
-	}
-	for i := 1; i < 100; i++ {
-		suffix := fmt.Sprintf("%d", i)
-		prefixLen := 24 - len(suffix)
-		if prefixLen <= 0 {
-			return ""
-		}
-		candidate := baseID
-		if len(candidate) > prefixLen {
-			candidate = candidate[:prefixLen]
-		}
-		candidate += suffix
-		if !exists(candidate) {
-			return candidate
-		}
-	}
-	return ""
-}
-
-func autoCreateAccount(telegramID, username, displayName string) string {
-	id := uniqueAccountID(sanitizeAccountID(telegramID, username), func(id string) bool {
-		_, err := auth.GetAccount(id)
-		return err == nil
-	})
-	if id == "" {
-		app.Log("telegram", "Auto-create failed for %s: no available account ID", username)
-		return ""
-	}
-
-	passBytes := make([]byte, 16)
-	if _, err := rand.Read(passBytes); err != nil {
-		app.Log("telegram", "Auto-create failed for %s: %v", username, err)
-		return ""
-	}
-	pass := hex.EncodeToString(passBytes)
-
-	acc := &auth.Account{
-		ID:      id,
-		Name:    displayName,
-		Secret:  pass,
-		Created: time.Now(),
-	}
-	if err := auth.Create(acc); err != nil {
-		app.Log("telegram", "Auto-create failed for %s: %v", username, err)
-		return ""
-	}
-
-	linkAccount(telegramID, id)
-	app.Log("telegram", "Auto-created account %s for Telegram user %s", id, username)
-	return id
+	return data.SaveJSON("telegram_links.json", links)
 }
 
 func getHistory(telegramID string) []agent.QueryMessage {
@@ -457,11 +409,4 @@ func addHistory(telegramID string, role, text string) {
 	if len(histories[telegramID]) > maxHistory {
 		histories[telegramID] = histories[telegramID][len(histories[telegramID])-maxHistory:]
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

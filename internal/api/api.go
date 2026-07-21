@@ -437,51 +437,6 @@ func init() {
 	})
 
 	Endpoints = append(Endpoints, &Endpoint{
-		Name:        "User Profile",
-		Path:        "/@{username}",
-		Method:      "GET",
-		Description: "Get user profile and their posts",
-		Response: []*Value{
-			{
-				Type: "HTML",
-				Params: []*Param{
-					{
-						Name:        "html",
-						Value:       "string",
-						Description: "Rendered user profile page",
-					},
-				},
-			},
-		},
-	})
-
-	Endpoints = append(Endpoints, &Endpoint{
-		Name:        "Update User Status",
-		Path:        "/@{username}",
-		Method:      "POST",
-		Description: "Update user status message (own profile only)",
-		Params: []*Param{
-			{
-				Name:        "status",
-				Value:       "string",
-				Description: "Status message (max 100 characters)",
-			},
-		},
-		Response: []*Value{
-			{
-				Type: "Redirect",
-				Params: []*Param{
-					{
-						Name:        "location",
-						Value:       "string",
-						Description: "Redirects to user profile",
-					},
-				},
-			},
-		},
-	})
-
-	Endpoints = append(Endpoints, &Endpoint{
 		Name:        "Add Comment",
 		Path:        "/blog/post/{id}/comment",
 		Method:      "POST",
@@ -730,7 +685,7 @@ func init() {
 		Name:        "Agent Query",
 		Path:        "/agent",
 		Method:      "POST",
-		Description: "Query the AI agent. The agent plans and executes tool calls (news, weather, places, etc.) then synthesizes a response. Requires authentication. Costs credits per query. Returns a Server-Sent Events stream.",
+		Description: "Query the AI agent. The agent plans and executes tool calls (GitHub, news, weather, places, and more) then synthesizes a response. Requires authentication. Costs credits per query. Returns a Server-Sent Events stream.",
 		Params: []*Param{
 			{Name: "prompt", Value: "string", Description: "The question or request for the agent"},
 			{Name: "model", Value: "string", Description: "Model tier: standard (default) or premium"},
@@ -752,7 +707,7 @@ func init() {
 		Name:        "MCP Server",
 		Path:        "/mcp",
 		Method:      "POST",
-		Description: "Model Context Protocol server for AI tool integration. Supports initialize, tools/list, tools/call, and ping methods. Tools include chat, news, blog, video, mail, search, wallet, weather, places, login, and signup. Metered tools (chat: 5 credits, news_search: 1 credit, video_search: 2 credits, mail_send: 4 credits, weather_forecast: 1 credit + optional 1 credit for pollen data) use the same wallet credit system as the REST API. Pay per call via x402 or top up your account to pay with credits.",
+		Description: "Owner-authenticated Model Context Protocol server for AI tool integration. Tools include GitHub, chat, news, blog, video, mail, search, wallet, weather, and places. Metered tools use the owner's wallet credits. x402 is available only for owner-initiated outbound calls to remote services.",
 		Params: []*Param{
 			{
 				Name:        "jsonrpc",
@@ -831,7 +786,7 @@ func Markdown() string {
 	data += "     https://example.com/api/endpoint\n"
 	data += "```\n\n"
 	data += "### Creating a PAT Token\n\n"
-	data += "1. Log in to your account via the web interface\n"
+	data += "1. Log in as the server owner via the web interface\n"
 	data += "2. Navigate to `/token` endpoint\n"
 	data += "3. Create a new token with desired permissions\n"
 	data += "4. **Save the token immediately** - it's only shown once!\n\n"
@@ -841,9 +796,7 @@ func Markdown() string {
 	data += "### Authentication\n\n"
 	data += "Include a token in the `Authorization` header:\n\n"
 	data += "```\nAuthorization: Bearer YOUR_TOKEN\n```\n\n"
-	data += "Two ways to obtain a token:\n\n"
-	data += "1. **Personal Access Token (PAT)** — create one at `/token` after logging in.\n"
-	data += "2. **Signup / Login tools** — the agent can call the `signup` or `login` MCP tool to obtain a session token programmatically.\n\n"
+	data += "Create a **Personal Access Token (PAT)** at `/token` after owner login.\n\n"
 	data += "---\n\n"
 	data += "## Endpoints\n\n"
 

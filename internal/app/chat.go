@@ -14,7 +14,7 @@ func JSString(s string) string {
 
 // ChatConfig configures the shared chat component.
 type ChatConfig struct {
-	// Guest renders the sign-up CTA on the free-query limit (401).
+	// Guest renders the owner login CTA when authentication is required.
 	Guest bool
 	// ContextID seeds the conversation's server-side thread id, so follow-up
 	// messages continue the same session. Empty starts a new session.
@@ -138,7 +138,7 @@ var SUGGEST=['Give me a morning brief','Search for nearby coffee shops','Weather
 function showSuggestions(){
   if(HIDE_SUGGEST){sugDiv.innerHTML='';if(hintDiv)hintDiv.innerHTML='';return;}
   if(conv.innerHTML.trim()){sugDiv.innerHTML='';if(hintDiv)hintDiv.innerHTML='';return;}
-  if(GUEST&&hintDiv)hintDiv.innerHTML='No account needed for your first 3 questions. Sign up only when you want to keep going.';
+	if(GUEST&&hintDiv)hintDiv.innerHTML='Sign in as the server owner to use the agent.';
   var h='<div class="mu-pills">';
   SUGGEST.forEach(function(s){h+='<a href="#" data-q="'+esc(s)+'">'+esc(s)+'</a>';});
   h+='</div>';
@@ -189,8 +189,8 @@ function ask(q){
     if(resp.status===401){
       return resp.json().catch(function(){return {};}).then(function(j){
         stopWork();
-        var msg=esc(j.error||'Sign up to keep using the AI agent.');
-        a.innerHTML='<div class="mu-cta">'+msg+' <a href="/signup">Sign up free →</a> <a href="/login?redirect=/agent" style="margin-left:10px">Log in</a></div>';
+		var msg=esc(j.error||'Owner login is required to use the AI agent.');
+		a.innerHTML='<div class="mu-cta">'+msg+' <a href="/login?redirect=/agent">Log in</a></div>';
         save();
         throw 'handled';
       });

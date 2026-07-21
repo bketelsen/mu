@@ -195,21 +195,7 @@ func Load() {
 		app.Log("apps", "service register failed: %v", err)
 	}
 
-	// Load persisted apps if the file exists. A missing file is not an error —
-	// it just means a fresh install, which falls through to seeding below.
-	if b, err := data.LoadFile("apps.json"); err == nil {
-		var loaded []*App
-		if jerr := json.Unmarshal(b, &loaded); jerr != nil {
-			app.Log("apps", "Failed to load apps.json: %v", jerr)
-		} else {
-			mutex.Lock()
-			for _, a := range loaded {
-				apps[a.Slug] = a
-			}
-			mutex.Unlock()
-			app.Log("apps", "Loaded %d apps", len(loaded))
-		}
-	}
+	loadPersistedApps()
 
 	// Ensure the built-in apps exist. Runs every startup so newly-added
 	// built-ins reach existing instances too; it only fills gaps.
@@ -218,8 +204,27 @@ func Load() {
 	data.RegisterDeleter("app", DeleteApp)
 }
 
+// loadPersistedApps hydrates saved apps without registering the service.
+func loadPersistedApps() {
+	var loaded []*App
+	if b, err := data.LoadFile("apps.json"); err == nil {
+		if err := json.Unmarshal(b, &loaded); err != nil {
+			app.Log("apps", "Failed to load apps.json: %v", err)
+		}
+	}
+	mutex.Lock()
+	apps = make(map[string]*App, len(loaded))
+	for _, a := range loaded {
+		apps[a.Slug] = a
+	}
+	mutex.Unlock()
+	if len(loaded) > 0 {
+		app.Log("apps", "Loaded %d apps", len(loaded))
+	}
+}
+
 // save persists all apps to disk.
-func save() {
+func save() error {
 	mutex.RLock()
 	list := make([]*App, 0, len(apps))
 	for _, a := range apps {
@@ -231,7 +236,7 @@ func save() {
 		return list[i].CreatedAt.Before(list[j].CreatedAt)
 	})
 
-	data.SaveJSON("apps.json", list)
+	return data.SaveJSON("apps.json", list)
 }
 
 // Preview returns HTML for the home dashboard card.
@@ -491,7 +496,7 @@ func handleList(w http.ResponseWriter, r *http.Request) {
 		sb.WriteString(`<p>No apps yet. <a href="/apps/new">Create the first one</a>.</p>`)
 	} else {
 		for _, a := range list {
-			if userID != "" && (app.IsBlocked(userID, a.AuthorID) || app.IsDismissed(userID, "app", a.Slug)) {
+			if userID != "" && app.IsDismissed(userID, "app", a.Slug) {
 				continue
 			}
 			tagsHTML := ""
@@ -707,25 +712,14 @@ func handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	app.Log("apps", "Created app %q by %s", name, acc.ID)
 
-	// Async content moderation — check name, description, AND the HTML
-	// body for inappropriate content. The HTML is stripped to text + URLs
-	// before being sent to the classifier. Auto-bans on detection.
+	// Async content moderation checks the generated content without mutating its owner.
 	go func(authorID, appSlug, appName, appDesc, appHTML string) {
 		// Moderate name + description.
 		flag.CheckContent("app", appSlug, appName, appDesc)
-		if item := flag.GetItem("app", appSlug); item != nil && item.Flagged {
-			app.Log("moderation", "Auto-banning %s after app %q name/desc flagged", authorID, appName)
-			auth.BanAccount(authorID)
-			return
-		}
 		// Moderate the HTML body — extract readable text + URLs.
 		body := extractAppText(appHTML)
 		if body != "" {
 			flag.CheckContent("app_content", appSlug, appName, body)
-			if item := flag.GetItem("app_content", appSlug); item != nil && item.Flagged {
-				app.Log("moderation", "Auto-banning %s after app %q content flagged", authorID, appName)
-				auth.BanAccount(authorID)
-			}
 		}
 	}(acc.ID, slug, name, description, html)
 
@@ -1707,8 +1701,7 @@ func GetPublicApps() []*App {
 		if !a.Public {
 			continue
 		}
-		// Hide apps from banned users and flagged apps.
-		if auth.IsBanned(a.AuthorID) || flag.IsHidden("app", a.Slug) {
+		if flag.IsHidden("app", a.Slug) {
 			continue
 		}
 		list = append(list, a)
@@ -1933,7 +1926,8 @@ const sdkJS = `// Mu App SDK
 `
 
 // DeleteAppsByAuthor removes all apps by a user.
-func DeleteAppsByAuthor(authorID string) {
+func DeleteAppsByAuthor(authorID string) error {
+	loadPersistedApps()
 	mutex.Lock()
 	for slug, a := range apps {
 		if a.AuthorID == authorID {
@@ -1941,5 +1935,5 @@ func DeleteAppsByAuthor(authorID string) {
 		}
 	}
 	mutex.Unlock()
-	save()
+	return save()
 }

@@ -31,8 +31,8 @@ func init() {
 	data.LoadJSON("memory.json", &store)
 }
 
-func save() {
-	data.SaveJSON("memory.json", store)
+func save() error {
+	return data.SaveJSON("memory.json", store)
 }
 
 // Set stores or updates a memory entry for a user.
@@ -168,9 +168,9 @@ func Delete(userID, key string) {
 }
 
 // Clear removes all memory for a user (account deletion).
-func Clear(userID string) {
+func Clear(userID string) error {
 	mu.Lock()
 	defer mu.Unlock()
 	delete(store, userID)
-	save()
+	return save()
 }

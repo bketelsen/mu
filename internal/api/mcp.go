@@ -123,19 +123,12 @@ type Tool struct {
 var QuotaCheck func(r *http.Request, op string) (bool, int, error)
 
 // ToolGuard is called before executing any tool — used for tool-specific
-// pre-checks (e.g. signup rate limiting per IP). Returning an error blocks
+// pre-checks. Returning an error blocks
 // the call and the error message is returned to the caller. Set by main.go.
 var ToolGuard func(r *http.Request, toolName string) error
 
-// PaymentRequiredResponse is called when quota check fails to build x402 payment
-// requirements. Returns nil if x402 is not enabled. Set by main.go.
-var PaymentRequiredResponse func(w http.ResponseWriter, op string, resource string)
-
-// GuestNewsSearch handles agent-initiated guest news_search calls without
-// routing through the authenticated HTML/API search endpoint. It is wired by
-// main.go to the news package so guest core-loop prompts can use the same live
-// feed-backed provider path as signed-in users while MCP/REST quota gates stay
-// unchanged.
+// GuestNewsSearch is retained for compatibility with callers that configure a
+// news provider, but MCP execution never uses it without an owner session.
 var GuestNewsSearch func(query string) (string, error)
 
 // ToolParam defines a parameter for an MCP tool
@@ -154,28 +147,6 @@ type Result struct {
 	Text string `json:"text,omitempty"`
 	HTML string `json:"html,omitempty"`
 	Data any    `json:"data,omitempty"`
-}
-
-// MCPWalletOp parses a JSON-RPC MCP request body and returns the wallet
-// operation for a tools/call to a metered tool, or "" if the call is free or is
-// not a tools/call. Lets the HTTP layer gate x402 payments before dispatch,
-// where auth and wallet packages are in scope.
-func MCPWalletOp(body []byte) string {
-	var req struct {
-		Method string `json:"method"`
-		Params struct {
-			Name string `json:"name"`
-		} `json:"params"`
-	}
-	if err := json.Unmarshal(body, &req); err != nil || req.Method != "tools/call" {
-		return ""
-	}
-	for i := range tools {
-		if toolMatches(tools[i], req.Params.Name) {
-			return tools[i].WalletOp
-		}
-	}
-	return ""
 }
 
 // toolMatches reports whether name is the tool's canonical name or one of its
@@ -392,16 +363,6 @@ var tools = []Tool{
 		},
 	},
 	{
-		Name:        "wallet_transfer",
-		Description: "Transfer credits to another user by username",
-		Method:      "POST",
-		Path:        "/wallet/transfer",
-		Params: []ToolParam{
-			{Name: "to", Type: "string", Description: "Recipient username", Required: true},
-			{Name: "amount", Type: "number", Description: "Number of credits to transfer", Required: true},
-		},
-	},
-	{
 		Name:        "wallet_topup",
 		Description: "Get available wallet topup payment methods with crypto deposit address and card payment tiers",
 		Method:      "GET",
@@ -466,24 +427,6 @@ var tools = []Tool{
 		},
 	},
 	{
-		Name:        "block_user",
-		Description: "Block a user — hides all their content from your view",
-		Method:      "POST",
-		Path:        "/app/block",
-		Params: []ToolParam{
-			{Name: "user", Type: "string", Description: "User ID to block", Required: true},
-		},
-	},
-	{
-		Name:        "unblock_user",
-		Description: "Unblock a previously blocked user",
-		Method:      "POST",
-		Path:        "/app/unblock",
-		Params: []ToolParam{
-			{Name: "user", Type: "string", Description: "User ID to unblock", Required: true},
-		},
-	},
-	{
 		Name:        "places_search",
 		Description: "Search for places by name or category, optionally near a location",
 		Method:      "POST",
@@ -515,15 +458,6 @@ var tools = []Tool{
 // ExecuteToolAs calls a tool on behalf of a user account (no HTTP request needed).
 // Creates a temporary session for auth. Used by background agents.
 func ExecuteToolAs(accountID, name string, args map[string]any) (string, bool, error) {
-	if name == "news_search" && GuestNewsSearch != nil {
-		query := strings.TrimSpace(fmt.Sprintf("%v", args["query"]))
-		if query == "" {
-			return "query required", true, fmt.Errorf("query required")
-		}
-		text, err := GuestNewsSearch(query)
-		return text, err != nil, err
-	}
-
 	sess, err := auth.CreateSession(accountID)
 	if err != nil {
 		return "", true, fmt.Errorf("failed to create session: %v", err)
@@ -550,15 +484,8 @@ func ExecuteTool(r *http.Request, name string, args map[string]any) (string, boo
 		return "", true, fmt.Errorf("unknown tool: %s", name)
 	}
 
-	if name == "news_search" && GuestNewsSearch != nil {
-		if _, _, err := auth.RequireSession(r); err != nil {
-			query := strings.TrimSpace(fmt.Sprintf("%v", args["query"]))
-			if query == "" {
-				return "query required", true, fmt.Errorf("query required")
-			}
-			text, err := GuestNewsSearch(query)
-			return text, err != nil, err
-		}
+	if _, _, err := auth.RequireSession(r); err != nil {
+		return "Authentication required", true, err
 	}
 
 	if tool.HandleAuth != nil {

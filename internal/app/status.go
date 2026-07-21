@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/settings"
 )
@@ -30,15 +29,14 @@ type StatusCheck struct {
 
 // StatusResponse represents the full status response
 type StatusResponse struct {
-	Healthy     bool          `json:"healthy"`
-	Uptime      string        `json:"uptime"`
-	GoVersion   string        `json:"go_version"`
-	Memory      MemoryStatus  `json:"memory"`
-	Disk        DiskStatus    `json:"disk"`
-	Services    []StatusCheck `json:"services"`
-	Config      []StatusCheck `json:"config"`
-	OnlineUsers int           `json:"online_users"`
-	IndexStats  IndexStatus   `json:"index"`
+	Healthy    bool          `json:"healthy"`
+	Uptime     string        `json:"uptime"`
+	GoVersion  string        `json:"go_version"`
+	Memory     MemoryStatus  `json:"memory"`
+	Disk       DiskStatus    `json:"disk"`
+	Services   []StatusCheck `json:"services"`
+	Config     []StatusCheck `json:"config"`
+	IndexStats IndexStatus   `json:"index"`
 }
 
 // DiskStatus represents disk usage
@@ -67,110 +65,10 @@ var DKIMStatusFunc func() (enabled bool, domain, selector string)
 // DigestStatusFunc is set by main to report digest status
 var DigestStatusFunc func() (ok bool, details string)
 
-// ServiceHealth represents a public-facing service health check
-type ServiceHealth struct {
-	Name   string `json:"name"`
-	Status bool   `json:"status"`
-	Path   string `json:"path,omitempty"`
-}
-
-// PublicStatusResponse is the public status page response
-type PublicStatusResponse struct {
-	Healthy  bool            `json:"healthy"`
-	Services []ServiceHealth `json:"services"`
-}
-
-// HealthCheckFunc is set by main to run service health checks (avoids import cycles)
-var HealthCheckFunc func() []ServiceHealth
-
 // StatusHandler handles the public /status endpoint
 func StatusHandler(w http.ResponseWriter, r *http.Request) {
-	status := checkPublicStatus()
-
-	if r.URL.Query().Get("format") == "json" || WantsJSON(r) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(status)
-		return
-	}
-
-	html := renderPublicStatusHTML(status)
-	w.Write([]byte(RenderHTML("Status", "Service status", html)))
-}
-
-func checkPublicStatus() PublicStatusResponse {
-	var services []ServiceHealth
-	if HealthCheckFunc != nil {
-		services = HealthCheckFunc()
-	}
-	healthy := true
-	for _, s := range services {
-		if !s.Status {
-			healthy = false
-			break
-		}
-	}
-	return PublicStatusResponse{
-		Healthy:  healthy,
-		Services: services,
-	}
-}
-
-func renderPublicStatusHTML(status PublicStatusResponse) string {
-	var sb strings.Builder
-
-	statusText := "All systems operational"
-	statusClass := "status-ok"
-	if !status.Healthy {
-		statusText = "Some services are experiencing issues"
-		statusClass = "status-error"
-	}
-
-	sb.WriteString(`<div class="status-page">`)
-
-	// Header
-	sb.WriteString(fmt.Sprintf(`<div class="status-header">
-<span class="status-icon %s" style="font-size:24px;">●</span>
-<span style="font-size:18px;">%s</span>
-</div>`, statusClass, statusText))
-
-	// Services
-	sb.WriteString(`<div class="status-section">`)
-	for _, svc := range status.Services {
-		icon := "●"
-		class := "status-ok"
-		if !svc.Status {
-			class = "status-error"
-		}
-		pathAttr := ""
-		if svc.Path != "" {
-			pathAttr = fmt.Sprintf(` data-path="%s"`, svc.Path)
-		}
-		sb.WriteString(fmt.Sprintf(`<div class="status-item"%s>
-<span class="status-name">%s</span>
-<span class="status-value"><span class="status-latency"></span><span class="status-icon %s">%s</span></span>
-</div>`, pathAttr, svc.Name, class, icon))
-	}
-	sb.WriteString(`</div>`)
-
-	// Client-side latency checks
-	sb.WriteString(`<script>
-document.querySelectorAll('.status-item[data-path]').forEach(function(el) {
-  var path = el.getAttribute('data-path');
-  var span = el.querySelector('.status-latency');
-  var start = performance.now();
-  fetch(path, {method:'HEAD',cache:'no-store'}).then(function() {
-    var ms = Math.round(performance.now() - start);
-    span.textContent = ms + 'ms';
-    span.className = 'status-latency status-details';
-  }).catch(function() {
-    span.textContent = 'error';
-    span.className = 'status-latency status-details';
-  });
-});
-</script>`)
-
-	sb.WriteString(`</div>`)
-	return sb.String()
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"ok"}`))
 }
 
 // InternalStatusHandler handles the old /status endpoint (now at /admin/server)
@@ -181,7 +79,6 @@ func InternalStatusHandler(w http.ResponseWriter, r *http.Request) {
 		status := buildStatus()
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"healthy": status.Healthy,
-			"online":  status.OnlineUsers,
 		})
 		return
 	}
@@ -372,9 +269,8 @@ func buildStatus() StatusResponse {
 			TotalGB: float64(diskTotal) / 1024 / 1024 / 1024,
 			Percent: diskPercent,
 		},
-		Services:    services,
-		Config:      config,
-		OnlineUsers: auth.GetOnlineCount(),
+		Services: services,
+		Config:   config,
 		IndexStats: IndexStatus{
 			Entries: indexStats.TotalEntries,
 		},
@@ -520,10 +416,6 @@ func renderStatusHTML(status StatusResponse) string {
 <div class="system-info-item">
 <div class="system-info-label">Disk</div>
 <div class="system-info-value"` + diskWarning + `>` + fmt.Sprintf("%.1fGB / %.1fGB (%.0f%%)", status.Disk.UsedGB, status.Disk.TotalGB, status.Disk.Percent) + `</div>
-</div>
-<div class="system-info-item">
-<div class="system-info-label">Online Users</div>
-<div class="system-info-value">` + fmt.Sprintf("%d", status.OnlineUsers) + `</div>
 </div>
 <div class="system-info-item">
 <div class="system-info-label">Index Entries</div>

@@ -32,7 +32,6 @@ var catalog = []Document{
 
 	// Features
 	{Slug: "apps", Filename: "APPS.md", Title: "Apps", Description: "Build and launch small web apps", Category: "Features"},
-	{Slug: "activitypub", Filename: "ACTIVITYPUB.md", Title: "ActivityPub", Description: "Federation with Mastodon, Threads, etc.", Category: "Features"},
 	{Slug: "messaging", Filename: "MESSAGING_SYSTEM.md", Title: "Messaging", Description: "Email and messaging setup", Category: "Features"},
 	{Slug: "wallet", Filename: "WALLET_AND_CREDITS.md", Title: "Wallet & Credits", Description: "Credit system for usage", Category: "Features"},
 	{Slug: "discord", Filename: "DISCORD.md", Title: "Discord", Description: "Discord bot setup and usage", Category: "Features"},
@@ -46,7 +45,7 @@ var catalog = []Document{
 
 	// Developer (accessible but not prominent)
 	{Slug: "system-design", Filename: "SYSTEM_DESIGN.md", Title: "System Design", Description: "Architecture overview", Category: "Developer"},
-	{Slug: "whitepaper", Filename: "WHITEPAPER.md", Title: "Whitepaper", Description: "Full network overview and future direction", Category: "Developer"},
+	{Slug: "whitepaper", Filename: "WHITEPAPER.md", Title: "Whitepaper", Description: "Private owner-operated architecture", Category: "Developer"},
 }
 
 // Load initializes the docs building block.

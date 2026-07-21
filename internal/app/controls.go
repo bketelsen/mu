@@ -36,14 +36,12 @@ func ControlsHandler(w http.ResponseWriter, r *http.Request) {
 	action := strings.TrimPrefix(r.URL.Path, "/app/")
 	contentType := r.URL.Query().Get("type")
 	contentID := r.URL.Query().Get("id")
-	userParam := r.URL.Query().Get("user")
 
 	// Also accept JSON body
 	if SendsJSON(r) {
 		var body struct {
 			Type string `json:"type"`
 			ID   string `json:"id"`
-			User string `json:"user"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err == nil {
 			if body.Type != "" {
@@ -51,9 +49,6 @@ func ControlsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if body.ID != "" {
 				contentID = body.ID
-			}
-			if body.User != "" {
-				userParam = body.User
 			}
 		}
 	}
@@ -107,27 +102,8 @@ func ControlsHandler(w http.ResponseWriter, r *http.Request) {
 		DismissItem(sess.Account, contentType, contentID)
 		respond("dismissed")
 
-	case "block":
-		if userParam == "" {
-			respond("missing user")
-			return
-		}
-		BlockUser(sess.Account, userParam)
-		respond("blocked")
-
-	case "unblock":
-		if userParam == "" {
-			respond("missing user")
-			return
-		}
-		UnblockUser(sess.Account, userParam)
-		respond("unblocked")
-
 	case "saved":
 		renderSavedPage(w, r, sess.Account)
-
-	case "blocked":
-		renderBlockedPage(w, r, sess.Account)
 
 	default:
 		http.NotFound(w, r)
@@ -224,27 +200,5 @@ func renderSavedPage(w http.ResponseWriter, r *http.Request, userID string) {
 	}
 
 	html := RenderHTMLForRequest("Saved", "Your saved items", sb.String(), r)
-	w.Write([]byte(html))
-}
-
-func renderBlockedPage(w http.ResponseWriter, r *http.Request, userID string) {
-	blocked := GetBlockedUsers(userID)
-
-	var sb strings.Builder
-
-	if len(blocked) == 0 {
-		sb.WriteString(`<div class="card"><p class="text-muted">No blocked users.</p></div>`)
-	} else {
-		sb.WriteString(`<div class="card">`)
-		for uid, t := range blocked {
-			sb.WriteString(fmt.Sprintf(`<div style="padding:8px 0;border-bottom:1px solid #f0f0f0">
-				<a href="/@%s">%s</a>
-				<span class="text-sm text-muted"> · %s · <a href="#" onclick="fetch('/app/unblock?user=%s',{method:'POST'}).then(function(){location.reload()});return false;">unblock</a></span>
-			</div>`, uid, uid, t.Format("2 Jan 2006"), uid))
-		}
-		sb.WriteString(`</div>`)
-	}
-
-	html := RenderHTMLForRequest("Blocked Users", "Blocked users", sb.String(), r)
 	w.Write([]byte(html))
 }

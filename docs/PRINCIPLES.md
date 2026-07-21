@@ -64,7 +64,7 @@ Excellence in character means being kind in all interactions. Technology should 
 
 **In practice:**
 - Before sending a message, AI can hint: *Is this kind?*
-- Before posting publicly, consider the impact
+- Before publishing from your private server, consider the impact
 - Disagreement without insults
 
 **How we build:**
@@ -108,7 +108,7 @@ We design for the opposite:
 
 ## Accountability
 
-We build in public. The code is open source. If we fail to uphold these principles, you can:
+Mu is open source. If we fail to uphold these principles, you can:
 1. See exactly how features work
 2. Fork and fix
 3. Hold us accountable

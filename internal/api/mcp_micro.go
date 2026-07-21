@@ -40,7 +40,7 @@ func mcpResolver() gwmcp.Resolver {
 			func(ctx context.Context, args map[string]interface{}) (*gwmcp.CallResult, error) {
 				r, _ := ctx.Value(mcpReqKey{}).(*http.Request)
 
-				// Per-tool pre-check (e.g. signup rate limit per IP) — protocol error.
+				// Per-tool pre-check — protocol error.
 				if ToolGuard != nil && r != nil {
 					if err := ToolGuard(r, name); err != nil {
 						return nil, &gwmcp.RPCError{Code: -32000, Message: err.Error()}

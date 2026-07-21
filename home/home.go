@@ -370,28 +370,21 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 	var b strings.Builder
 
-	// Date header + weather + invite — Overview only, built here
+	// Date header + weather — Overview only, built here
 	// and injected into the cards div below.
 	now := time.Now()
 	var dateLine strings.Builder
-	inviteHTML := ""
+	authHTML := ""
 	if viewerAcc != nil {
-		label := "+ Invite"
-		link := "/invite"
-		if viewerAcc.Admin {
-			link = "/admin/invite"
-		}
-		inviteHTML = fmt.Sprintf(`<span id="home-date-actions"><a href="%s" style="color:#555;text-decoration:none">%s</a></span>`, link, label)
+		authHTML = `<span id="home-date-actions"><a href="/account" style="color:#555;text-decoration:none">Account</a></span>`
 	} else {
-		// Logged out: the home screen IS the landing, so once a visitor has
-		// used it, offer a clear free sign-up (primary) plus log in.
-		inviteHTML = `<span id="home-date-actions"><a href="/signup" style="color:#111;text-decoration:none;font-weight:700">Sign up free</a> <a href="/login" style="color:#888;text-decoration:none;margin-left:10px">Log in</a></span>`
+		authHTML = `<span id="home-date-actions"><a href="/login" style="color:#555;text-decoration:none">Log in</a> <a href="/setup" style="color:#888;text-decoration:none;margin-left:10px">First-time setup</a></span>`
 	}
 	gearHTML := ""
 	if viewerAcc != nil {
 		gearHTML = ` <a href="#" onclick="var p=document.getElementById('home-card-prefs');if(p)p.style.display=p.style.display==='none'?'block':'none';return false" style="color:#ccc;text-decoration:none;font-size:14px" title="Customise">⚙</a>`
 	}
-	dateLine.WriteString(fmt.Sprintf(`<div id="home-date"><span id="home-date-text">%s</span><span id="home-date-weather"></span>%s%s</div>`, now.Format("Monday, 2 January 2006"), inviteHTML, gearHTML))
+	dateLine.WriteString(fmt.Sprintf(`<div id="home-date"><span id="home-date-text">%s</span><span id="home-date-weather"></span>%s%s</div>`, now.Format("Monday, 2 January 2006"), authHTML, gearHTML))
 	// Inline weather: reads cached summary, and refreshes it in the
 	// background if stale (>1 hour). This runs independently of the
 	// weather card — even if the card is hidden, the date-line temp
@@ -445,7 +438,7 @@ function fetchW(la,lo){
 	// ── Cards ──
 	b.WriteString(`<div id="home-cards">`)
 
-	// Date + invite/settings above the input
+	// Date and owner settings above the input.
 	b.WriteString(dateHTML)
 
 	// Inline agent — Home answers here rather than navigating away, and it renders

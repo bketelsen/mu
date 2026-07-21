@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -62,6 +60,37 @@ var EnvFlag = flag.String("env", "dev", "Set the environment")
 var ServeFlag = flag.Bool("serve", false, "Run the server")
 var AddressFlag = flag.String("address", ":8080", "Address for server")
 
+var backupData = func() (string, error) { return data.Backup(time.Now()) }
+var runOwnerMigration = auth.MigrateSingleOwner
+
+func registerAccountCleanup() {
+	auth.RegisterAccountDeleteHook("blog", blog.DeletePostsByAuthor)
+	auth.RegisterAccountDeleteHook("social", social.DeleteByAuthor)
+	auth.RegisterAccountDeleteHook("apps", apps.DeleteAppsByAuthor)
+	auth.RegisterAccountDeleteHook("stream", stream.ClearByAuthor)
+	auth.RegisterAccountDeleteHook("user", user.ClearStatusHistory)
+	auth.RegisterAccountDeleteHook("mail", mail.DeleteInbox)
+	auth.RegisterAccountDeleteHook("wallet", wallet.DeleteWallet)
+	auth.RegisterAccountDeleteHook("basewallet", wallet.DeleteBaseWallet)
+	auth.RegisterAccountDeleteHook("micro", micro.DeleteUserAgents)
+	auth.RegisterAccountDeleteHook("discord", discord.DeleteLinks)
+	auth.RegisterAccountDeleteHook("telegram", telegram.DeleteLinks)
+	auth.RegisterAccountDeleteHook("whatsapp", whatsapp.DeleteLinks)
+	auth.RegisterAccountDeleteHook("prefs", app.ClearUserPrefs)
+	auth.RegisterAccountDeleteHook("memory", memory.Clear)
+}
+
+func migrateSingleOwner() error {
+	result, err := runOwnerMigration(backupData)
+	if err != nil {
+		return err
+	}
+	if result.Migrated {
+		app.Log("auth", "single-owner migration complete owner=%s deleted=%d reset=%v backup=%s", result.OwnerID, result.Deleted, result.Reset, result.BackupPath)
+	}
+	return nil
+}
+
 // argFloat coerces a tool argument (JSON number or string) to a float64.
 func argFloat(v any) float64 {
 	switch n := v.(type) {
@@ -103,6 +132,13 @@ func main() {
 
 	// load settings first so other packages can use them
 	settings.Load()
+
+	// Migration is startup-only: it must complete before services or background work begin.
+	registerAccountCleanup()
+	if err := migrateSingleOwner(); err != nil {
+		app.Log("auth", "single-owner migration failed: %v", err)
+		os.Exit(1)
+	}
 
 	// log the resolved AI provider up front so misconfiguration (missing
 	// token/key in this environment) is visible immediately, not as
@@ -148,10 +184,12 @@ func main() {
 	telegram.Load()
 	whatsapp.Load()
 	mail.OnNewMail = func(accountID, from, subject, body string) {
-		summary := discord.SummariseEmail(from, subject, body)
-		discord.NotifyNewMail(accountID, from, subject, summary)
-		telegram.NotifyUser(accountID, fmt.Sprintf("📬 *New email from %s*\n%s", from, summary))
-		whatsapp.NotifyUser(accountID, fmt.Sprintf("📬 *New email from %s*\n%s", from, summary))
+		auth.RunForOwner(accountID, func(owner *auth.Account) {
+			summary := discord.SummariseEmail(from, subject, body)
+			discord.NotifyNewMail(owner.ID, from, subject, summary)
+			telegram.NotifyUser(owner.ID, fmt.Sprintf("📬 *New email from %s*\n%s", from, summary))
+			whatsapp.NotifyUser(owner.ID, fmt.Sprintf("📬 *New email from %s*\n%s", from, summary))
+		})
 	}
 
 	// load apps
@@ -243,9 +281,6 @@ func main() {
 	// load docs
 	docs.Load()
 
-	// load user presence tracking
-	user.Load()
-
 	// Load the stream (platform event timeline).
 	stream.Load()
 
@@ -261,115 +296,54 @@ func main() {
 		}()
 	}
 
-	// Wire user → blog callback (avoids direct import between building blocks)
-	user.GetUserPosts = func(authorName string) []user.UserPost {
-		posts := blog.GetPostsByAuthor(authorName)
-		result := make([]user.UserPost, len(posts))
-		for i, p := range posts {
-			result[i] = user.UserPost{
-				ID:        p.ID,
-				Title:     p.Title,
-				Content:   p.Content,
-				CreatedAt: p.CreatedAt,
-				Private:   p.Private,
-			}
-		}
-		return result
-	}
-	user.LinkifyContent = blog.Linkify
-
 	// Wire @micro mention handling in the status stream. When a user
 	// posts a status containing "@micro ...", run the agent against
 	// the sender's wallet and post the reply as a status from the
 	// system user. Runs async so the POST /user/status handler returns
 	// immediately. We never fire this for the system user itself.
 	user.AIReplyHook = func(askerID, prompt string) {
-		if askerID == app.SystemUserID {
-			return
-		}
-		// If the asker is already banned, don't spend AI credits.
-		if auth.IsBanned(askerID) {
-			return
-		}
-		answer, err := agent.Query(askerID, prompt)
-		if err != nil {
-			app.Log("status", "@micro agent error for %s: %v", askerID, err)
-			_ = user.PostSystemStatus("I couldn't answer that one — try again in a moment.")
-			return
-		}
-		answer = strings.TrimSpace(answer)
-		if answer == "" {
-			return
-		}
-		// Moderate the AI response before posting — if the question
-		// tricked the AI into producing harmful content, the asker
-		// is banned and the response is silently dropped.
-		if !user.ModerateAIResponse(askerID, answer) {
-			app.Log("status", "AI response for %s blocked by moderation", askerID)
-			return
-		}
-		if err := user.PostSystemStatus(answer); err != nil {
-			app.Log("status", "failed to post @micro reply: %v", err)
-		}
+		auth.RunForOwner(askerID, func(owner *auth.Account) {
+			answer, err := agent.Query(owner.ID, prompt)
+			if err != nil {
+				app.Log("status", "@micro agent error for %s: %v", owner.ID, err)
+				_ = user.PostSystemStatus("I couldn't answer that one — try again in a moment.")
+				return
+			}
+			answer = strings.TrimSpace(answer)
+			if answer == "" {
+				return
+			}
+			// Moderate the AI response before posting. Flagged output is dropped.
+			if !user.ModerateAIResponse(owner.ID, answer) {
+				app.Log("status", "AI response for %s blocked by moderation", owner.ID)
+				return
+			}
+			if err := user.PostSystemStatus(answer); err != nil {
+				app.Log("status", "failed to post @micro reply: %v", err)
+			}
+		})
 	}
 	// Wire stream @micro replies — same agent, posts into the stream
 	// instead of the status profile.
 	stream.AIReplyHook = func(askerID, prompt string) {
-		if auth.IsBanned(askerID) {
-			return
-		}
-		answer, err := agent.Query(askerID, prompt)
-		if err != nil {
-			app.Log("stream", "@micro agent error for %s: %v", askerID, err)
-			stream.PostAgent("I couldn't answer that one — try again in a moment.")
-			return
-		}
-		answer = strings.TrimSpace(answer)
-		if answer == "" {
-			return
-		}
-		if !user.ModerateAIResponse(askerID, answer) {
-			app.Log("stream", "AI response for %s blocked by moderation", askerID)
-			return
-		}
-		stream.PostAgent(answer)
-	}
-
-	user.GetUserApps = func(authorID string) []user.UserApp {
-		appList := apps.GetAppsByAuthor(authorID)
-		result := make([]user.UserApp, len(appList))
-		for i, a := range appList {
-			result[i] = user.UserApp{
-				Slug:        a.Slug,
-				Name:        a.Name,
-				Description: a.Description,
-				Icon:        a.Icon,
+		auth.RunForOwner(askerID, func(owner *auth.Account) {
+			answer, err := agent.Query(owner.ID, prompt)
+			if err != nil {
+				app.Log("stream", "@micro agent error for %s: %v", owner.ID, err)
+				stream.PostAgent("I couldn't answer that one — try again in a moment.")
+				return
 			}
-		}
-		return result
+			answer = strings.TrimSpace(answer)
+			if answer == "" {
+				return
+			}
+			if !user.ModerateAIResponse(owner.ID, answer) {
+				app.Log("stream", "AI response for %s blocked by moderation", owner.ID)
+				return
+			}
+			stream.PostAgent(answer)
+		})
 	}
-
-	// Wire admin → blog callbacks (avoids blog importing admin)
-	admin.GetNewAccountBlog = blog.GetNewAccountBlogPosts
-	admin.RefreshBlogCache = blog.RefreshCache
-
-	// Register account deletion hooks — each package cleans up its own data.
-	auth.AccountDeleteHooks = append(auth.AccountDeleteHooks,
-		blog.DeletePostsByAuthor,
-		social.DeleteByAuthor,
-		apps.DeleteAppsByAuthor,
-		stream.ClearByAuthor,
-		user.ClearStatusHistory,
-		mail.DeleteInbox,
-		func(id string) { wallet.DeleteWallet(id) },
-		func(id string) { wallet.DeleteBaseWallet(id) },
-		func(id string) { micro.DeleteUserAgents(id) },
-		func(id string) { discord.DeleteLinks(id) },
-		func(id string) { telegram.DeleteLinks(id) },
-		func(id string) { whatsapp.DeleteLinks(id) },
-		func(id string) { app.ClearUserPrefs(id) },
-		memory.Clear,
-	)
 
 	// Enable indexing after all content is loaded
 	// This allows the priority queue to process new items first
@@ -385,26 +359,8 @@ func main() {
 	// system account (low cadence; disable with NOTES=off).
 	blog.StartNotes()
 
-	// Wire guest agent news search directly to the live feed-backed provider path.
-	api.GuestNewsSearch = news.SearchToolText
-
 	// Wire MCP quota checking using wallet credit system
 	api.QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		// Check for x402 payment (bypasses auth + credits).
-		// Free trial: first 10 calls per wallet address are free —
-		// no payment header needed if within the trial.
-		if r.Context().Value(wallet.X402ContextKey) != nil {
-			// Try free trial first (by wallet address from payment header).
-			payAddr := r.Header.Get("X-Wallet-Address")
-			if payAddr != "" && wallet.X402UseTrialCall(payAddr) {
-				return true, 0, nil
-			}
-			_, err := wallet.VerifyAndSettle(r, op, r.URL.Path)
-			if err != nil {
-				return false, 0, fmt.Errorf("x402 payment failed: %w", err)
-			}
-			return true, 0, nil
-		}
 		sess, err := auth.GetSession(r)
 		if err != nil {
 			return false, 0, fmt.Errorf("authentication required")
@@ -415,14 +371,6 @@ func main() {
 
 	// Wire agent quota checking (same wallet credit system)
 	agent.QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		// Check for x402 payment (bypasses auth + credits)
-		if r.Context().Value(wallet.X402ContextKey) != nil {
-			_, err := wallet.VerifyAndSettle(r, op, r.URL.Path)
-			if err != nil {
-				return false, 0, fmt.Errorf("x402 payment failed: %w", err)
-			}
-			return true, 0, nil
-		}
 		sess, err := auth.GetSession(r)
 		if err != nil {
 			return false, 0, fmt.Errorf("authentication required")
@@ -445,29 +393,9 @@ func main() {
 	// Inline visual cards now come from the capability registry (core), which
 	// each service self-registers into from its Load(). No central wiring here.
 
-	// Wire x402 payment required response for MCP
-	if wallet.X402Enabled() {
-		api.PaymentRequiredResponse = wallet.WritePaymentRequired
-	}
-
-	// Wire tool-specific guards. Currently rate-limits the signup tool by IP
-	// to defend against bulk account creation via MCP.
-	api.ToolGuard = func(r *http.Request, toolName string) error {
-		if toolName == "signup" {
-			ip := app.ClientIP(r)
-			if !app.SignupRateLimit(ip) {
-				app.Log("auth", "MCP signup rate limit hit for IP: %s", ip)
-				return fmt.Errorf("too many sign-ups from your network. Please try again later")
-			}
-		}
-		return nil
-	}
-
 	// Wire email sending for verification mails. Uses the platform's own
 	// SMTP relay so verification mails come from no-reply@<MAIL_DOMAIN>.
-	// Only enabled when MAIL_DOMAIN is configured to a real domain —
-	// instances without mail configured skip the verification gate
-	// entirely (see auth.VerificationRequired below).
+	// It is enabled only when MAIL_DOMAIN is configured to a real domain.
 	if domain := mail.GetConfiguredDomain(); domain != "" && domain != "localhost" {
 		app.EmailSender = func(to, subject, plain, html string) error {
 			from := "no-reply@" + domain
@@ -476,60 +404,7 @@ func main() {
 		}
 	}
 
-	// Verification is only required when we can actually send verification
-	// emails. Self-hosted instances without mail configured fall back to
-	// the legacy "any account can post" rule.
-	auth.VerificationRequired = func() bool {
-		return app.EmailSender != nil
-	}
-
 	// Register MCP auth tools
-	api.RegisterTool(api.Tool{
-		Name:        "signup",
-		Description: "Create a new account and return a session token. When invite-only mode is enabled, a valid invite code is required.",
-		Params: []api.ToolParam{
-			{Name: "id", Type: "string", Description: "Username (4-24 chars, lowercase, starts with letter)", Required: true},
-			{Name: "secret", Type: "string", Description: "Password (minimum 6 characters)", Required: true},
-			{Name: "name", Type: "string", Description: "Display name (optional, defaults to username)", Required: false},
-			{Name: "invite", Type: "string", Description: "Invite code (required when instance is invite-only)", Required: false},
-		},
-		Handle: func(args map[string]any) (string, error) {
-			id, _ := args["id"].(string)
-			secret, _ := args["secret"].(string)
-			name, _ := args["name"].(string)
-			invite, _ := args["invite"].(string)
-			if id == "" || secret == "" {
-				return "username and password are required", fmt.Errorf("missing fields")
-			}
-			if len(secret) < 6 {
-				return "password must be at least 6 characters", fmt.Errorf("short password")
-			}
-			if reason := auth.ValidateUsername(id); reason != "" {
-				return reason, fmt.Errorf("banned username")
-			}
-			if auth.InviteOnly() {
-				if err := auth.ValidateInvite(invite); err != nil {
-					return err.Error(), err
-				}
-			}
-			if name == "" {
-				name = id
-			}
-			if err := auth.Create(&auth.Account{
-				ID: id, Secret: secret, Name: name, Created: time.Now(),
-			}); err != nil {
-				return err.Error(), err
-			}
-			if invite != "" {
-				auth.ConsumeInvite(invite, id)
-			}
-			sess, err := auth.Login(id, secret)
-			if err != nil {
-				return "account created but login failed", err
-			}
-			return fmt.Sprintf(`{"token":"%s"}`, sess.Token), nil
-		},
-	})
 	api.RegisterTool(api.Tool{
 		Name:        "login",
 		Description: "Log in and return a session token for use in Authorization header",
@@ -1075,7 +950,7 @@ func main() {
 	// Register agent MCP tool (also exposed as POST /agent/run on the REST page).
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "agent",
-		Description: "Ask the AI agent a question. The agent can search news, web, video, weather, places, and more to answer your question.",
+		Description: "Ask the AI agent a question. The agent can search GitHub, news, web, video, weather, places, and more to answer your question.",
 		Method:      "POST",
 		Path:        "/agent/run",
 		WalletOp:    "agent_query",
@@ -1139,74 +1014,6 @@ func main() {
 		return wallet.PayAndCallMCP(context.Background(), accountID, baseURL, toolName, toolArgs, bw)
 	})
 
-	authenticated := map[string]bool{
-		"/video":                 false, // Public viewing, auth for interactive features
-		"/news":                  false, // Public viewing, auth for search
-		"/chat":                  false, // Public viewing, auth for chatting
-		"/home":                  false, // Public viewing
-		"/blog":                  false, // Public viewing, auth for posting
-		"/about":                 false, // Public "what is Mu" pitch
-		"/oauth2/google":         false, // Google sign-in start (no session yet)
-		"/oauth2/google/connect": true,  // Link Google to the current account
-		"/oauth2/callback":       false, // Google sign-in callback (no session yet)
-		"/images":                false, // Public daily image; generation needs login
-		"/social":                false, // Public viewing, auth for search
-		"/social/thread":         false, // Public thread view, auth for messaging
-		"/places":                false, // Public map, auth for search
-		"/weather":               false, // Public page, auth for forecast lookup
-		"/mail":                  true,  // Require auth for inbox
-		"/github":                true,  // Require authentication; handler requires admin
-		"/logout":                true,
-		"/account":               true,
-		"/verify":                false, // Public — token in URL is the credential
-		"/token":                 true,  // PAT token management
-		"/passkey":               false, // Passkey login/register (auth checked in handler)
-		"/session":               false, // Public - used to check auth status
-		"/api":                   false, // Public - API documentation
-		"/admin/flag":            true,
-		"/admin":                 true,
-		"/admin/users":           true,
-		"/admin/moderate":        true,
-		"/admin/blocklist":       true,
-		"/admin/spam":            true,
-		"/admin/email":           true,
-		"/admin/api":             true,
-		"/admin/log":             true,
-		"/admin/env":             true,
-		"/admin/server":          true,
-		"/admin/usage":           true,
-		"/admin/delete":          true,
-		"/admin/console":         true,
-		"/admin/diagnostics":     true,
-		"/admin/invite":          true,
-		"/wallet":                false, // Public - shows wallet info; auth checked in handler
-
-		"/apps":      false, // Public - apps directory; auth checked in handler for create/edit
-		"/work":      false, // Public - task bounties; auth checked in handler for post/claim
-		"/search":    false, // Public - web search
-		"/web":       false, // Redirect to /search
-		"/web/fetch": false, // Public page, auth checked in handler (paid web fetch)
-		"/web/read":  false, // Public page, auth checked in handler (proxied reader)
-
-		"/status":                 false, // Public - server health status
-		"/pricing":                false, // Public - pricing page
-		"/docs":                   false, // Public - documentation
-		"/whitepaper":             false, // Public - whitepaper
-		"/mcp":                    false, // Public - MCP tools page
-		"/whatsapp/webhook":       false, // Public - WhatsApp webhook
-		"/.well-known/agent.json": false, // Public - A2A agent card
-		"/a2a":                    false, // Public - A2A protocol
-		"/agent":                  false, // Public page, auth checked in handler
-		"/setup":                  false, // First-run setup (open only until an admin exists)
-		"/agents":                 false, // API face for agents (public)
-		"/developers":             false, // Legacy alias → /agents (public)
-	}
-
-	// Static assets should not require authentication
-	staticPaths := []string{
-		".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg",
-		".ico", ".webmanifest", ".json",
-	}
 	// serve video
 	http.HandleFunc("/video", video.Handler)
 	http.HandleFunc("/github", github.Handler)
@@ -1219,15 +1026,8 @@ func main() {
 	// serve blog (full list)
 	http.HandleFunc("/blog", blog.Handler)
 
-	// serve individual blog post (public, no auth)
-	// Serves ActivityPub JSON-LD when requested via Accept header
-	http.HandleFunc("/blog/post", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" && blog.WantsActivityPub(r) {
-			blog.PostObjectHandler(w, r)
-			return
-		}
-		blog.PostHandler(w, r)
-	})
+	// Serve individual blog posts.
+	http.HandleFunc("/blog/post", blog.PostHandler)
 
 	// handle comments on posts /blog/post/{id}/comment
 	http.HandleFunc("/blog/post/", blog.CommentHandler)
@@ -1252,12 +1052,6 @@ func main() {
 
 	// admin dashboard
 	http.HandleFunc("/admin", admin.AdminHandler)
-
-	// admin user management
-	http.HandleFunc("/admin/users", admin.UsersHandler)
-
-	// moderation queue
-	http.HandleFunc("/admin/moderate", admin.ModerateHandler)
 
 	// mail blocklist management
 	http.HandleFunc("/admin/blocklist", admin.BlocklistHandler)
@@ -1289,7 +1083,6 @@ func main() {
 	// admin console
 	http.HandleFunc("/admin/console", admin.ConsoleHandler)
 	http.HandleFunc("/admin/diagnostics", admin.DiagnosticsHandler)
-	http.HandleFunc("/admin/invite", admin.InviteHandler)
 
 	// wallet - credits and payments
 	http.HandleFunc("/wallet", wallet.Handler)
@@ -1387,9 +1180,6 @@ func main() {
 	// auth
 	http.HandleFunc("/login", app.Login)
 	http.HandleFunc("/logout", app.Logout)
-	http.HandleFunc("/signup", app.Signup)
-	http.HandleFunc("/request-invite", app.RequestInvite)
-	http.HandleFunc("/invite", app.InviteHandler)
 	http.HandleFunc("/account", app.Account)
 	http.HandleFunc("/verify", app.Verify)
 	http.HandleFunc("/session", app.Session)
@@ -1414,8 +1204,7 @@ func main() {
 	app.DigestStatusFunc = digest.Status
 	admin.GenerateDigestFunc = digest.Generate
 
-	// public status page - service health checks
-	app.HealthCheckFunc = runHealthChecks
+	// Public status is intentionally minimal; detailed diagnostics are admin-only.
 	http.HandleFunc("/status", app.StatusHandler)
 
 	// whitepaper
@@ -1425,27 +1214,6 @@ func main() {
 	// documentation
 	http.HandleFunc("/docs", docs.Handler)
 	http.HandleFunc("/docs/", docs.Handler)
-
-	// ActivityPub: WebFinger discovery
-	http.HandleFunc("/.well-known/webfinger", blog.WebFingerHandler)
-
-	// presence WebSocket endpoint
-	http.HandleFunc("/presence", user.PresenceHandler)
-
-	// presence ping endpoint
-	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
-		_, acc, err := auth.RequireSession(r)
-		if err != nil {
-			app.Unauthorized(w, r)
-			return
-		}
-
-		auth.UpdatePresence(acc.ID)
-
-		w.Header().Set("Content-Type", "application/json")
-		onlineCount := auth.GetOnlineCount()
-		w.Write([]byte(fmt.Sprintf(`{"status":"ok","online":%d}`, onlineCount)))
-	})
 
 	// /version — what's deployed and how it's wired, for verifying releases.
 	http.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
@@ -1465,7 +1233,7 @@ func main() {
 	// Create server with handler
 	server := &http.Server{
 		Addr: *AddressFlag,
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Handler: app.Private(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Block known bot paths silently
 			if strings.HasPrefix(r.URL.Path, "/audio/") {
 				http.NotFound(w, r)
@@ -1506,162 +1274,9 @@ func main() {
 				r.URL.Path = r.URL.Path[:v-1]
 			}
 
-			// Fast path for static assets - skip all middleware
-			for _, ext := range staticPaths {
-				if strings.HasSuffix(r.URL.Path, ext) {
-					http.DefaultServeMux.ServeHTTP(w, r)
-					return
-				}
-			}
-
-			var token string
-
-			// set via session cookie
-			if c, err := r.Cookie("session"); err == nil && c != nil {
-				token = c.Value
-			}
-
-			// Try Authorization header (Bearer token or PAT)
-			if token == "" {
-				authHeader := r.Header.Get("Authorization")
-				if authHeader != "" {
-					// Support both "Bearer <token>" and just "<token>"
-					if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-						token = authHeader[7:]
-					} else {
-						token = authHeader
-					}
-				}
-			}
-
-			// Try X-Micro-Token header (legacy support)
-			if token == "" {
-				token = r.Header.Get("X-Micro-Token")
-			}
-
-			// Check if static asset - skip authentication entirely
-			isStaticAsset := false
-			for _, ext := range staticPaths {
-				if strings.HasSuffix(r.URL.Path, ext) {
-					isStaticAsset = true
-					break
-				}
-			}
-
-			// Skip auth check for static assets
-			if !isStaticAsset {
-				var isAuthed bool
-
-				// Check if path requires authentication
-				{
-					for url, authed := range authenticated {
-						if strings.HasPrefix(r.URL.Path, url) {
-							isAuthed = authed
-							break
-						}
-					}
-				}
-
-				// check token
-				if isAuthed {
-					// deny access if invalid
-					if err := auth.ValidateToken(token); err != nil {
-						// Allow x402 payment as alternative to auth for API requests
-						if wallet.X402Enabled() && wallet.HasPayment(r) && (app.SendsJSON(r) || app.WantsJSON(r)) {
-							r = r.WithContext(context.WithValue(r.Context(), wallet.X402ContextKey, true))
-						} else if app.SendsJSON(r) || app.WantsJSON(r) {
-							// Return JSON 401 for API-style requests
-							w.Header().Set("Content-Type", "application/json")
-							w.WriteHeader(http.StatusUnauthorized)
-							w.Write([]byte(`{"error":"Authentication required"}`))
-							return
-						} else {
-							http.Redirect(w, r, "/", 302)
-							return
-						}
-					}
-				} else if r.URL.Path == "/" {
-					// Fresh instance with no admin yet → guide the operator
-					// through the one-time setup wizard.
-					if setup.Needed() {
-						http.Redirect(w, r, "/setup", http.StatusSeeOther)
-						return
-					}
-					if _, acc := auth.TrySession(r); acc != nil {
-						// Every section has a named URL: the dashboard is /home and a
-						// query goes to the agent (/agent). The root just funnels
-						// logged-in users to the right named place.
-						q := r.URL.Query()
-						if q.Get("q") != "" || q.Get("prompt") != "" {
-							http.Redirect(w, r, "/agent?"+r.URL.RawQuery, http.StatusFound)
-						} else {
-							http.Redirect(w, r, "/home", http.StatusFound)
-						}
-					} else {
-						// Logged out: the live home IS the front door — real cards
-						// plus a working guest agent — so visitors can use Mu
-						// immediately and sign up once they've felt the value,
-						// rather than bouncing off a sign-in wall. The "what is
-						// this" pitch lives at /about.
-						home.Handler(w, r)
-					}
-					return
-				}
-			}
-
-			// Check if this is a user profile request (/@username)
-			if strings.HasPrefix(r.URL.Path, "/@") {
-				rest := r.URL.Path[2:]
-
-				// Handle ActivityPub sub-endpoints: /@username/outbox, /@username/inbox
-				if strings.HasSuffix(rest, "/outbox") {
-					blog.OutboxHandler(w, r)
-					return
-				}
-				if strings.HasSuffix(rest, "/inbox") {
-					blog.InboxHandler(w, r)
-					return
-				}
-
-				// Serve ActivityPub actor JSON if requested
-				if !strings.Contains(rest, "/") && blog.WantsActivityPub(r) {
-					blog.ActorHandler(w, r)
-					return
-				}
-
-				// Otherwise serve the HTML profile page.
-				// POST /@username updates status — run through the
-				// same write gate as every other content path.
-				if !strings.Contains(rest, "/") {
-					if r.Method == "POST" {
-						op := wallet.OpSocialPost
-						sess, err := auth.GetSession(r)
-						if err != nil {
-							http.Error(w, "authentication required", http.StatusUnauthorized)
-							return
-						}
-						if !auth.CanPost(sess.Account) {
-							http.Error(w, auth.PostBlockReason(sess.Account), http.StatusForbidden)
-							return
-						}
-						if err := auth.CheckPostRate(sess.Account); err != nil {
-							http.Error(w, err.Error(), http.StatusTooManyRequests)
-							return
-						}
-						canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, op)
-						if !canProceed {
-							http.Error(w, fmt.Sprintf("This costs %d credit(s). Top up at /wallet", cost), http.StatusPaymentRequired)
-							return
-						}
-						if err := wallet.ConsumeQuota(sess.Account, op); err != nil {
-							http.Error(w, err.Error(), http.StatusPaymentRequired)
-							return
-						}
-						app.Log("wallet", "Charged %s %d credit(s) for POST /@%s status", sess.Account, wallet.GetOperationCost(op), rest)
-					}
-					user.Handler(w, r)
-					return
-				}
+			if r.URL.Path == "/" {
+				http.Redirect(w, r, "/home", http.StatusFound)
+				return
 			}
 
 			// CSRF protection: set token cookie on every response,
@@ -1674,9 +1289,8 @@ func main() {
 				isMCP := r.URL.Path == "/mcp"
 				// Skip CSRF for Stripe webhooks
 				isWebhook := r.URL.Path == "/wallet/stripe/webhook"
-				// Skip CSRF for login/signup (no session yet)
-				isAuth := r.URL.Path == "/login" || r.URL.Path == "/signup" ||
-					r.URL.Path == "/request-invite" ||
+				// Skip CSRF for login and other unauthenticated auth endpoints.
+				isAuth := r.URL.Path == "/login" ||
 					strings.HasPrefix(r.URL.Path, "/passkey/") ||
 					strings.HasPrefix(r.URL.Path, "/oauth/")
 				// Skip CSRF for SMTP/ActivityPub inbound
@@ -1699,9 +1313,8 @@ func main() {
 					http.Error(w, "authentication required", http.StatusUnauthorized)
 					return
 				}
-				if !auth.CanPost(sess.Account) {
-					msg := auth.PostBlockReason(sess.Account)
-					http.Error(w, msg, http.StatusForbidden)
+				if !auth.CanWrite(sess.Account) {
+					http.Error(w, "owner authentication required", http.StatusForbidden)
 					return
 				}
 				if err := auth.CheckPostRate(sess.Account); err != nil {
@@ -1725,32 +1338,8 @@ func main() {
 				app.Log("wallet", "Charged %s %d credit(s) for %s %s", sess.Account, wallet.GetOperationCost(op), r.Method, r.URL.Path)
 			}
 
-			// x402: gate metered MCP tool calls. /mcp is a public endpoint, so
-			// the payment handshake lives here where auth + wallet are in scope.
-			// A metered tools/call with no session gets the standard 402
-			// challenge; one bearing a payment header is routed to the
-			// facilitator for verify+settle by the tool's QuotaCheck.
-			if r.URL.Path == "/mcp" && r.Method == http.MethodPost && wallet.X402Enabled() {
-				body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-				r.Body.Close()
-				r.Body = io.NopCloser(bytes.NewReader(body))
-				if op := api.MCPWalletOp(body); op != "" {
-					resource := "https://" + r.Host + r.URL.Path
-					if wallet.HasPayment(r) {
-						holder := &wallet.SettleHolder{}
-						ctx := context.WithValue(r.Context(), wallet.X402ContextKey, true)
-						ctx = context.WithValue(ctx, wallet.X402SettleKey, holder)
-						r = r.WithContext(ctx)
-						w = wallet.NewSettleWriter(w, holder)
-					} else if err := auth.ValidateToken(token); err != nil {
-						wallet.WritePaymentRequired(w, op, resource)
-						return
-					}
-				}
-			}
-
 			http.DefaultServeMux.ServeHTTP(w, r)
-		}),
+		}), setup.Needed),
 	}
 
 	// Channel to listen for interrupt signals
@@ -1857,7 +1446,7 @@ func updatesHandler(w http.ResponseWriter, r *http.Request) {
 		result["social"] = 0
 		result["stream"] = 0
 	} else {
-		result["status"] = user.StatusCountSince(since, viewerID)
+		result["status"] = user.StatusCountSince(since)
 		result["social"] = social.CountSince(since)
 		result["stream"] = stream.CountSince(since)
 	}
@@ -1943,16 +1532,12 @@ func isServerMode(args []string) bool {
 	return false
 }
 
-// runHealthChecks performs lightweight health checks on public-facing services
 // versionInfo reports the running build and how the system is wired, so a
 // deploy can be verified with `curl micro.mu/version`.
 func versionInfo() map[string]any {
 	info := map[string]any{
-		"version":  app.Version, // per-process id (start time)
+		"version":  app.Version,
 		"go":       runtime.Version(),
-		"agent":    agent.Mode(),       // "native" (go-micro agent) or "planner"
-		"mcp":      "go-micro/gateway", // /mcp served by go-micro's gateway
-		"services": service.Services(), // in-process go-micro services
 		"go_micro": "unknown",
 	}
 	if bi, ok := debug.ReadBuildInfo(); ok {
@@ -1973,42 +1558,4 @@ func versionInfo() map[string]any {
 		}
 	}
 	return info
-}
-
-func runHealthChecks() []app.ServiceHealth {
-	type result struct {
-		index int
-		check app.ServiceHealth
-	}
-
-	checks := []struct {
-		name string
-		path string
-		fn   func() bool
-	}{
-		{"News", "/news", func() bool { return len(news.GetFeed()) > 0 }},
-		{"Blog", "/blog", func() bool { return blog.GetTopics() != nil }},
-		{"Video", "/video", func() bool { return video.GetLatestVideos(1) != nil }},
-		{"Chat", "/chat", ai.Configured},
-		{"Mail", "/mail", func() bool { return os.Getenv("MAIL_DOMAIN") != "" }},
-		{"Social", "/social", func() bool { return len(social.GetThreads()) > 0 }},
-		{"go-micro", "/version", func() bool { return len(service.Services()) > 0 }},
-	}
-
-	results := make([]app.ServiceHealth, len(checks))
-	ch := make(chan result, len(checks))
-
-	for i, c := range checks {
-		go func(idx int, name, path string, fn func() bool) {
-			ok := fn()
-			ch <- result{idx, app.ServiceHealth{Name: name, Status: ok, Path: path}}
-		}(i, c.name, c.path, c.fn)
-	}
-
-	for range checks {
-		r := <-ch
-		results[r.index] = r.check
-	}
-
-	return results
 }

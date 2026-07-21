@@ -79,8 +79,8 @@ func Load() {
 	app.Log("stream", "Loaded %d events", len(events))
 }
 
-func save() {
-	data.SaveJSON("stream.json", events)
+func save() error {
+	return data.SaveJSON("stream.json", events)
 }
 
 // Publish appends an event to the stream. This is the single entry
@@ -174,17 +174,12 @@ func PostSystem(content string, meta map[string]any) *Event {
 }
 
 // Recent returns the most recent events, newest first, up to max.
-// viewerID is used to include banned users' own posts.
 func Recent(max int, viewerID string) []*Event {
 	mu.RLock()
 	defer mu.RUnlock()
 
 	var result []*Event
 	for _, e := range events {
-		// Banned users' events are hidden from everyone except themselves.
-		if e.Type == TypeUser && e.AuthorID != viewerID && auth.IsBanned(e.AuthorID) {
-			continue
-		}
 		result = append(result, e)
 		if len(result) >= max {
 			break
@@ -251,7 +246,7 @@ func Clear() {
 }
 
 // ClearByAuthor removes all events from a specific author.
-func ClearByAuthor(authorID string) {
+func ClearByAuthor(authorID string) error {
 	mu.Lock()
 	var filtered []*Event
 	for _, e := range events {
@@ -260,8 +255,9 @@ func ClearByAuthor(authorID string) {
 		}
 	}
 	events = filtered
-	save()
+	err := save()
 	mu.Unlock()
+	return err
 }
 
 // All returns a sorted copy of all events (for admin/export).

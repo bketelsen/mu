@@ -41,6 +41,9 @@ var (
 	oauthCodes   = map[string]*OAuthCode{}
 )
 
+var loginForOAuth = Login
+var createOAuthCode = CreateAuthorizationCode
+
 func init() {
 	b, _ := data.LoadFile("oauth_clients.json")
 	if len(b) > 0 {
@@ -266,8 +269,8 @@ func OAuthAuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 	codeChallenge := r.URL.Query().Get("code_challenge")
 	codeChallengeMethod := r.URL.Query().Get("code_challenge_method")
 
-	if clientID == "" {
-		http.Error(w, "client_id required", 400)
+	if !validOAuthRedirect(clientID, redirectURI) {
+		http.Error(w, "invalid client_id or redirect_uri", http.StatusBadRequest)
 		return
 	}
 
@@ -275,7 +278,7 @@ func OAuthAuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 	sess, _ := TrySession(r)
 	if sess != nil {
 		// Already authenticated — issue code immediately
-		code := CreateAuthorizationCode(clientID, sess.Account, redirectURI, codeChallenge, codeChallengeMethod)
+		code := createOAuthCode(clientID, sess.Account, redirectURI, codeChallenge, codeChallengeMethod)
 		redirect := redirectURI + "?code=" + code
 		if state != "" {
 			redirect += "&state=" + state
@@ -313,6 +316,22 @@ button{width:100%%;padding:10px;background:#000;color:#fff;border:none;border-ra
 		clientID, redirectURI, state, codeChallenge, codeChallengeMethod)
 }
 
+func validOAuthRedirect(clientID, redirectURI string) bool {
+	if clientID == "" || redirectURI == "" {
+		return false
+	}
+	client := GetOAuthClient(clientID)
+	if client == nil {
+		return false
+	}
+	for _, allowed := range client.RedirectURIs {
+		if redirectURI == allowed {
+			return true
+		}
+	}
+	return false
+}
+
 // OAuthAuthorizePostHandler handles POST /oauth/authorize — validates credentials and redirects.
 func OAuthAuthorizePostHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -328,9 +347,13 @@ func OAuthAuthorizePostHandler(w http.ResponseWriter, r *http.Request) {
 	codeChallengeMethod := r.FormValue("code_challenge_method")
 	username := r.FormValue("username")
 	password := r.FormValue("password")
+	if !validOAuthRedirect(clientID, redirectURI) {
+		http.Error(w, "invalid client_id or redirect_uri", http.StatusBadRequest)
+		return
+	}
 
 	// Validate credentials
-	_, err := Login(username, password)
+	sess, err := loginForOAuth(username, password)
 	if err != nil {
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprintf(w, `<!DOCTYPE html>
@@ -360,7 +383,7 @@ button{width:100%%;padding:10px;background:#000;color:#fff;border:none;border-ra
 	}
 
 	// Issue authorization code
-	code := CreateAuthorizationCode(clientID, username, redirectURI, codeChallenge, codeChallengeMethod)
+	code := createOAuthCode(clientID, sess.Account, redirectURI, codeChallenge, codeChallengeMethod)
 	redirect := redirectURI + "?code=" + code
 	if state != "" {
 		redirect += "&state=" + state

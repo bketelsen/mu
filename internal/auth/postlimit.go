@@ -32,7 +32,7 @@ var (
 )
 
 // postLimitFor returns (max, window) for the given account based on age.
-// During the first 24 hours after signup an account is on a tight cap;
+// During the first 24 hours after initial setup the owner is on a tight cap;
 // after that it gets a generous hourly cap that still throttles abuse.
 // Admins and approved accounts are unlimited.
 func postLimitFor(acc *Account) (int, time.Duration) {

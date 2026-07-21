@@ -18,6 +18,15 @@ func TestSearchBar(t *testing.T) {
 	}
 }
 
+func TestPublicPrivateAssetsTrackCurrentNavigationAssets(t *testing.T) {
+	if !publicPrivateAssets["/github.svg"] {
+		t.Fatal("GitHub navigation asset must remain public for the login page")
+	}
+	if publicPrivateAssets["/trade.svg"] {
+		t.Fatal("removed trade asset must not remain public")
+	}
+}
+
 func TestSearchBar_EscapesQuery(t *testing.T) {
 	result := SearchBar("/search", "Search...", `<script>alert("xss")</script>`)
 	if strings.Contains(result, "<script>") {
@@ -230,8 +239,8 @@ func TestCategory_WithoutHref(t *testing.T) {
 
 func TestAuthorLink(t *testing.T) {
 	result := AuthorLink("alice", "Alice Smith")
-	if !strings.Contains(result, `/@alice`) {
-		t.Error("expected profile link")
+	if strings.Contains(result, "<a ") || strings.Contains(result, "/@") {
+		t.Errorf("author text retains profile navigation: %q", result)
 	}
 	if !strings.Contains(result, "Alice Smith") {
 		t.Error("expected display name")

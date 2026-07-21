@@ -15,9 +15,8 @@ var bannedWords = []string{
 }
 
 // ValidateUsername returns an error string if the username is not
-// allowed, or "" if it's fine. Called from both web signup and MCP
-// signup, so it enforces the shared username format as well as the
-// blocklist and reserved names.
+// allowed, or "" if it's fine. It validates the first-run owner identity
+// against the blocklist and reserved names.
 func ValidateUsername(username string) string {
 	if !validUsernameFormat(username) {
 		return "Invalid username format. Must start with a letter, be 4-24 characters, and contain only lowercase letters, numbers, and underscores"
@@ -30,7 +29,7 @@ func ValidateUsername(username string) string {
 		}
 	}
 	// Block impersonation of system accounts.
-	if lower == "admin" || lower == "system" || lower == "root" ||
+	if lower == "admin" || lower == "micro" || lower == "system" || lower == "root" ||
 		lower == "moderator" || lower == "support" {
 		return "That username is reserved."
 	}

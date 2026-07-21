@@ -6,102 +6,30 @@ import (
 	"strings"
 
 	"mu/internal/app"
-	"mu/internal/auth"
 	"mu/wallet"
 )
 
+// PricingHandler describes the owner wallet rather than a public service plan.
 func PricingHandler(w http.ResponseWriter, r *http.Request) {
 	var b strings.Builder
-
-	// Everything sits in one centered column so the hero, plan cards and the
-	// info cards below share a single width and centre line.
 	b.WriteString(`<div style="max-width:760px;margin:0 auto">`)
-
-	// Hero
-	b.WriteString(`<div style="text-align:center;padding:24px 0 0">`)
-	b.WriteString(`<h2 style="font-size:1.6rem;margin:0 0 8px">Your personal home server</h2>`)
-	b.WriteString(`<p style="color:#666;font-size:15px;margin:0 0 24px">News, mail, search, weather and video — the everyday internet, handled by one agent you talk to. Use it hosted below, or self-host for free.</p>`)
-	b.WriteString(`</div>`)
-
-	// Plans — three tiers: Free, Starter, Pro.
-	b.WriteString(`<div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin:0 0 24px">`)
-
-	// Free plan
-	b.WriteString(`<div class="card" style="flex:1;min-width:200px;max-width:240px;text-align:center">`)
-	b.WriteString(`<h3 style="margin:0 0 4px">Free</h3>`)
-	b.WriteString(`<p style="font-size:2rem;font-weight:700;margin:8px 0">£0</p>`)
-	b.WriteString(`<p style="color:#666;font-size:14px;margin:0 0 16px">No account needed</p>`)
-	b.WriteString(`<ul style="text-align:left;list-style:none;padding:0;margin:0 0 16px;font-size:14px;line-height:2">`)
-	b.WriteString(`<li>&#10003; News and weather</li>`)
-	b.WriteString(`<li>&#10003; Blog, social, video</li>`)
-	b.WriteString(`<li>&#10003; Daily image &amp; verse</li>`)
-	b.WriteString(`<li>&#10003; 3 AI questions a day</li>`)
-	b.WriteString(`<li>&#10003; No ads, no tracking</li>`)
-	b.WriteString(`</ul>`)
-	b.WriteString(`<a href="/" style="display:block;text-align:center;padding:8px;border:1px solid #ccc;border-radius:6px;color:#111;text-decoration:none">Browse free</a>`)
-	b.WriteString(`</div>`)
-
-	// Starter plan
-	b.WriteString(`<div class="card" style="flex:1;min-width:200px;max-width:240px;text-align:center">`)
-	b.WriteString(`<h3 style="margin:0 0 4px">Starter</h3>`)
-	b.WriteString(`<p style="font-size:2rem;font-weight:700;margin:8px 0">£5<span style="font-size:14px;font-weight:400;color:#888">/month</span></p>`)
-	b.WriteString(`<p style="color:#666;font-size:14px;margin:0 0 16px">500 credits</p>`)
-	b.WriteString(`<ul style="text-align:left;list-style:none;padding:0;margin:0 0 16px;font-size:14px;line-height:2">`)
-	b.WriteString(`<li>&#10003; Everything in Free</li>`)
-	b.WriteString(`<li>&#10003; AI agent with memory</li>`)
-	b.WriteString(`<li>&#10003; Mail and messaging</li>`)
-	b.WriteString(`<li>&#10003; Web search &amp; images</li>`)
-	b.WriteString(`<li>&#10003; Build apps with AI</li>`)
-	b.WriteString(`</ul>`)
-	b.WriteString(`<a href="/signup" class="btn" style="display:block">Get started</a>`)
-	b.WriteString(`</div>`)
-
-	// Pro plan
-	b.WriteString(`<div class="card" style="flex:1;min-width:200px;max-width:240px;text-align:center;border:2px solid #000">`)
-	b.WriteString(`<h3 style="margin:0 0 4px">Pro</h3>`)
-	b.WriteString(`<p style="font-size:2rem;font-weight:700;margin:8px 0">£10<span style="font-size:14px;font-weight:400;color:#888">/month</span></p>`)
-	b.WriteString(`<p style="color:#666;font-size:14px;margin:0 0 16px">1,200 credits</p>`)
-	b.WriteString(`<ul style="text-align:left;list-style:none;padding:0;margin:0 0 16px;font-size:14px;line-height:2">`)
-	b.WriteString(`<li>&#10003; Everything in Starter</li>`)
-	b.WriteString(`<li>&#10003; More credits per month</li>`)
-	b.WriteString(`<li>&#10003; Priority AI models</li>`)
-	b.WriteString(`</ul>`)
-	b.WriteString(`<a href="/signup" class="btn" style="display:block">Get started</a>`)
-	b.WriteString(`</div>`)
-
-	b.WriteString(`</div>`)
-
-	// Credit costs
-	b.WriteString(`<div class="card" style="margin:0 0 16px">`)
-	b.WriteString(`<h3>Credit costs</h3>`)
-	b.WriteString(`<p style="font-size:14px;color:#666;margin:0 0 8px">1 credit = 1p. You only pay for AI, external calls and sending — reading the news and weather, and browsing images, is free.</p>`)
-	b.WriteString(`<table class="stats-table" style="font-size:14px">`)
-	b.WriteString(`<tr><th style="text-align:left">Action</th><th style="text-align:right">Credits</th></tr>`)
-	b.WriteString(`<tr><td>AI agent</td><td>` + fmt.Sprintf("%d", wallet.CostAgentQuery) + `</td></tr>`)
-	b.WriteString(`<tr><td>Image generation</td><td>` + fmt.Sprintf("%d", wallet.CostImageGenerate) + `</td></tr>`)
-	b.WriteString(`<tr><td>Chat</td><td>` + fmt.Sprintf("%d", wallet.CostChatQuery) + `</td></tr>`)
-	b.WriteString(`<tr><td>Web search</td><td>` + fmt.Sprintf("%d", wallet.CostWebSearch) + `</td></tr>`)
-	b.WriteString(`<tr><td>Places search</td><td>` + fmt.Sprintf("%d", wallet.CostPlacesSearch) + `</td></tr>`)
-	b.WriteString(`<tr><td>Email (external)</td><td>` + fmt.Sprintf("%d", wallet.CostExternalEmail) + `</td></tr>`)
-	b.WriteString(`<tr><td>Weather forecast</td><td>` + fmt.Sprintf("%d", wallet.CostWeatherForecast) + `</td></tr>`)
-	b.WriteString(`<tr><td>News search</td><td>` + fmt.Sprintf("%d", wallet.CostNewsSearch) + `</td></tr>`)
-	b.WriteString(`</table>`)
-	b.WriteString(`</div>`)
-
-	// Self-host
-	b.WriteString(`<div class="card" style="margin:0 0 16px">`)
-	b.WriteString(`<h3>Self-host</h3>`)
-	b.WriteString(`<p style="font-size:14px;color:#666">Run your own instance with no limits. Single Go binary, bring your own AI provider.</p>`)
-	b.WriteString(`<p style="font-size:14px"><a href="https://github.com/micro/mu">github.com/micro/mu</a></p>`)
-	b.WriteString(`</div>`)
-
-	// Login link (only when not logged in)
-	if sess, _ := auth.TrySession(r); sess == nil {
-		b.WriteString(`<p style="text-align:center;font-size:14px;color:#888;margin:16px 0">Already have an account? <a href="/login">Log in</a></p>`)
+	b.WriteString(`<div class="card"><h2>Owner credits</h2><p>Mu uses one owner wallet for configured AI and external-service costs. Authenticate as the owner to inspect balance or top up credits.</p><p><a href="/login">Owner login</a></p></div>`)
+	b.WriteString(`<div class="card"><h3>Configured costs</h3><table class="stats-table"><tr><th>Action</th><th>Credits</th></tr>`)
+	for _, cost := range []struct {
+		name   string
+		amount int
+	}{
+		{"AI agent", wallet.CostAgentQuery},
+		{"Chat", wallet.CostChatQuery},
+		{"Web search", wallet.CostWebSearch},
+		{"Places search", wallet.CostPlacesSearch},
+		{"External email", wallet.CostExternalEmail},
+	} {
+		b.WriteString(fmt.Sprintf(`<tr><td>%s</td><td>%d</td></tr>`, cost.name, cost.amount))
 	}
+	b.WriteString(`</table></div>`)
+	b.WriteString(`<div class="card"><h3>Outbound x402</h3><p>The owner agent can make outbound x402 payments to configured remote services within spend limits. Incoming payment never replaces owner authentication.</p></div></div>`)
 
-	b.WriteString(`</div>`) // close centered column
-
-	html := app.RenderHTMLForRequest("Pricing", "Personal AI — plans and pricing", b.String(), r)
-	w.Write([]byte(html))
+	page := app.RenderHTMLForRequest("Credits", "Owner wallet and configured costs", b.String(), r)
+	w.Write([]byte(page))
 }

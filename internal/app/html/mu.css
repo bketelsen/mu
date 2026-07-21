@@ -2650,25 +2650,6 @@ a.highlight {
   color: white;
 }
 
-/* Links */
-.mail-link {
-  color: var(--text-primary);
-  text-decoration: none;
-}
-
-.mail-link:hover {
-  text-decoration: underline;
-}
-
-.mail-link-muted {
-  color: #666;
-  text-decoration: none;
-}
-
-.mail-link-muted:hover {
-  color: #333;
-}
-
 /* Contenteditable placeholder styling */
 [contenteditable][placeholder]:empty:before {
   content: attr(placeholder);

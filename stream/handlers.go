@@ -251,12 +251,7 @@ func renderEvent(e *Event, viewerID string) string {
 		}
 	}
 
-	nameLink := htmlpkg.EscapeString(name)
-	if e.AuthorID != "" && e.Type == TypeUser {
-		nameLink = fmt.Sprintf(`<a href="/@%s" style="color:%s;text-decoration:none;font-weight:600">%s</a>`, htmlpkg.EscapeString(e.AuthorID), nameColor, htmlpkg.EscapeString(name))
-	} else {
-		nameLink = fmt.Sprintf(`<span style="color:%s;font-weight:600">%s</span>`, nameColor, htmlpkg.EscapeString(name))
-	}
+	nameLink := fmt.Sprintf(`<span style="color:%s;font-weight:600">%s</span>`, nameColor, htmlpkg.EscapeString(name))
 
 	return fmt.Sprintf(`<div style="display:flex;gap:8px;padding:8px 0">%s
 <div style="flex:1;min-width:0">
