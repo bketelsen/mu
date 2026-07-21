@@ -14,6 +14,7 @@ func TestAskViaMicroLive(t *testing.T) {
 	if key == "" {
 		t.Skip("set ATLAS_API_KEY to run the live AI-core test")
 	}
+	t.Setenv("HOME", t.TempDir()) // settings.Set persists to $HOME/.mu — keep it off the real one
 	settings.Set("ATLAS_API_KEY", key)
 
 	out, err := Ask(&Prompt{

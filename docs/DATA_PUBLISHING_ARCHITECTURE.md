@@ -21,18 +21,16 @@ var html string              // Full page HTML
 var newsBodyHtml string      // Body HTML without wrapper
 var headlinesHtml string     // Headlines HTML
 var marketsHtml string       // Markets data HTML
-var reminderHtml string      // Reminder HTML
 var feed []*Post             // Structured feed data
 
 // Methods exposed to home page
 func Headlines() string      // Returns fresh HTML with current timestamps
 func Markets() string        // Returns cached marketsHtml
-func Reminder() string       // Returns cached reminderHtml
 ```
 
 **Issues**:
 - `Headlines()` generates fresh HTML on every call (recalculates `TimeAgo()` each time)
-- `Markets()` and `Reminder()` return pre-cached HTML
+- `Markets()` returns pre-cached HTML
 - Inconsistent behavior between methods
 - No structured data format - returns raw HTML strings
 
@@ -310,7 +308,7 @@ updateTimestamps(); // Initial call
 1. Implement `GetCards()` method in news
 2. Update internal functions to call `updateCards()` on changes
 3. Publish events when content updates
-4. Keep existing `Headlines()`, `Markets()`, `Reminder()` working
+4. Keep existing `Headlines()` and `Markets()` working
 
 ### Phase 3: Migrate Blog Package
 1. Implement `GetCards()` method

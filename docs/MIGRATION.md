@@ -160,9 +160,8 @@ or improve test coverage; never break `main`.
 7. ◑ **[SAFE]** Register the remaining agent-facing domains as go-micro services.
    - ✅ **mail**: `mail.Server.Search` (rune-safe formatting) registered via the service registry; added to the native agent's services so it can search mail directly
      (account id injected via the WrapTool middleware). Round-trip test added.
-   - TODO: places, reminder, chat lack clean AI-first text accessors (places
-     search is HTTP-handler-based; reminder only has ReminderHTML; chat is
-     HTTP). Each needs a small text accessor written before a service wrapper —
+   - TODO: places and chat lack clean AI-first text accessors (places search is
+     HTTP-handler-based; chat is HTTP). Each needs a small text accessor written before a service wrapper —
      lower value (overlap with existing tools), do when convenient.
 8. ✅ **Streaming usage**: go-micro v6.3.4 (#3304) surfaces token usage on
    streams (atlascloud/openai request `stream_options.include_usage` and return

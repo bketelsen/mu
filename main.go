@@ -32,6 +32,7 @@ import (
 	"mu/images"
 	"mu/internal/a2a"
 	"mu/internal/agents"
+	"mu/internal/ai"
 	"mu/internal/api"
 	"mu/internal/app"
 	"mu/internal/auth"
@@ -48,7 +49,6 @@ import (
 	"mu/news/digest"
 	"mu/places"
 	"mu/recall"
-	"mu/reminder"
 	"mu/search"
 	"mu/social"
 	"mu/stream"
@@ -104,6 +104,11 @@ func main() {
 	// load settings first so other packages can use them
 	settings.Load()
 
+	// log the resolved AI provider up front so misconfiguration (missing
+	// token/key in this environment) is visible immediately, not as
+	// scattered per-request errors from background loops.
+	app.Log("ai", "AI provider: %s", ai.ProviderStatus())
+
 	// load the data index
 	data.Load()
 
@@ -132,9 +137,8 @@ func main() {
 	// load weather
 	weather.Load()
 
-	// load markets, reminder, wallet
+	// load markets, images, wallet
 	markets.Load()
-	reminder.Load()
 	images.Load()
 	wallet.Load()
 	app.DiscordLinkCodeFunc = discord.GenerateLinkCode
@@ -916,7 +920,6 @@ func main() {
 	api.SetCard("social_list", "Social", social.CardHTML)
 	api.SetCard("video_list", "Videos", video.Latest)
 	api.SetCard("blog_list", "Blog", blog.Preview)
-	api.SetCard("reminder", "Reminder", reminder.ReminderHTML)
 
 	// Register apps MCP tools
 	api.RegisterTool(api.Tool{
@@ -1165,7 +1168,6 @@ func main() {
 		"/home":                  false, // Public viewing
 		"/blog":                  false, // Public viewing, auth for posting
 		"/markets":               false, // Public viewing
-		"/islam":                 false, // Public daily verse, hadith and names
 		"/about":                 false, // Public "what is Mu" pitch
 		"/oauth2/google":         false, // Google sign-in start (no session yet)
 		"/oauth2/google/connect": true,  // Link Google to the current account
@@ -1377,6 +1379,7 @@ func main() {
 	// serve markets page
 	http.HandleFunc("/markets", markets.Handler)
 	http.HandleFunc("/images", images.Handler)
+	http.HandleFunc("/images/file/", images.FileHandler)
 
 	// serve social page
 	http.HandleFunc("/social", social.Handler)
@@ -1387,13 +1390,6 @@ func main() {
 	// Stream (console) routes
 	http.HandleFunc("/stream", stream.Handler)
 	http.HandleFunc("/stream/fragment", stream.FragmentHandler)
-
-	// redirect /reminder to reminder.dev
-	http.HandleFunc("/islam", reminder.Handler)
-	// Back-compat: the page used to live at /reminder.
-	http.HandleFunc("/reminder", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/islam", http.StatusMovedPermanently)
-	})
 
 	// serve places page
 	http.HandleFunc("/places", places.Handler)
@@ -2016,7 +2012,7 @@ func runHealthChecks() []app.ServiceHealth {
 		{"News", "/news", func() bool { return len(news.GetFeed()) > 0 }},
 		{"Blog", "/blog", func() bool { return blog.GetTopics() != nil }},
 		{"Video", "/video", func() bool { return video.GetLatestVideos(1) != nil }},
-		{"Chat", "/chat", func() bool { return os.Getenv("ANTHROPIC_API_KEY") != "" }},
+		{"Chat", "/chat", ai.Configured},
 		{"Mail", "/mail", func() bool { return os.Getenv("MAIL_DOMAIN") != "" }},
 		{"Markets", "/markets", func() bool { return len(markets.GetAllPrices()) > 0 }},
 		{"Social", "/social", func() bool { return len(social.GetThreads()) > 0 }},

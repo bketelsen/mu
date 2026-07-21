@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"mu/internal/app"
+	"mu/internal/settings"
 )
 
 const (
@@ -19,9 +19,9 @@ const (
 	nwsPointsBaseURL       = "https://api.weather.gov/points"
 )
 
-// googleAPIKey returns the Google API key from the environment.
+// googleAPIKey returns the Google API key (env or stored settings).
 func googleAPIKey() string {
-	return os.Getenv("GOOGLE_API_KEY")
+	return settings.Get("GOOGLE_API_KEY")
 }
 
 // httpClient is the shared HTTP client with timeout.

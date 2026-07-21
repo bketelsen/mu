@@ -40,6 +40,7 @@ var catalog = []Document{
 
 	// Reference
 	{Slug: "environment", Filename: "ENVIRONMENT_VARIABLES.md", Title: "Configuration", Description: "Environment variables", Category: "Reference"},
+	{Slug: "copilot", Filename: "COPILOT.md", Title: "GitHub Copilot", Description: "Use a Copilot subscription as the AI provider", Category: "Reference"},
 	{Slug: "mcp", Filename: "MCP.md", Title: "MCP Server", Description: "AI tool integration via MCP", Category: "Reference"},
 	{Slug: "screenshots", Filename: "SCREENSHOTS.md", Title: "Screenshots", Description: "Application screenshots", Category: "Reference"},
 

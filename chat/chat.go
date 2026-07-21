@@ -430,52 +430,6 @@ func getOrCreateRoom(id string) *Room {
 			}
 		}
 		app.Log("chat", "Created chat room for topic: %s (lastAI: %v)", itemID, room.LastAIMsg)
-	case "reminder":
-		// For reminder, lookup by exact ID
-		app.Log("chat", "Attempting to get reminder item %s from index", itemID)
-
-		// Try with a timeout to avoid blocking during heavy indexing
-		entryChan := make(chan *data.IndexEntry, 1)
-		go func() {
-			entryChan <- data.GetByID(itemID)
-		}()
-
-		var entry *data.IndexEntry
-		select {
-		case entry = <-entryChan:
-			app.Log("chat", "Looking up reminder item %s, found: %v", itemID, entry != nil)
-		case <-time.After(2 * time.Second):
-			app.Log("chat", "Timeout getting reminder %s from index, will create room with minimal context", itemID)
-			// Create room with minimal context
-			room.Title = "Daily Reminder Discussion"
-			room.Summary = "Loading reminder content..."
-		}
-
-		if entry != nil {
-			room.Title = "Daily Reminder Discussion"
-			room.Summary = entry.Content
-			if len(room.Summary) > 2000 {
-				room.Summary = room.Summary[:2000] + "..."
-			}
-			room.URL = "https://reminder.dev"
-			app.Log("chat", "Room context - Title: %s, Summary length: %d, URL: %s", room.Title, len(room.Summary), room.URL)
-		} else if room.Title == "" {
-			app.Log("chat", "Reminder item %s not found in index", itemID)
-			room.Title = "Daily Reminder Discussion"
-			room.URL = "https://reminder.dev"
-		}
-
-		// Load persisted messages
-		if saved := loadRoomMessages(id); saved != nil {
-			room.Messages = saved
-			// Find last AI message time to prevent duplicate greetings
-			for i := len(saved) - 1; i >= 0; i-- {
-				if saved[i].IsLLM {
-					room.LastAIMsg = saved[i].Timestamp
-					break
-				}
-			}
-		}
 	}
 
 	// Now acquire write lock only for the map update
@@ -809,8 +763,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, room *Room) {
 				// Item-specific rooms always get AI responses (this is "discuss with AI")
 				isItemRoom := strings.HasPrefix(room.ID, "news_") ||
 					strings.HasPrefix(room.ID, "video_") ||
-					strings.HasPrefix(room.ID, "post_") ||
-					strings.HasPrefix(room.ID, "reminder_")
+					strings.HasPrefix(room.ID, "post_")
 
 				// Check if user is alone in a topic chat room
 				room.mutex.RLock()
@@ -867,22 +820,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, room *Room) {
 
 						// Build context from room details
 						var ragContext []string
-
-						// For reminder rooms, refresh context from source (changes hourly)
-						if strings.HasPrefix(room.ID, "reminder_") {
-							parts := strings.SplitN(room.ID, "_", 2)
-							if len(parts) == 2 {
-								if entry := data.GetByID(parts[1]); entry != nil {
-									room.mutex.Lock()
-									room.Summary = entry.Content
-									if len(room.Summary) > 2000 {
-										room.Summary = room.Summary[:2000] + "..."
-									}
-									room.mutex.Unlock()
-									app.Log("chat", "Refreshed reminder context for room %s (len=%d)", room.ID, len(room.Summary))
-								}
-							}
-						}
 
 						// Add room context first (most important)
 						if room.Title != "" || room.Summary != "" {

@@ -35,7 +35,6 @@ Below the AI, cards give you an at-a-glance overview. Cards are configurable —
 - **Chat** — Conversational AI with session history
 - **Mail** — Private messaging and email
 - **Apps** — Build and use small, useful tools — any app can be pinned as a home card
-- **Reminder** — A daily Islamic reminder surfaced as a home card and MCP tool
 - **Stream** — Public event feed for agents and tools
 
 ## What we don't do

@@ -3,7 +3,7 @@
 Mu's thesis: the everyday internet, handled by one agent — each capability a
 real, self-hostable service, not a feature buried in a big platform. We ship
 about a dozen today (news, mail, markets, weather, search, video, social, blog,
-places, reminder, payments, apps, chat). This is the map of the ~100 services
+places, payments, apps, chat). This is the map of the ~100 services
 people use every day — the dozen we have, and the ~88 to build next.
 
 The existing services are the template. Each new one is the same shape:
@@ -31,7 +31,7 @@ Legend: **✓** shipped · **○** to build · `(reuse: …)` existing infra it 
 1. **mail** ✓
 2. **chat / messaging** ✓
 3. **contacts / address book** ○ (reuse: storage, auth)
-4. **calendar** ○ (reuse: storage, reminder)
+4. **calendar** ○ (reuse: storage, scheduler)
 5. **scheduling / availability booking** ○ (reuse: calendar, mail)
 6. **newsletters / broadcasts** ○ (reuse: mail, blog)
 7. **notifications inbox** ○ (reuse: event bus, channels)
@@ -103,7 +103,7 @@ Legend: **✓** shipped · **○** to build · `(reuse: …)` existing infra it 
 61. **mood / wellbeing** ○ (reuse: storage, AI)
 62. **fitness / workouts** ○ (reuse: storage)
 63. **nutrition / calories** ○ (reuse: storage, AI)
-64. **medications** ○ (reuse: reminder)
+64. **medications** ○ (reuse: scheduler, notifications)
 65. **sleep log** ○ (reuse: storage)
 66. **meditation / breathing** ○ (reuse: storage)
 67. **symptom / first-aid guide** ○ (reuse: corpus, AI)
@@ -116,8 +116,8 @@ Legend: **✓** shipped · **○** to build · `(reuse: …)` existing infra it 
 72. **wishlists / gifts** ○ (reuse: storage, AI)
 73. **important documents** ○ (reuse: files)
 74. **warranties & manuals** ○ (reuse: files, corpus)
-75. **vehicle / maintenance** ○ (reuse: storage, reminder)
-76. **pets** ○ (reuse: storage, reminder)
+75. **vehicle / maintenance** ○ (reuse: storage, scheduler)
+76. **pets** ○ (reuse: storage, scheduler)
 
 ## Work & dev (77–85)
 77. **code snippets** ○ (reuse: storage)
@@ -131,7 +131,7 @@ Legend: **✓** shipped · **○** to build · `(reuse: …)` existing infra it 
 85. **standups / updates** ○ (reuse: storage, social)
 
 ## Utilities & tools (86–95)
-86. **reminders** ✓
+86. **notifications** ○ (reuse: event bus, scheduler)
 87. **calculator** ○ (reuse: AI)
 88. **unit converter** ○ (reuse: markets for currency)
 89. **timers / alarms / stopwatch** ○ (reuse: scheduler)

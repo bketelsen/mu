@@ -34,10 +34,46 @@ func getAtlasAPIKey() string {
 	return settings.Get("OPENAI_API_KEY")
 }
 
+// CopilotConfigured reports whether a GitHub Copilot subscription is wired in
+// (a long-lived GitHub OAuth token in COPILOT_GITHUB_TOKEN). When set, Copilot
+// becomes the default gateway for every model call, serving both Anthropic
+// (claude-*) and OpenAI (gpt-*) model families through one endpoint.
+func CopilotConfigured() bool {
+	return settings.Get("COPILOT_GITHUB_TOKEN") != ""
+}
+
+// Copilot model defaults. Chat/premium default to Claude Sonnet (a premium
+// model on Copilot plans); background work defaults to gpt-4.1, which is
+// included at a 0x premium-request multiplier — background callers are
+// high-volume, so they must not burn premium requests. All overridable via
+// settings (/admin/env) or environment.
+const (
+	defaultCopilotChatModel       = "claude-sonnet-4.5"
+	defaultCopilotBackgroundModel = "gpt-4.1"
+)
+
+// CopilotChatModel is the Copilot model used for interactive queries.
+func CopilotChatModel() string {
+	if v := settings.Get("COPILOT_CHAT_MODEL"); v != "" {
+		return v
+	}
+	return defaultCopilotChatModel
+}
+
+func copilotBackgroundModel() string {
+	if v := settings.Get("COPILOT_BACKGROUND_MODEL"); v != "" {
+		return v
+	}
+	return defaultCopilotBackgroundModel
+}
+
 // Configured reports whether at least one AI provider is available — a key or
 // endpoint set via env/settings, or a local Ollama detected. Used to gate the
 // agent/chat and to decide whether a fresh instance still needs setup.
 func Configured() bool {
+	if CopilotConfigured() {
+		return true
+	}
 	if settings.Get("ANTHROPIC_API_KEY") != "" {
 		return true
 	}
@@ -67,8 +103,11 @@ const (
 )
 
 // DefaultModel is the model used for interactive queries (chat, agent).
-// Always uses Anthropic for speed — Atlas Cloud is for background only.
+// With Copilot configured it is the Copilot chat model; otherwise Anthropic.
 func DefaultModel() string {
+	if CopilotConfigured() {
+		return CopilotChatModel()
+	}
 	m := settings.Get("ANTHROPIC_MODEL")
 	if m != "" {
 		return m
@@ -76,9 +115,27 @@ func DefaultModel() string {
 	return "claude-sonnet-4-6"
 }
 
+// PremiumModel is the model used for the agent's premium ("Best") tier.
+// Resolved at request time — settings.json is not yet loaded at package init.
+func PremiumModel() string {
+	if CopilotConfigured() {
+		if v := settings.Get("COPILOT_PREMIUM_MODEL"); v != "" {
+			return v
+		}
+		return CopilotChatModel()
+	}
+	if v := settings.Get("ANTHROPIC_PREMIUM_MODEL"); v != "" {
+		return v
+	}
+	return "claude-opus-4-20250514"
+}
+
 // BackgroundModel is the model used for cheap background tasks
 // (summaries, tags, moderation, topics).
 func BackgroundModel() string {
+	if CopilotConfigured() {
+		return copilotBackgroundModel()
+	}
 	if getAtlasAPIKey() != "" {
 		return ModelDeepSeekFlash
 	}

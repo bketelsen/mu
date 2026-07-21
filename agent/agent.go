@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -28,15 +27,9 @@ type Model struct {
 	Model    string // ai model override, empty = provider default
 }
 
-// defaultPremiumModel is the Anthropic model used for premium agent queries.
-var defaultPremiumModel = func() string {
-	if v := os.Getenv("ANTHROPIC_PREMIUM_MODEL"); v != "" {
-		return v
-	}
-	return "claude-opus-4-20250514"
-}()
-
-// Models lists the available model tiers.
+// Models lists the available model tiers. Model strings are resolved at
+// request time via resolveModel — settings (e.g. a configured Copilot
+// provider) are not loaded yet when this package initialises.
 var Models = []Model{
 	{
 		ID:       "standard",
@@ -49,8 +42,18 @@ var Models = []Model{
 		Name:     "Best",
 		WalletOp: "agent_query_premium",
 		Provider: ai.ProviderAnthropic,
-		Model:    defaultPremiumModel,
 	},
+}
+
+// resolveModel returns the concrete model string for a tier. The premium tier
+// maps to ai.PremiumModel (Copilot premium model, ANTHROPIC_PREMIUM_MODEL, or
+// Claude Opus); the standard tier keeps its configured value (empty = the
+// provider default).
+func (m Model) resolveModel() string {
+	if m.ID == "premium" {
+		return ai.PremiumModel()
+	}
+	return m.Model
 }
 
 // QuotaCheck is set by main.go to wire in the wallet quota check without an
@@ -281,7 +284,7 @@ func QueryWithOpts(accountID, prompt string, opts QueryOpts) (string, error) {
 		Question: prompt,
 		Priority: ai.PriorityHigh,
 		Provider: model.Provider,
-		Model:    model.Model,
+		Model:    model.resolveModel(),
 		Caller:   "agent-synth",
 	}
 
@@ -680,7 +683,6 @@ func ToolsDropdownHTML() string {
 <div style="padding:3px 12px;">🌤 Weather</div>
 <div style="padding:3px 12px;">📍 Places Search</div>
 <div style="padding:3px 12px;">📍 Places Nearby</div>
-<div style="padding:3px 12px;">🕌 Reminder</div>
 <div style="padding:3px 12px;">🔎 Search</div>
 <div style="padding:3px 12px;">📝 Blog</div>
 <div style="padding:3px 12px;">💰 Wallet</div>
@@ -716,10 +718,6 @@ const agentToolsDesc = `Available tools (use exact name):
 - web_fetch: Fetch a web page and get its cleaned readable content (args: {"url":"https://example.com/page"})
 - places_search: Search for places (args: {"q":"search name","near":"location"})
 - places_nearby: Find places near a location (args: {"address":"location","radius":number})
-- reminder: Get today's daily Islamic reminder with verse, hadith, and name of Allah (no args) — response includes a "date" field, always mention it
-- quran: Look up a Quran chapter or verse (args: {"chapter":1,"verse":1} — verse is optional)
-- hadith: Look up hadith from Sahih Al Bukhari (args: {"book":1} — optional book number)
-- quran_search: Semantic search across the Quran, Hadith, and names of Allah (args: {"q":"what does the quran say about patience"})
 - apps_search: Search apps directory (args: {"q":"search term","tag":"productivity"})
 - apps_read: Read details of a specific app (args: {"slug":"app-slug"})
 - apps_build: build a small app (a tracker, checklist, or counter) from a description (args: {"prompt":"an expense tracker"})
@@ -746,10 +744,6 @@ const guestToolsDesc = `Available tools (use exact name):
 - weather_forecast: Get weather forecast (args: {"lat":number,"lon":number})
 - places_search: Search for places (args: {"q":"search name","near":"location"})
 - places_nearby: Find places near a location (args: {"address":"location","radius":number})
-- reminder: Get today's daily Islamic reminder (no args)
-- quran: Look up a Quran chapter or verse (args: {"chapter":1,"verse":1})
-- hadith: Look up hadith from Sahih Al Bukhari (args: {"book":1})
-- quran_search: Search the Quran and Hadith (args: {"q":"search term"})
 - search: Search all Mu content (args: {"q":"search term"})
 - web_search: Search the web (args: {"q":"search term"})
 - web_fetch: Fetch a web page (args: {"url":"https://example.com"})
@@ -1134,7 +1128,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		Question: req.Prompt,
 		Priority: ai.PriorityHigh,
 		Provider: model.Provider,
-		Model:    model.Model,
+		Model:    model.resolveModel(),
 		Caller:   "agent-synth",
 	}
 
@@ -1200,7 +1194,6 @@ func shortcutToolCalls(prompt string) []shortcutToolCall {
 		"videos":        {{Tool: "video", Args: map[string]any{}}},
 		"latest videos": {{Tool: "video", Args: map[string]any{}}},
 		"latest video":  {{Tool: "video", Args: map[string]any{}}},
-		"reminder":      {{Tool: "reminder", Args: map[string]any{}}},
 		"apps":          {{Tool: "apps_search", Args: map[string]any{}}},
 		"mail":          {{Tool: "mail_read", Args: map[string]any{}}},
 		// Personal queries
@@ -1238,7 +1231,6 @@ func shortcutToolCalls(prompt string) []shortcutToolCall {
 		"what are the latest crypto and market prices?": {{Tool: "markets", Args: map[string]any{}}},
 		"find me the latest tech videos":                {{Tool: "video_search", Args: map[string]any{"query": "tech"}}},
 		"search the web for the latest ai news":         {{Tool: "web_search", Args: map[string]any{"q": "latest AI news"}}},
-		"show me today's islamic reminder":              {{Tool: "reminder", Args: map[string]any{}}},
 		// Wallet
 		"my wallet":      {{Tool: "wallet", Args: map[string]any{}}},
 		"wallet":         {{Tool: "wallet", Args: map[string]any{}}},
@@ -1521,8 +1513,6 @@ func toolLabel(tool string) string {
 		return "📍 Searching places"
 	case "places_nearby":
 		return "📍 Finding nearby places"
-	case "reminder":
-		return "📿 Getting daily reminder"
 	case "search":
 		return "Searching Mu"
 	case "blog_list":
@@ -1859,8 +1849,6 @@ func formatToolResult(toolName, result string, args map[string]any) string {
 		return withCurrentDateContext(result)
 	case "video_search":
 		return formatVideoResult(result)
-	case "reminder":
-		return formatReminderResult(result)
 	case "search":
 		return withCurrentDateContext(formatSearchResult(result))
 	case "web_search", "weather_forecast":
@@ -2200,38 +2188,6 @@ func formatVideoResult(result string) string {
 			line += fmt.Sprintf(" (channel: %s)", v.Channel)
 		}
 		sb.WriteString(line + "\n")
-	}
-	return sb.String()
-}
-
-// formatReminderResult converts a raw JSON reminder result into
-// human-readable text for the AI synthesis RAG context.
-func formatReminderResult(result string) string {
-	var data struct {
-		Verse   string `json:"verse"`
-		Name    string `json:"name"`
-		Hadith  string `json:"hadith"`
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal([]byte(result), &data); err != nil {
-		return result
-	}
-	if data.Verse == "" && data.Hadith == "" && data.Message == "" {
-		return "Reminder data unavailable."
-	}
-	var sb strings.Builder
-	sb.WriteString("Daily Islamic reminder:\n")
-	if data.Name != "" {
-		sb.WriteString(fmt.Sprintf("Name of Allah: %s\n", data.Name))
-	}
-	if data.Verse != "" {
-		sb.WriteString(fmt.Sprintf("Verse: %s\n", data.Verse))
-	}
-	if data.Hadith != "" {
-		sb.WriteString(fmt.Sprintf("Hadith: %s\n", data.Hadith))
-	}
-	if data.Message != "" {
-		sb.WriteString(fmt.Sprintf("Message: %s\n", data.Message))
 	}
 	return sb.String()
 }

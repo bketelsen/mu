@@ -10,7 +10,7 @@
 - Padding: `20px`
 - Background: `white` (implied)
 - Margin bottom: `20px`
-- **Used in**: Home page cards (news, blog, reminders)
+- **Used in**: Home page cards (news, blog, markets)
 
 #### 2. **Block Component** (`.block`)
 - Border: `1px solid #f0f0f0`

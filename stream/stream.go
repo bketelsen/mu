@@ -22,12 +22,11 @@ import (
 
 // Event types.
 const (
-	TypeUser     = "user"     // human typed in the console
-	TypeAgent    = "agent"    // @micro response
-	TypeSystem   = "system"   // mail notification, account event
-	TypeMarket   = "market"   // price movement
-	TypeNews     = "news"     // breaking headline
-	TypeReminder = "reminder" // daily reminder
+	TypeUser   = "user"   // human typed in the console
+	TypeAgent  = "agent"  // @micro response
+	TypeSystem = "system" // mail notification, account event
+	TypeMarket = "market" // price movement
+	TypeNews   = "news"   // breaking headline
 )
 
 // Event is a single entry in the stream.
@@ -86,8 +85,8 @@ func save() {
 }
 
 // Publish appends an event to the stream. This is the single entry
-// point — every publisher (user, agent, system, markets, news,
-// reminder) calls this. System events are throttled per type so the
+// point — every publisher (user, agent, system, markets, or news)
+// calls this. System events are throttled per type so the
 // console doesn't flood with automated content.
 func Publish(e *Event) {
 	if e.Content == "" {

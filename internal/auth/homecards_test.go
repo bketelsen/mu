@@ -10,19 +10,18 @@ func TestShowHomeCard(t *testing.T) {
 		want bool
 	}{
 		{"fresh account shows every default", Account{}, "images", true},
-		{"fresh account shows islam", Account{}, "reminder", true},
 		{"legacy set (no seen) shows new card images",
-			Account{HomeCards: []string{"blog", "news", "markets", "reminder", "social", "video"}}, "images", true},
+			Account{HomeCards: []string{"blog", "news", "markets", "social", "video"}}, "images", true},
 		{"legacy set keeps a chosen card",
 			Account{HomeCards: []string{"blog", "news"}}, "blog", true},
 		{"legacy set hides a pre-existing deselected card",
 			Account{HomeCards: []string{"blog", "news"}}, "social", false},
 		{"post-save deselect of images sticks",
-			Account{HomeCards: []string{"blog", "news"}, HomeCardsSeen: []string{"blog", "news", "markets", "reminder", "social", "video", "images", "mail", "web"}}, "images", false},
+			Account{HomeCards: []string{"blog", "news"}, HomeCardsSeen: []string{"blog", "news", "markets", "social", "video", "images", "mail", "web"}}, "images", false},
 		{"post-save select of images shows",
-			Account{HomeCards: []string{"blog", "images"}, HomeCardsSeen: []string{"blog", "news", "markets", "reminder", "social", "video", "images", "mail", "web"}}, "images", true},
+			Account{HomeCards: []string{"blog", "images"}, HomeCardsSeen: []string{"blog", "news", "markets", "social", "video", "images", "mail", "web"}}, "images", true},
 		{"future card after a save defaults on",
-			Account{HomeCards: []string{"blog"}, HomeCardsSeen: []string{"blog", "news", "markets", "reminder", "social", "video", "images", "mail", "web"}}, "audio", true},
+			Account{HomeCards: []string{"blog"}, HomeCardsSeen: []string{"blog", "news", "markets", "social", "video", "images", "mail", "web"}}, "audio", true},
 	}
 	for _, c := range cases {
 		if got := c.acc.ShowHomeCard(c.id); got != c.want {

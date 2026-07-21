@@ -196,7 +196,7 @@ var (
 // IndexEntry represents a searchable piece of content
 type IndexEntry struct {
 	ID        string                 `json:"id"`
-	Type      string                 `json:"type"` // "news", "video", "market", "reminder"
+	Type      string                 `json:"type"` // "news", "video", "market"
 	Title     string                 `json:"title"`
 	Content   string                 `json:"content"`
 	Owner     string                 `json:"owner,omitempty"` // account scope; empty = public

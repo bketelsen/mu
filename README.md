@@ -4,14 +4,14 @@ A personal home server
 
 ## Overview
 
-A personal home server. One Go binary runs a set of everyday services — news, mail, markets, weather, search, images, video, blog, social, places, reminders — behind a [Go Micro](https://github.com/micro/go-micro) registry, with an LLM agent that calls them as tools. The same services are reachable as a web app, a REST API, an MCP server, an A2A endpoint, and a CLI.
+A personal home server. One Go binary runs a set of everyday services — news, mail, markets, weather, search, images, video, blog, social, places — behind a [Go Micro](https://github.com/micro/go-micro) registry, with an LLM agent that calls them as tools. The same services are reachable as a web app, a REST API, an MCP server, an A2A endpoint, and a CLI.
 
 Use it hosted at [micro.mu](https://micro.mu), or self-host the single binary — same product either way. Open source, AGPL-3.0.
 
 ## Features
 
 - **All services in one process.** Each domain (news, markets, mail, weather, …) is a Go Micro service with typed handlers, registered in-process behind an in-memory registry. One binary, no external infrastructure; the same handlers can later be split across processes by swapping the registry.
-- **An agent over those services.** An LLM — Claude, Atlas Cloud (DeepSeek), or a local Ollama / OpenAI-compatible endpoint — calls the services as tools, composes answers, and keeps per-user memory across sessions.
+- **An agent over those services.** An LLM — Claude, Atlas Cloud (DeepSeek), a GitHub Copilot subscription (Claude and GPT models), or a local Ollama / OpenAI-compatible endpoint — calls the services as tools, composes answers, and keeps per-user memory across sessions.
 - **A web UI that's a home screen.** Cards render each service at a glance (headlines, prices, weather, unread mail); the agent sits inline to act on what you're looking at. Logged-out visitors get a public version with live public data.
 - **Several front doors to the same services.** A REST API, an MCP server at `/mcp`, an A2A endpoint at `/a2a`, and a CLI where every tool is a subcommand. API and MCP callers can pay per request in USDC via [x402](https://x402.org).
 
@@ -31,7 +31,6 @@ Each is reachable in the web app and directly over REST, MCP, A2A, or the CLI. T
 - **Images** — Generate images from a prompt, plus a daily nature / mindful image
 - **Search** — Search the web without tracking, with a clean reader view
 - **Places** — Search places and nearby results with configured providers and open-data fallbacks
-- **Islam** — A daily Islamic reminder (verse, hadith, reflection), also an MCP tool
 - **Apps** — Build and use small, useful tools (like **Saved**, a built-in read-later list) — pin any app to the top of your home screen
 - **Stream** — Public event feed for agents and tools to subscribe to
 
@@ -123,8 +122,9 @@ mu --serve
 ### First-run setup
 
 Open **http://localhost:8080** and Mu walks you through a one-time setup: create
-your admin account and pick an AI provider (Claude, Atlas Cloud, or a local
-Ollama / OpenAI-compatible endpoint). That's enough to have a working agent.
+your admin account and pick an AI provider (Claude, Atlas Cloud, GitHub
+Copilot, or a local Ollama / OpenAI-compatible endpoint). That's enough to
+have a working agent.
 
 Prefer the terminal? Configure the provider headless, then start the server:
 
@@ -137,7 +137,7 @@ Or set everything by hand if you'd rather:
 
 ```bash
 export ADMIN=you@example.com          # who's admin (else: first account)
-export ATLAS_API_KEY=xxx              # or ANTHROPIC_API_KEY, or OPENAI_BASE_URL
+export ATLAS_API_KEY=xxx              # or ANTHROPIC_API_KEY, COPILOT_GITHUB_TOKEN, or OPENAI_BASE_URL
 mu --serve
 ```
 

@@ -203,15 +203,13 @@ func renderEvent(e *Event, viewerID string) string {
 		name = "Micro"
 		nameColor = "#1f7a4a"
 		bubbleBg = "#f0faf5"
-	case TypeSystem, TypeMarket, TypeNews, TypeReminder:
+	case TypeSystem, TypeMarket, TypeNews:
 		icon := "•"
 		switch e.Type {
 		case TypeMarket:
 			icon = "📊"
 		case TypeNews:
 			icon = "📰"
-		case TypeReminder:
-			icon = "🕌"
 		case TypeSystem:
 			icon = "⚙️"
 		}

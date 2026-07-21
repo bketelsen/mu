@@ -238,7 +238,7 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 		Question: req.Prompt,
 		Priority: ai.PriorityHigh,
 		Provider: model.Provider,
-		Model:    model.Model,
+		Model:    model.resolveModel(),
 		Caller:   "agent-run-synth",
 	})
 	if err != nil {

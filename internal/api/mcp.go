@@ -8,54 +8,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"time"
 
 	"mu/internal/auth"
 )
 
 // MCP protocol version
 const MCPVersion = "2025-03-26"
-
-var (
-	reminderHTTPClient = &http.Client{Timeout: 10 * time.Second}
-	reminderAPIBase    = "https://reminder.dev/api"
-)
-
-func reminderAPIURL(path string) string {
-	return strings.TrimRight(reminderAPIBase, "/") + path
-}
-
-func getReminderAPI(path string) (string, error) {
-	resp, err := reminderHTTPClient.Get(reminderAPIURL(path))
-	if err != nil {
-		return "", fmt.Errorf("reminder API error: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("reminder API returned status %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("reading reminder response: %w", err)
-	}
-	return string(body), nil
-}
-
-func postReminderAPI(path, contentType, body string) (string, error) {
-	resp, err := reminderHTTPClient.Post(reminderAPIURL(path), contentType, strings.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("reminder API error: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("reminder API returned status %d", resp.StatusCode)
-	}
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("reading reminder response: %w", err)
-	}
-	return string(b), nil
-}
 
 // JSON-RPC types
 type jsonrpcRequest struct {
@@ -452,7 +410,7 @@ var tools = []Tool{
 	// Stream (console)
 	{
 		Name:        "stream",
-		Description: "Read the platform event stream — user messages, agent responses, system events (markets, news, reminders)",
+		Description: "Read the platform event stream — user messages, agent responses, and system events (markets, news)",
 		Method:      "GET",
 		Path:        "/stream",
 	},
@@ -550,65 +508,6 @@ var tools = []Tool{
 			{Name: "lat", Type: "number", Description: "Latitude of the search location", Required: false},
 			{Name: "lon", Type: "number", Description: "Longitude of the search location", Required: false},
 			{Name: "radius", Type: "number", Description: "Search radius in metres, 100–5000 (default 500)", Required: false},
-		},
-	},
-	{
-		Name:        "reminder",
-		Description: "Get today's daily Islamic reminder with verse, hadith, and name of Allah",
-		Handle: func(args map[string]any) (string, error) {
-			return getReminderAPI("/daily")
-		},
-	},
-	{
-		Name:        "quran",
-		Description: "Look up a Quran chapter or verse. Pass chapter number (1-114) and optionally a verse number.",
-		Params: []ToolParam{
-			{Name: "chapter", Type: "number", Description: "Chapter number (1-114)", Required: true},
-			{Name: "verse", Type: "number", Description: "Verse number (optional, returns full chapter if omitted)", Required: false},
-		},
-		Handle: func(args map[string]any) (string, error) {
-			chapter := ""
-			if c, ok := args["chapter"].(float64); ok {
-				chapter = fmt.Sprintf("%d", int(c))
-			}
-			if chapter == "" {
-				return "", fmt.Errorf("chapter is required")
-			}
-			path := "/quran/" + chapter
-			if v, ok := args["verse"].(float64); ok && v > 0 {
-				path += fmt.Sprintf("/%d", int(v))
-			}
-			return getReminderAPI(path)
-		},
-	},
-	{
-		Name:        "hadith",
-		Description: "Look up hadith from Sahih Al Bukhari. Pass a book number to get hadiths from that book.",
-		Params: []ToolParam{
-			{Name: "book", Type: "number", Description: "Book number", Required: false},
-		},
-		Handle: func(args map[string]any) (string, error) {
-			path := "/hadith"
-			if b, ok := args["book"].(float64); ok && b > 0 {
-				path += fmt.Sprintf("/%d", int(b))
-			}
-			return getReminderAPI(path)
-		},
-	},
-	{
-		Name:        "quran_search",
-		Description: "Search the Quran, Hadith, and names of Allah using semantic search. Ask a question in natural language.",
-		Params: []ToolParam{
-			{Name: "q", Type: "string", Description: "Question or search query", Required: true},
-		},
-		WalletOp: "search",
-		Handle: func(args map[string]any) (string, error) {
-			q, _ := args["q"].(string)
-			if q == "" {
-				return "", fmt.Errorf("query is required")
-			}
-			body := fmt.Sprintf(`{"q":%q}`, q)
-			return postReminderAPI("/search", "application/json", body)
 		},
 	},
 }

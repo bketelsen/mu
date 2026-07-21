@@ -134,20 +134,23 @@ func runHealthChecks() []healthCheck {
 }
 
 func checkAI() healthCheck {
+	copilotToken := settings.Get("COPILOT_GITHUB_TOKEN")
 	key := settings.Get("ANTHROPIC_API_KEY")
 	localURL := settings.Get("OPENAI_BASE_URL")
 
-	if key == "" && localURL == "" && !ai.LocalModelAvailable() {
+	if copilotToken == "" && key == "" && localURL == "" && !ai.LocalModelAvailable() {
 		return healthCheck{
 			Name:   "AI Provider",
 			Status: "error",
 			Detail: "No AI provider configured",
-			Fix:    "Set ANTHROPIC_API_KEY or OPENAI_BASE_URL in /admin/env, or install Ollama",
+			Fix:    "Set COPILOT_GITHUB_TOKEN, ANTHROPIC_API_KEY or OPENAI_BASE_URL in /admin/env, or install Ollama",
 		}
 	}
 
 	provider := "Anthropic Claude"
-	if key == "" {
+	if copilotToken != "" {
+		provider = "GitHub Copilot"
+	} else if key == "" {
 		if localURL != "" {
 			provider = "Local model (" + localURL + ")"
 		} else {

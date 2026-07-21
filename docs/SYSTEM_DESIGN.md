@@ -88,7 +88,6 @@ mu/
 ├── blog/                 # Microblogging, markdown, ActivityPub
 ├── news/                 # RSS feeds, HN comments, AI summaries
 │   ├── markets/          # Crypto, futures, commodities, currencies
-│   └── reminder/         # Daily reminders
 ├── chat/                 # AI chat with RAG, WebSocket streaming
 ├── video/                # YouTube search and playback
 ├── mail/                 # Messaging, SMTP server, DKIM signing

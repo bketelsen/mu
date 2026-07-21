@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -17,6 +16,7 @@ import (
 	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/service"
+	"mu/internal/settings"
 	"mu/wallet"
 )
 
@@ -133,7 +133,7 @@ func searchBraveCachedWithTTL(query string, limit int, ttl time.Duration) ([]Bra
 
 // searchBrave calls the Brave Search API and returns up to limit results.
 func searchBrave(query string, limit int) ([]BraveResult, error) {
-	apiKey := os.Getenv("BRAVE_API_KEY")
+	apiKey := settings.Get("BRAVE_API_KEY")
 	if apiKey == "" {
 		return nil, fmt.Errorf("BRAVE_API_KEY not set")
 	}

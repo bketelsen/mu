@@ -358,7 +358,7 @@ func handleHTML(w http.ResponseWriter, r *http.Request) {
 	// Generate panel.
 	b.WriteString(`<div class="card">`)
 	b.WriteString(`<h3>Generate an image</h3>`)
-	b.WriteString(fmt.Sprintf(`<p class="card-desc">Describe an image and Mu creates it with nano-banana. %d credits per image.</p>`, price))
+	b.WriteString(fmt.Sprintf(`<p class="card-desc">Describe an image and Mu creates it. %d credits per image.</p>`, price))
 	if acc == nil {
 		b.WriteString(`<p><a href="/login">Sign in</a> to generate images.</p>`)
 	} else {
