@@ -19,8 +19,8 @@ import (
 // Business/Enterprise plans, so we never hardcode the endpoint for requests.
 var (
 	// Endpoints are vars, not consts, so tests can point them at a local server.
-	tokenEndpoint      = "https://api.github.com/copilot_internal/v2/token"
-	deviceCodeEndpoint = "https://github.com/login/device/code"
+	tokenEndpoint       = "https://api.github.com/copilot_internal/v2/token"
+	deviceCodeEndpoint  = "https://github.com/login/device/code"
 	accessTokenEndpoint = "https://github.com/login/oauth/access_token"
 
 	defaultAPIBase = "https://api.githubcopilot.com"
@@ -222,6 +222,63 @@ type ModelInfo struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Vendor string `json:"vendor"`
+	// SupportedEndpoints lists the API shapes that serve this model, e.g.
+	// "/chat/completions" or "/responses". Newer OpenAI (Codex-generation)
+	// models are /responses-only and reject /chat/completions with
+	// unsupported_api_for_model.
+	SupportedEndpoints []string `json:"supported_endpoints"`
+}
+
+// catalogEntry caches the /models catalog per GitHub token so per-request
+// endpoint routing doesn't refetch it. Short TTL: model availability changes
+// rarely, but a stale-forever cache would mask newly enabled models.
+type catalogEntry struct {
+	models  []ModelInfo
+	fetched time.Time
+}
+
+var (
+	catalogMu    sync.Mutex
+	catalogCache = map[string]*catalogEntry{}
+)
+
+const catalogTTL = 10 * time.Minute
+
+// cachedModels returns the model catalog, fetching at most once per TTL.
+// ok is false when the catalog could not be fetched (e.g. rate-limited), so
+// callers can fall back to defaults instead of failing the request.
+func cachedModels(ctx context.Context, githubToken string) (models []ModelInfo, ok bool) {
+	catalogMu.Lock()
+	if e, hit := catalogCache[githubToken]; hit && time.Since(e.fetched) < catalogTTL {
+		catalogMu.Unlock()
+		return e.models, true
+	}
+	catalogMu.Unlock()
+
+	fetched, err := ListModels(ctx, githubToken)
+	if err != nil {
+		return nil, false
+	}
+	catalogMu.Lock()
+	catalogCache[githubToken] = &catalogEntry{models: fetched, fetched: time.Now()}
+	catalogMu.Unlock()
+	return fetched, true
+}
+
+// catalogEndpoints returns the supported endpoints for a model from the
+// cached catalog. ok is false when the catalog was unavailable — distinct
+// from a model that is present but lists no endpoints.
+func catalogEndpoints(ctx context.Context, githubToken, model string) (endpoints []string, ok bool) {
+	models, ok := cachedModels(ctx, githubToken)
+	if !ok {
+		return nil, false
+	}
+	for _, m := range models {
+		if m.ID == model {
+			return m.SupportedEndpoints, true
+		}
+	}
+	return nil, true
 }
 
 // ListModels returns the models available to the subscription behind the

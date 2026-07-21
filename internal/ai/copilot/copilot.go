@@ -64,7 +64,31 @@ func (p *Provider) String() string { return "copilot" }
 
 // Generate generates a response from the model, running a bounded multi-round
 // tool loop when the model requests tool calls and a ToolHandler is set.
+//
+// Copilot serves models through two API shapes: /chat/completions and, for
+// newer OpenAI (Codex-generation) models, /responses only. The shape is
+// chosen from the /models catalog and corrected once on an
+// unsupported_api_for_model error (which also handles a stale or
+// rate-limited catalog).
 func (p *Provider) Generate(ctx context.Context, req *ai.Request, opts ...ai.GenerateOption) (*ai.Response, error) {
+	if p.responsesOnly(ctx) {
+		resp, err := p.generateResponses(ctx, req)
+		if isUnsupportedAPI(err) {
+			modelEndpoints.Store(p.opts.Model, false)
+			return p.generateChat(ctx, req)
+		}
+		return resp, err
+	}
+	resp, err := p.generateChat(ctx, req)
+	if isUnsupportedAPI(err) {
+		modelEndpoints.Store(p.opts.Model, true)
+		return p.generateResponses(ctx, req)
+	}
+	return resp, err
+}
+
+// generateChat is the /chat/completions Generate path.
+func (p *Provider) generateChat(ctx context.Context, req *ai.Request) (*ai.Response, error) {
 	var tools []map[string]any
 	for _, t := range req.Tools {
 		tools = append(tools, map[string]any{
@@ -152,11 +176,29 @@ func (p *Provider) Generate(ctx context.Context, req *ai.Request, opts ...ai.Gen
 	return resp, nil
 }
 
-// Stream generates a streaming response from the Copilot chat completions
-// endpoint. Tool definitions are not sent on the streaming path — mirroring
-// the other go-micro OpenAI-format drivers, whose agents run tools via
-// Generate and stream only final answers.
+// Stream generates a streaming response, routed to /chat/completions or
+// /responses per model like Generate. Tool definitions are not sent on the
+// streaming path — mirroring the other go-micro OpenAI-format drivers, whose
+// agents run tools via Generate and stream only final answers.
 func (p *Provider) Stream(ctx context.Context, req *ai.Request, opts ...ai.GenerateOption) (ai.Stream, error) {
+	if p.responsesOnly(ctx) {
+		stream, err := p.streamResponses(ctx, req)
+		if isUnsupportedAPI(err) {
+			modelEndpoints.Store(p.opts.Model, false)
+			return p.streamChat(ctx, req)
+		}
+		return stream, err
+	}
+	stream, err := p.streamChat(ctx, req)
+	if isUnsupportedAPI(err) {
+		modelEndpoints.Store(p.opts.Model, true)
+		return p.streamResponses(ctx, req)
+	}
+	return stream, err
+}
+
+// streamChat is the /chat/completions streaming path.
+func (p *Provider) streamChat(ctx context.Context, req *ai.Request) (ai.Stream, error) {
 	messages := []map[string]any{
 		{"role": "system", "content": req.SystemPrompt},
 	}

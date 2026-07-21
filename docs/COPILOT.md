@@ -69,6 +69,13 @@ List what your subscription offers with `mu setup` (option 4), or query the
 API directly. Model ids are used verbatim — e.g. `claude-sonnet-4.5`,
 `gpt-4.1`, `gpt-5`, `o4-mini`.
 
+Copilot serves models through two API shapes: `/chat/completions` and, for
+newer OpenAI (Codex-generation) models, the Responses API (`/responses`)
+only. Mu handles this automatically — it reads each model's
+`supported_endpoints` from the Copilot model catalog and speaks the right
+wire format, falling back and remembering if the API reports
+`unsupported_api_for_model`. Any model your subscription lists is usable.
+
 **Premium request budgets matter.** On Copilot plans, `gpt-4.1` (and other
 "included" models) bill at a **0× premium-request multiplier** — effectively
 unlimited — while `claude-*` models consume premium requests (1× each) from a
