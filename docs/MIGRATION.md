@@ -102,8 +102,7 @@ or improve test coverage; never break `main`.
      (web_fetch) and `apps.Server.Search`/`apps.Server.Read` (apps_search/read).
      The search and apps services are in nativeServices, so the agent
      auto-discovers these methods.
-    - ✅ Covered by service and integration tests for weather, market prices,
-      and news.
+    - ✅ Covered by service and integration tests for weather and news.
    - **Planner retirement is gated on one upstream go-micro feature.** Two
      consumers of the hand-rolled planner remain:
      - The **non-streaming** `agent.Query` already runs native (planner is only

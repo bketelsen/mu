@@ -46,3 +46,26 @@ test ! -d markets
 
 All commands exited successfully. The Markets scan excludes historical
 superpowers documents only; runtime Go code is clean.
+
+## Post-Merge Review Fixes
+
+- Corrected README and current documentation service copy to list GitHub and
+  not Markets; replaced the stale agent example with a news example.
+- Removed the remaining Markets claim in the Agent Query API metadata.
+- Updated the private asset allowlist for the GitHub navigation asset and
+  removed the stale trade asset entry.
+- Added focused regression guards that scan README and current embedded docs,
+  explicitly skip historical `superpowers/` plans, and assert the private asset
+  allowlist contains GitHub but not trade.
+
+Focused red/green evidence:
+
+```text
+go test ./docs -run TestCurrentProductCopyDoesNotAdvertiseMarkets -count=1
+# initially failed because README advertised Markets
+go test ./internal/app -run TestPublicPrivateAssetsTrackCurrentNavigationAssets -count=1
+# initially failed because /github.svg was absent
+go test ./docs -count=1
+go test ./internal/app -count=1
+go test ./internal/api -count=1
+```

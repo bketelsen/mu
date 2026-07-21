@@ -685,7 +685,7 @@ func init() {
 		Name:        "Agent Query",
 		Path:        "/agent",
 		Method:      "POST",
-		Description: "Query the AI agent. The agent plans and executes tool calls (news, weather, places, markets, etc.) then synthesizes a response. Requires authentication. Costs credits per query. Returns a Server-Sent Events stream.",
+		Description: "Query the AI agent. The agent plans and executes tool calls (GitHub, news, weather, places, and more) then synthesizes a response. Requires authentication. Costs credits per query. Returns a Server-Sent Events stream.",
 		Params: []*Param{
 			{Name: "prompt", Value: "string", Description: "The question or request for the agent"},
 			{Name: "model", Value: "string", Description: "Model tier: standard (default) or premium"},

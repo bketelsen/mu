@@ -2,7 +2,7 @@
 
 A private, single-owner home server.
 
-Mu is one Go binary for private news, mail, search, markets, weather, video,
+Mu is one Go binary for private GitHub, news, mail, search, weather, video,
 places, apps, and an AI agent. Web, CLI, REST API, MCP, and A2A interfaces all
 operate on the same owner data.
 
@@ -27,7 +27,7 @@ for CLI and programmatic clients:
 ```bash
 export MU_TOKEN="your-owner-pat"
 mu news
-mu agent "summarise today's markets"
+mu agent "summarise today's news"
 ```
 
 ## Private channels

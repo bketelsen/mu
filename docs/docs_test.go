@@ -2,6 +2,7 @@ package docs
 
 import (
 	"io/fs"
+	"os"
 	"strings"
 	"testing"
 )
@@ -118,6 +119,36 @@ func TestEmbeddedDocumentsDescribeSingleOwnerRuntime(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCurrentProductCopyDoesNotAdvertiseMarkets(t *testing.T) {
+	files := []string{"../README.md"}
+	err := fs.WalkDir(docsFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(path, ".md") && !strings.HasPrefix(path, "superpowers/") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range files {
+		var content []byte
+		if path == "../README.md" {
+			content, err = os.ReadFile(path)
+		} else {
+			content, err = docsFS.ReadFile(path)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(strings.ToLower(string(content)), "markets") {
+			t.Errorf("%s advertises removed Markets capability", path)
+		}
 	}
 }
 

@@ -18,6 +18,15 @@ func TestSearchBar(t *testing.T) {
 	}
 }
 
+func TestPublicPrivateAssetsTrackCurrentNavigationAssets(t *testing.T) {
+	if !publicPrivateAssets["/github.svg"] {
+		t.Fatal("GitHub navigation asset must remain public for the login page")
+	}
+	if publicPrivateAssets["/trade.svg"] {
+		t.Fatal("removed trade asset must not remain public")
+	}
+}
+
 func TestSearchBar_EscapesQuery(t *testing.T) {
 	result := SearchBar("/search", "Search...", `<script>alert("xss")</script>`)
 	if strings.Contains(result, "<script>") {
