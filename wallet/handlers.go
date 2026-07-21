@@ -87,7 +87,7 @@ func WalletPage(userID string) string {
 	} else {
 		sb.WriteString(fmt.Sprintf(`<p>%d credits</p>`, wallet.Balance))
 	}
-	sb.WriteString(`<p><a href="/wallet/topup">Add Credits →</a> · <a href="/wallet/transfer">Transfer →</a></p>`)
+	sb.WriteString(`<p><a href="/wallet/topup">Add Credits →</a></p>`)
 	sb.WriteString(`</div>`)
 
 	// Crypto wallet — the other way to pay (USDC on Base via x402).
@@ -167,19 +167,11 @@ func WalletPage(userID string) string {
 				}
 			} else if tx.Type == TxTopup {
 				typeLabel = "Deposit"
-			} else if tx.Type == TxTransfer {
+			} else if tx.Type == "transfer" {
 				if tx.Amount > 0 {
-					if from, ok := tx.Metadata["from"].(string); ok {
-						typeLabel = "Transfer from " + from
-					} else {
-						typeLabel = "Transfer in"
-					}
+					typeLabel = "Incoming credit"
 				} else {
-					if to, ok := tx.Metadata["to"].(string); ok {
-						typeLabel = "Transfer to " + to
-					} else {
-						typeLabel = "Transfer out"
-					}
+					typeLabel = "Outgoing debit"
 				}
 			}
 			var amountStr string
@@ -268,10 +260,6 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		HandleStripeWebhook(w, r)
 	case path == "/wallet/convert" && r.Method == "POST":
 		handleConvert(w, r)
-	case path == "/wallet/transfer" && r.Method == "POST":
-		handleTransfer(w, r)
-	case path == "/wallet/transfer" && r.Method == "GET":
-		handleTransferPage(w, r)
 	case path == "/wallet/pricing":
 		handlePricing(w, r)
 	default:

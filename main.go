@@ -1450,8 +1450,8 @@ func main() {
 							http.Error(w, "authentication required", http.StatusUnauthorized)
 							return
 						}
-						if !auth.CanPost(sess.Account) {
-							http.Error(w, auth.PostBlockReason(sess.Account), http.StatusForbidden)
+						if !auth.CanWrite(sess.Account) {
+							http.Error(w, "owner authentication required", http.StatusForbidden)
 							return
 						}
 						if err := auth.CheckPostRate(sess.Account); err != nil {
@@ -1508,9 +1508,8 @@ func main() {
 					http.Error(w, "authentication required", http.StatusUnauthorized)
 					return
 				}
-				if !auth.CanPost(sess.Account) {
-					msg := auth.PostBlockReason(sess.Account)
-					http.Error(w, msg, http.StatusForbidden)
+				if !auth.CanWrite(sess.Account) {
+					http.Error(w, "owner authentication required", http.StatusForbidden)
 					return
 				}
 				if err := auth.CheckPostRate(sess.Account); err != nil {

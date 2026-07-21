@@ -155,6 +155,11 @@ func IsOwner(accountID string) bool {
 	return err == nil && owner.ID == accountID
 }
 
+// CanWrite is the explicit identity check used by charged write middleware.
+func CanWrite(accountID string) bool {
+	return IsOwner(accountID)
+}
+
 func Create(acc *Account) error {
 	mutex.Lock()
 	defer mutex.Unlock()

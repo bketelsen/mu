@@ -1008,7 +1008,7 @@ func generatePageHTML(visible []*Message, r *http.Request) string {
 		if acc != nil {
 			viewerID = acc.ID
 		}
-		if viewerID != "" && (app.IsBlocked(viewerID, p.AuthorID) || app.IsDismissed(viewerID, "social", p.ID)) {
+		if viewerID != "" && app.IsDismissed(viewerID, "social", p.ID) {
 			continue
 		}
 		content := htmlpkg.EscapeString(p.Content)

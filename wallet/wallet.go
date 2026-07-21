@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const DailyTransferCap = 0
+
 // Credit costs per operation (in credits/pennies)
 // Read-only operations (news reading, blog reading, video watching, chat viewing) are included.
 // Only actions that create content, trigger searches, or use external APIs are charged.
@@ -42,8 +44,6 @@ var (
 	CostAppEdit           = getEnvInt("CREDIT_COST_APP_EDIT", 50)
 	DailyQuota            = getEnvInt("DAILY_QUOTA", getEnvInt("FREE_DAILY_QUOTA", 100))
 )
-
-const DailyTransferCap = 10000
 
 // PaymentsEnabled returns true if payments are configured
 // When false, quotas are disabled (self-hosted, no restrictions)
@@ -265,112 +265,12 @@ func DeductCredits(userID string, amount int, operation string, metadata map[str
 	return nil
 }
 
-// DailyTransferTotal returns the number of credits transferred out by a user on the given UTC date.
-func DailyTransferTotal(userID string, day time.Time) int {
-	date := day.UTC().Format("2006-01-02")
+// DailyTransferTotal is retained only for inactive legacy handler code.
+func DailyTransferTotal(userID string, day time.Time) int { return 0 }
 
-	mutex.RLock()
-	defer mutex.RUnlock()
-
-	total := 0
-	for _, tx := range transactions[userID] {
-		if tx == nil || tx.Type != TxTransfer || tx.Operation != OpTransfer || tx.Amount >= 0 {
-			continue
-		}
-		if tx.CreatedAt.UTC().Format("2006-01-02") != date {
-			continue
-		}
-		total += -tx.Amount
-	}
-	return total
-}
-
-// TransferCredits transfers credits from one user to another
+// TransferCredits cannot create peer transfers on a sole-owner instance.
 func TransferCredits(fromUserID, toUserID string, amount int) error {
-	if amount <= 0 {
-		return errors.New("amount must be positive")
-	}
-	if fromUserID == toUserID {
-		return errors.New("cannot transfer to yourself")
-	}
-
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	// Check sender has not exceeded the daily transfer cap.
-	today := time.Now().UTC().Format("2006-01-02")
-	dailyTotal := 0
-	for _, tx := range transactions[fromUserID] {
-		if tx == nil || tx.Type != TxTransfer || tx.Operation != OpTransfer || tx.Amount >= 0 {
-			continue
-		}
-		if tx.CreatedAt.UTC().Format("2006-01-02") == today {
-			dailyTotal += -tx.Amount
-		}
-	}
-	if dailyTotal+amount > DailyTransferCap {
-		return fmt.Errorf("daily transfer cap exceeded: maximum %d credits per day", DailyTransferCap)
-	}
-
-	// Check sender has sufficient balance
-	sender, exists := wallets[fromUserID]
-	if !exists || sender.Balance < amount {
-		return errors.New("insufficient credits")
-	}
-
-	// Get or create receiver wallet
-	receiver, exists := wallets[toUserID]
-	if !exists {
-		receiver = &Wallet{
-			UserID:   toUserID,
-			Balance:  0,
-			Currency: "GBP",
-		}
-		wallets[toUserID] = receiver
-	}
-
-	// Deduct from sender
-	sender.Balance -= amount
-	sender.UpdatedAt = time.Now()
-
-	// Credit receiver
-	receiver.Balance += amount
-	receiver.UpdatedAt = time.Now()
-
-	now := time.Now()
-	txID := uuid.New().String()
-
-	// Record sender transaction
-	senderTx := &Transaction{
-		ID:        txID,
-		UserID:    fromUserID,
-		Type:      TxTransfer,
-		Amount:    -amount,
-		Balance:   sender.Balance,
-		Operation: OpTransfer,
-		Metadata:  map[string]interface{}{"to": toUserID},
-		CreatedAt: now,
-	}
-	transactions[fromUserID] = append(transactions[fromUserID], senderTx)
-
-	// Record receiver transaction
-	receiverTx := &Transaction{
-		ID:        uuid.New().String(),
-		UserID:    toUserID,
-		Type:      TxTransfer,
-		Amount:    amount,
-		Balance:   receiver.Balance,
-		Operation: OpTransfer,
-		Metadata:  map[string]interface{}{"from": fromUserID},
-		CreatedAt: now,
-	}
-	transactions[toUserID] = append(transactions[toUserID], receiverTx)
-
-	// Persist
-	data.SaveJSON("wallets.json", wallets)
-	data.SaveJSON("transactions.json", transactions)
-
-	return nil
+	return errors.New("credit transfers are not available")
 }
 
 // GetTransactions returns transaction history for a user

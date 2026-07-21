@@ -22,20 +22,14 @@ func AdminHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users := auth.GetAllAccounts()
-
 	content := `<div class="admin-links">
 		<a href="/admin/usage">API Usage</a>
 		<a href="/admin/api">API Log</a>
-		<a href="/admin/blocklist">Blocklist</a>
-		<a href="/admin/console">Console</a>
 		<a href="/admin/env">Environment</a>
 		<a href="/admin/email">Mail Log</a>
-		<a href="/admin/moderate">Moderation</a>
 		<a href="/admin/server">Server</a>
 		<a href="/admin/spam">Spam Filter</a>
 		<a href="/admin/log">System Log</a>
-		<a href="/admin/users">Users <span class="count">` + fmt.Sprintf("%d", len(users)) + `</span></a>
 	</div>`
 
 	html := app.RenderHTMLForRequest("Admin", "Admin Dashboard", content, r)

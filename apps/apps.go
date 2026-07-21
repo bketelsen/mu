@@ -496,7 +496,7 @@ func handleList(w http.ResponseWriter, r *http.Request) {
 		sb.WriteString(`<p>No apps yet. <a href="/apps/new">Create the first one</a>.</p>`)
 	} else {
 		for _, a := range list {
-			if userID != "" && (app.IsBlocked(userID, a.AuthorID) || app.IsDismissed(userID, "app", a.Slug)) {
+			if userID != "" && app.IsDismissed(userID, "app", a.Slug) {
 				continue
 			}
 			tagsHTML := ""

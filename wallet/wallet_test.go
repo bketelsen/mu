@@ -1,11 +1,52 @@
 package wallet
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"mu/internal/auth"
 )
+
+func ownerSessionCookie(t *testing.T) *http.Cookie {
+	t.Helper()
+	owner, err := auth.Owner()
+	if errors.Is(err, auth.ErrNoOwner) {
+		if err := auth.Create(&auth.Account{ID: "owner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		owner, err = auth.Owner()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := auth.CreateSession(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &http.Cookie{Name: "session", Value: sess.Token}
+}
+
+func TestWalletTransferRemoved(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/wallet/transfer", nil)
+	req.AddCookie(ownerSessionCookie(t))
+	rr := httptest.NewRecorder()
+	Handler(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("GET /wallet/transfer = %d, want 404", rr.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/wallet", nil)
+	req.AddCookie(ownerSessionCookie(t))
+	rr = httptest.NewRecorder()
+	Handler(rr, req)
+	if strings.Contains(rr.Body.String(), "/wallet/transfer") {
+		t.Fatal("wallet page still links to transfers")
+	}
+}
 
 func TestFormatCredits(t *testing.T) {
 	tests := []struct {
@@ -269,58 +310,6 @@ func TestDeductCredits_NonexistentUser(t *testing.T) {
 	}
 }
 
-func TestTransferCreditsDailyCap(t *testing.T) {
-	mutex.Lock()
-	origWallets := wallets
-	origTx := transactions
-	wallets = map[string]*Wallet{
-		"sender":   {UserID: "sender", Balance: DailyTransferCap + 1000, Currency: "GBP"},
-		"receiver": {UserID: "receiver", Balance: 0, Currency: "GBP"},
-	}
-	transactions = map[string][]*Transaction{}
-	mutex.Unlock()
-	defer func() {
-		mutex.Lock()
-		wallets = origWallets
-		transactions = origTx
-		mutex.Unlock()
-	}()
-
-	if err := TransferCredits("sender", "receiver", DailyTransferCap); err != nil {
-		t.Fatalf("first transfer unexpected error: %v", err)
-	}
-	if err := TransferCredits("sender", "receiver", 1); err == nil {
-		t.Fatal("expected daily transfer cap error")
-	}
-	if got := GetBalance("sender"); got != 1000 {
-		t.Fatalf("sender balance after blocked transfer = %d, want 1000", got)
-	}
-}
-
-func TestDailyTransferTotalIgnoresIncomingAndOldTransfers(t *testing.T) {
-	mutex.Lock()
-	origTx := transactions
-	now := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
-	transactions = map[string][]*Transaction{
-		"user": {
-			{Type: TxTransfer, Operation: OpTransfer, Amount: -25, CreatedAt: now},
-			{Type: TxTransfer, Operation: OpTransfer, Amount: 15, CreatedAt: now},
-			{Type: TxTransfer, Operation: OpTransfer, Amount: -40, CreatedAt: now.AddDate(0, 0, -1)},
-			{Type: TxSpend, Operation: OpAgentQuery, Amount: -3, CreatedAt: now},
-		},
-	}
-	mutex.Unlock()
-	defer func() {
-		mutex.Lock()
-		transactions = origTx
-		mutex.Unlock()
-	}()
-
-	if got := DailyTransferTotal("user", now); got != 25 {
-		t.Fatalf("daily transfer total = %d, want 25", got)
-	}
-}
-
 func TestGetTransactions(t *testing.T) {
 	mutex.Lock()
 	origTx := transactions
@@ -365,20 +354,5 @@ func TestGetTransactions_EmptyUser(t *testing.T) {
 	}
 	if len(txs) != 0 {
 		t.Errorf("expected 0 transactions, got %d", len(txs))
-	}
-}
-
-func TestRespondTransferErrorEscapesRedirectMessage(t *testing.T) {
-	req := httptest.NewRequest("POST", "/wallet/transfer", nil)
-	rr := httptest.NewRecorder()
-
-	respondTransferError(rr, req, "insufficient balance & retry")
-
-	if rr.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want %d", rr.Code, http.StatusSeeOther)
-	}
-	loc := rr.Header().Get("Location")
-	if loc != "/wallet/transfer?error=insufficient+balance+%26+retry" {
-		t.Fatalf("Location = %q", loc)
 	}
 }

@@ -7,12 +7,11 @@ import (
 	"time"
 )
 
-func TestBanAccountRejectsAdminsAndTogglesBannedState(t *testing.T) {
+func TestOwnerCanAlwaysWrite(t *testing.T) {
 	mutex.Lock()
 	oldAccounts := accounts
 	accounts = map[string]*Account{
-		"admin": {ID: "admin", Admin: true},
-		"user":  {ID: "user"},
+		"owner": {ID: "owner", Admin: true, Approved: true, Created: time.Now()},
 	}
 	mutex.Unlock()
 	t.Cleanup(func() {
@@ -21,25 +20,11 @@ func TestBanAccountRejectsAdminsAndTogglesBannedState(t *testing.T) {
 		mutex.Unlock()
 	})
 
-	if err := BanAccount("admin"); err == nil {
-		t.Fatal("BanAccount accepted an admin account")
+	if !CanWrite("owner") {
+		t.Fatal("owner should be allowed to write")
 	}
-	if IsBanned("admin") {
-		t.Fatal("admin account was marked banned")
-	}
-
-	if err := BanAccount("user"); err != nil {
-		t.Fatalf("BanAccount(user) returned error: %v", err)
-	}
-	if !IsBanned("user") {
-		t.Fatal("user account was not marked banned")
-	}
-
-	if err := UnbanAccount("user"); err != nil {
-		t.Fatalf("UnbanAccount(user) returned error: %v", err)
-	}
-	if IsBanned("user") {
-		t.Fatal("user account remained banned after UnbanAccount")
+	if CanWrite("missing") {
+		t.Fatal("missing account should not be allowed to write")
 	}
 }
 

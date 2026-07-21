@@ -389,16 +389,6 @@ var tools = []Tool{
 		},
 	},
 	{
-		Name:        "wallet_transfer",
-		Description: "Transfer credits to another user by username",
-		Method:      "POST",
-		Path:        "/wallet/transfer",
-		Params: []ToolParam{
-			{Name: "to", Type: "string", Description: "Recipient username", Required: true},
-			{Name: "amount", Type: "number", Description: "Number of credits to transfer", Required: true},
-		},
-	},
-	{
 		Name:        "wallet_topup",
 		Description: "Get available wallet topup payment methods with crypto deposit address and card payment tiers",
 		Method:      "GET",
@@ -460,24 +450,6 @@ var tools = []Tool{
 		Params: []ToolParam{
 			{Name: "type", Type: "string", Description: "Content type", Required: true},
 			{Name: "id", Type: "string", Description: "Content ID", Required: true},
-		},
-	},
-	{
-		Name:        "block_user",
-		Description: "Block a user — hides all their content from your view",
-		Method:      "POST",
-		Path:        "/app/block",
-		Params: []ToolParam{
-			{Name: "user", Type: "string", Description: "User ID to block", Required: true},
-		},
-	},
-	{
-		Name:        "unblock_user",
-		Description: "Unblock a previously blocked user",
-		Method:      "POST",
-		Path:        "/app/unblock",
-		Params: []ToolParam{
-			{Name: "user", Type: "string", Description: "User ID to unblock", Required: true},
 		},
 	},
 	{
