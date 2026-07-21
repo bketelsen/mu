@@ -1,5 +1,5 @@
 // Package micro implements the multi-agent system. Each domain (news,
-// markets, mail, etc.) gets a specialised agent with its own system
+// mail, weather, etc.) gets a specialised agent with its own system
 // prompt, tool set, and memory scope. A lightweight router picks the
 // right agent for each query. The default "micro" agent has all tools
 // and serves as the catch-all — identical to the pre-multi-agent behaviour.
@@ -8,12 +8,12 @@ package micro
 // Agent defines a specialised micro-agent. Built-in agents have an empty
 // OwnerAccountID; user-defined agents are owned by the account that created them.
 type Agent struct {
-	ID             string   // "markets", "news", or a user agent id like "u_xxxx"
-	Name           string   // Human-friendly: "Markets Agent"
+	ID             string   // "news", "weather", or a user agent id like "u_xxxx"
+	Name           string   // Human-friendly: "News Agent"
 	Description    string   // One-line for the router
 	SystemPrompt   string   // Personality and instructions
 	Tools          []string // Allowed MCP tool names
-	MemoryScope    string   // Memory namespace prefix (e.g. "markets")
+	MemoryScope    string   // Memory namespace prefix (e.g. "news")
 	OwnerAccountID string   `json:",omitempty"` // empty = built-in; else the creator
 	ForkedFrom     string   `json:",omitempty"` // id this was forked from, if any
 }

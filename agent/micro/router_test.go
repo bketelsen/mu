@@ -5,27 +5,32 @@ import (
 	"testing"
 )
 
+func TestMarketsCapabilityIsNotRegistered(t *testing.T) {
+	if agent := Get("markets"); agent != nil {
+		t.Fatalf("removed Markets agent is still registered: %#v", agent)
+	}
+	for _, agent := range All() {
+		if agent.ID == "markets" {
+			t.Fatalf("All() exposed removed Markets agent: %#v", agent)
+		}
+	}
+}
+
+func TestKeywordRouteDoesNotSpecialCaseMarketQuestions(t *testing.T) {
+	if got := keywordRoute("what is the BTC price?"); len(got) != 0 {
+		t.Fatalf("keywordRoute() = %v, want generic routing", got)
+	}
+}
+
 func TestRouteDirectAddressAvoidsLLM(t *testing.T) {
 	tests := []struct {
 		name   string
 		prompt string
 		want   []string
 	}{
-		{
-			name:   "at mention",
-			prompt: "@markets what is ETH doing today?",
-			want:   []string{"markets"},
-		},
-		{
-			name:   "at mention with punctuation",
-			prompt: "@markets, what is ETH doing today?",
-			want:   []string{"markets"},
-		},
-		{
-			name:   "at mention with leading whitespace",
-			prompt: "  @markets what is ETH doing today?",
-			want:   []string{"markets"},
-		},
+		{name: "at mention", prompt: "@weather what is the forecast?", want: []string{"weather"}},
+		{name: "at mention with punctuation", prompt: "@weather, what is the forecast?", want: []string{"weather"}},
+		{name: "at mention with leading whitespace", prompt: "  @weather what is the forecast?", want: []string{"weather"}},
 		{
 			name:   "ask the agent",
 			prompt: "ask the weather agent about Lisbon tomorrow",
@@ -55,8 +60,8 @@ func TestStripAddress(t *testing.T) {
 	}{
 		{
 			name:   "at mention",
-			prompt: "@markets what is ETH doing today?",
-			want:   "what is ETH doing today?",
+			prompt: "@weather what is the forecast?",
+			want:   "what is the forecast?",
 		},
 		{
 			name:   "ask agent about",
@@ -65,8 +70,8 @@ func TestStripAddress(t *testing.T) {
 		},
 		{
 			name:   "at mention with leading whitespace",
-			prompt: "  @markets what is ETH doing today?",
-			want:   "what is ETH doing today?",
+			prompt: "  @weather what is the forecast?",
+			want:   "what is the forecast?",
 		},
 		{
 			name:   "use agent",
@@ -90,8 +95,8 @@ func TestStripAddress(t *testing.T) {
 }
 
 func TestKeywordRouteMultiSignalOrdering(t *testing.T) {
-	got := keywordRoute("give me weather, BTC price, news headlines, and youtube videos")
-	want := []string{"weather", "news", "markets"}
+	got := keywordRoute("give me weather and news headlines")
+	want := []string{"weather", "news"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("keywordRoute() = %v, want %v", got, want)
 	}
@@ -122,8 +127,8 @@ func TestAllExcludesFallbackAgent(t *testing.T) {
 }
 
 func TestValidateAgentIDsDeduplicatesAndLimits(t *testing.T) {
-	got := validateAgentIDs([]string{"markets", "bogus", "markets", "news", "weather", "mail"})
-	want := []string{"markets", "news", "weather"}
+	got := validateAgentIDs([]string{"bogus", "news", "news", "weather", "mail"})
+	want := []string{"news", "weather", "mail"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("validateAgentIDs() = %v, want %v", got, want)
 	}
@@ -156,7 +161,6 @@ func TestKeywordRouteCoreAskAnswerSmokeCoverage(t *testing.T) {
 	}{
 		{name: "weather", prompt: "what's the weather in London?", want: []string{"weather"}},
 		{name: "news", prompt: "what's happening in the news today?", want: []string{"news"}},
-		{name: "markets", prompt: "what is the BTC price?", want: []string{"markets"}},
 		{name: "mail", prompt: "do I have unread mail?", want: []string{"mail"}},
 		{name: "search", prompt: "search the web for go-micro agents", want: []string{"search"}},
 	}

@@ -27,7 +27,7 @@ func Route(prompt string) []string {
 }
 
 // MatchDirectAddress checks if the user explicitly addresses an agent.
-// e.g. "ask the markets agent about ETH" or "@markets ETH price"
+// e.g. "ask the weather agent about rain" or "@weather forecast"
 func MatchDirectAddress(prompt string) string {
 	prompt = strings.TrimSpace(prompt)
 	lower := strings.ToLower(prompt)
@@ -128,7 +128,6 @@ func keywordRoute(prompt string) []string {
 	// Multi-signal detection
 	hasWeather := containsAnyRouteTerm(lower, "weather", "forecast", "temperature")
 	hasNews := containsAnyRouteTerm(lower, "news", "headline", "happening")
-	hasMarkets := containsAnyRouteTerm(lower, "price", "market", "btc", "eth", "crypto")
 	hasVideo := containsAnyRouteTerm(lower, "video", "watch", "youtube")
 	hasSearch := containsAnyRouteTerm(lower, "search", "look up", "find out")
 	hasApps := containsAnyRouteTerm(lower, "build me", "build an app", "create an app")
@@ -139,9 +138,6 @@ func keywordRoute(prompt string) []string {
 	}
 	if hasNews {
 		ids = append(ids, "news")
-	}
-	if hasMarkets {
-		ids = append(ids, "markets")
 	}
 	if hasVideo {
 		ids = append(ids, "video")

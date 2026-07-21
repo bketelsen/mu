@@ -556,8 +556,6 @@ func readableToolName(name string) string {
 		return "news"
 	case "web_search":
 		return "web search"
-	case "markets":
-		return "markets"
 	case "video":
 		return "video"
 	case "blog":
@@ -981,7 +979,6 @@ func isGenericWebResultLine(line string) bool {
 func isFallbackSectionLabel(line string) bool {
 	lower := strings.ToLower(strings.TrimSpace(line))
 	labels := []string{
-		"live crypto prices:",
 		"latest news:",
 		"news results:",
 	}
@@ -1068,7 +1065,7 @@ func completeNativeToolAnswer(answer string, toolLabels []string) string {
 		return answer
 	}
 
-	return "I checked the live sources, but couldn't produce a complete final answer from the available tool results. Please try again in a moment; if one source is unavailable, ask for the specific slice (news, markets, weather, or search) and I'll show what is reachable."
+	return "I checked the live sources, but couldn't produce a complete final answer from the available tool results. Please try again in a moment; if one source is unavailable, ask for the specific slice (news, weather, or search) and I'll show what is reachable."
 }
 
 func isProgressOnlyAnswer(answer string) bool {

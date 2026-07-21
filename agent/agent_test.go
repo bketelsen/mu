@@ -253,78 +253,14 @@ func TestFormatToolResultKeepsExistingCurrentDateContext(t *testing.T) {
 	}
 }
 
-func TestFormatToolResultMarketsTextStaysReadable(t *testing.T) {
-	result := `{"text":"Current request date: Tuesday, 30 June 2026 (2026-06-30, UTC).\nLive crypto prices:\nBTC: $100000.00 (+2.50% 24h)\nETH: $3000.00 (-1.25% 24h)"}`
-	got := formatToolResult("markets", result, nil)
-	if strings.Contains(got, `{"text"`) {
-		t.Fatalf("expected readable markets context instead of raw JSON, got %q", got)
-	}
-	if strings.Count(got, "Current request date:") != 1 {
-		t.Fatalf("expected one current request date context, got %q", got)
-	}
-	for _, want := range []string{"BTC: $100000.00 (+2.50% 24h)", "ETH: $3000.00 (-1.25% 24h)"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("expected %q in readable markets context, got %q", want, got)
-		}
-	}
-}
-
-func TestFormatToolResultMarketsRESTDataStaysReadable(t *testing.T) {
-	result := `{"category":"crypto","data":[{"symbol":"BTC","price":100000,"change_24h":2.5},{"symbol":"DOGE","price":0.1234567,"change_24h":-4}]}`
-	got := formatToolResult("markets", result, nil)
-	if strings.Contains(got, `{"category"`) {
-		t.Fatalf("expected readable markets context instead of raw JSON, got %q", got)
-	}
-	for _, want := range []string{"Current request date:", "Live crypto prices:", "BTC: $100000.00 (+2.50% 24h)", "DOGE: $0.123457 (-4.00% 24h)"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("expected %q in readable markets context, got %q", want, got)
-		}
-	}
-}
-
-func TestFormatToolResultMarketsRESTDataIncludesFreshnessDisclosure(t *testing.T) {
-	result := `{"category":"crypto","updated_at":"2026-07-01T12:00:00Z","stale":true,"partial":true,"freshness":"Last refresh: 2026-07-01 12:00 UTC; data may be stale; some symbols are unavailable from the current source","data":[{"symbol":"BTC","price":97000,"change_24h":1.23,"source":"Coinbase + CoinGecko"}]}`
-	got := formatToolResult("markets", result, nil)
-	for _, want := range []string{"Last refresh: 2026-07-01 12:00 UTC", "market data may be stale", "some requested symbols are unavailable", "BTC: $97000.00 (+1.23% 24h)"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("expected %q in readable markets context, got %q", want, got)
-		}
-	}
-}
-
 func TestToolCallKeyDedupesEquivalentArgs(t *testing.T) {
-	first := toolCallKey("markets", map[string]any{"category": "crypto", "limit": float64(10)})
-	second := toolCallKey("markets", map[string]any{"limit": float64(10), "category": "crypto"})
+	first := toolCallKey("weather_forecast", map[string]any{"lat": 51.5074, "lon": -0.1278})
+	second := toolCallKey("weather_forecast", map[string]any{"lon": -0.1278, "lat": 51.5074})
 	if first != second {
 		t.Fatalf("expected equivalent tool args to share a dedupe key: %q vs %q", first, second)
 	}
-	if first == toolCallKey("markets", map[string]any{"category": "futures", "limit": float64(10)}) {
-		t.Fatal("expected distinct market categories to keep distinct dedupe keys")
-	}
-}
-
-func TestShortcutToolCallsMarketMoversAvoidsNewsPlanning(t *testing.T) {
-	for _, prompt := range []string{
-		"What is moving in markets today?",
-		"What is moving in markets?",
-		"Which stocks are moving?",
-	} {
-		got := shortcutToolCalls(prompt)
-		if len(got) != 1 {
-			t.Fatalf("%q: expected one shortcut tool call, got %#v", prompt, got)
-		}
-		if got[0].Tool != "markets" {
-			t.Fatalf("%q: expected markets-only shortcut, got %#v", prompt, got)
-		}
-	}
-}
-
-func TestShortcutToolCallsMarketMoverExplanationUsesPlanner(t *testing.T) {
-	if got := shortcutToolCalls("Why is Bitcoin moving today?"); len(got) != 0 {
-		t.Fatalf("expected explanation prompt to use planner, got %#v", got)
-	}
-	if got := shortcutToolCalls("What is moving in markets, and what news explains it?"); len(got) != 0 {
-		t.Fatalf("expected cross-source explanation prompt to use planner, got %#v", got)
+	if first == toolCallKey("weather_forecast", map[string]any{"lat": 40.7128, "lon": -74.0060}) {
+		t.Fatal("expected distinct weather coordinates to keep distinct dedupe keys")
 	}
 }
 
@@ -350,37 +286,18 @@ func TestShortcutToolCallsComplexWeatherUsesPlanner(t *testing.T) {
 	}
 }
 
-func TestUseFastToolFallbackOnlyForGuestMarketMovers(t *testing.T) {
-	rag := []string{"### markets\nLive crypto prices:\nBTC: $97000.00 (+1.23% 24h)"}
-	if !useFastToolFallback("What is moving in markets today?", true, true, false, false, false, false, rag) {
-		t.Fatal("expected guest market-mover prompts with market data to use the fast fallback")
-	}
-	if useFastToolFallback("What is moving in markets today?", false, true, false, false, false, false, rag) {
-		t.Fatal("authenticated users should keep full synthesis")
-	}
-	if useFastToolFallback("Why is Bitcoin moving today?", true, true, false, false, false, false, rag) {
-		t.Fatal("explanation prompts should keep full synthesis")
-	}
-	if useFastToolFallback("What is moving in markets today?", true, false, false, false, false, false, rag) {
-		t.Fatal("fallback requires a market tool result")
-	}
-	if useFastToolFallback("What is moving in markets today?", true, true, false, false, false, false, nil) {
-		t.Fatal("fallback requires result context")
-	}
-}
-
 func TestUseFastToolFallbackForGuestSimpleWeather(t *testing.T) {
 	rag := []string{"### weather_forecast\nWeather for New York.\nNow: 21°C, partly cloudy.\nFreshness/source: source Google Weather; generated at 2026-07-02 12:00 UTC."}
-	if !useFastToolFallback("Weather in New York today", true, false, true, false, false, false, rag) {
+	if !useFastToolFallback("Weather in New York today", true, true, false, false, false, rag) {
 		t.Fatal("expected simple guest weather prompts with weather data to use the fast fallback")
 	}
-	if useFastToolFallback("Compare weather in New York and London", true, false, true, false, false, false, rag) {
+	if useFastToolFallback("Compare weather in New York and London", true, true, false, false, false, rag) {
 		t.Fatal("comparative weather prompts should keep full synthesis")
 	}
-	if useFastToolFallback("Weather in New York today", false, false, true, false, false, false, rag) {
+	if useFastToolFallback("Weather in New York today", false, true, false, false, false, rag) {
 		t.Fatal("authenticated users should keep full synthesis")
 	}
-	if useFastToolFallback("Weather in New York today", true, false, false, false, false, false, rag) {
+	if useFastToolFallback("Weather in New York today", true, false, false, false, false, rag) {
 		t.Fatal("fallback requires a weather tool result")
 	}
 }
@@ -390,23 +307,23 @@ func TestUseFastToolFallbackForGuestUnavailableNewsWebFallback(t *testing.T) {
 		"### web_search\nCurrent date context: request date is 2026-07-02 UTC.\nSearch results for \"AI news\":\n1. AI story — snippet grounded in the web result (https://example.com/ai)",
 		"### news_search\nnews_search is unavailable right now. Use any other available live results to answer, and mention this unavailable source briefly without exposing internal payloads.",
 	}
-	if !useFastToolFallback("Find today's AI news", true, false, false, true, false, true, rag) {
+	if !useFastToolFallback("Find today's AI news", true, false, true, false, true, rag) {
 		t.Fatal("expected guest latest-news web fallback to skip LLM synthesis")
 	}
-	if useFastToolFallback("Find today's AI news", false, false, false, true, false, true, rag) {
+	if useFastToolFallback("Find today's AI news", false, false, true, false, true, rag) {
 		t.Fatal("authenticated users should keep full synthesis")
 	}
-	if useFastToolFallback("Find today's AI news", true, false, false, true, false, false, rag) {
+	if useFastToolFallback("Find today's AI news", true, false, true, false, false, rag) {
 		t.Fatal("fallback requires unavailable news_search disclosure")
 	}
-	if useFastToolFallback("Find today's AI news", true, false, false, false, false, true, rag) {
+	if useFastToolFallback("Find today's AI news", true, false, false, false, true, rag) {
 		t.Fatal("fallback requires available web_search context")
 	}
-	if useFastToolFallback("Find saved AI article", true, false, false, true, false, true, rag) {
+	if useFastToolFallback("Find saved AI article", true, false, true, false, true, rag) {
 		t.Fatal("non-current news prompts should keep full synthesis")
 	}
 
-	if !useFastToolFallback("Find today's AI news", true, false, false, false, true, false, []string{"### news_search\nNews results for \"AI news\":\n1. AI story https://example.com/ai"}) {
+	if !useFastToolFallback("Find today's AI news", true, false, false, true, false, []string{"### news_search\nNews results for \"AI news\":\n1. AI story https://example.com/ai"}) {
 		t.Fatal("expected successful guest news_search results to skip LLM synthesis")
 	}
 }
@@ -452,37 +369,6 @@ func TestFallbackNewsSearchToolCallIgnoresNonNewsSearchFailures(t *testing.T) {
 	}
 	if got, ok := fallbackNewsSearchToolCall("old saved AI article", "news_search", map[string]any{"query": "AI"}); ok {
 		t.Fatalf("expected non-current news prompts to be ignored, got %#v", got)
-	}
-}
-
-func TestSkipMarketMoverCompanionToolFiltersUnrequestedNews(t *testing.T) {
-	prompt := "What is moving in markets today?"
-	for _, tool := range []string{"news", "news_headlines", "news_search", "web_search", "recall"} {
-		if !skipMarketMoverCompanionTool(prompt, tool) {
-			t.Fatalf("expected %s to be skipped for market-mover prompt", tool)
-		}
-	}
-	if skipMarketMoverCompanionTool(prompt, "markets") {
-		t.Fatal("expected markets tool to remain available")
-	}
-}
-
-func TestSkipMarketMoverCompanionToolFiltersAssetMoverPrompts(t *testing.T) {
-	for _, prompt := range []string{
-		"What crypto is moving today?",
-		"Which stocks are up today?",
-		"Any Bitcoin rally today?",
-	} {
-		if !skipMarketMoverCompanionTool(prompt, "news_headlines") {
-			t.Fatalf("expected unrequested news to be skipped for %q", prompt)
-		}
-	}
-}
-
-func TestSkipMarketMoverCompanionToolAllowsExplanatoryNews(t *testing.T) {
-	prompt := "What is moving in markets today, and what news explains the moves?"
-	if skipMarketMoverCompanionTool(prompt, "news_headlines") {
-		t.Fatal("expected explanatory market-mover prompt to allow news")
 	}
 }
 
@@ -633,11 +519,11 @@ func TestRenderToolCallRef_NoArgs(t *testing.T) {
 	}
 }
 
-func TestRenderToolCallRef_Category(t *testing.T) {
-	args := map[string]any{"category": "crypto"}
-	got := renderToolCallRef("markets", args, "Live crypto market prices:\n- BTC: $97000\n")
-	if !strings.Contains(got, "crypto") {
-		t.Errorf("expected category in label, got %q", got)
+func TestRenderToolCallRef_Query(t *testing.T) {
+	args := map[string]any{"q": "weather in London"}
+	got := renderToolCallRef("web_search", args, "Weather forecast for London\n")
+	if !strings.Contains(got, "weather in London") {
+		t.Errorf("expected query in label, got %q", got)
 	}
 }
 
@@ -864,15 +750,15 @@ func TestRenderResultCard_AppsRun(t *testing.T) {
 }
 
 func TestCompleteToolAnswerReplacesProgressOnlyWithResults(t *testing.T) {
-	rag := []string{"### markets\nBTC: $100,000", "### news\n- Bitcoin reaches new high"}
-	got := completeToolAnswer("Let me pull the latest market and news data for you.", rag)
+	rag := []string{"### weather_forecast\nLondon: 21°C", "### news\n- Bitcoin reaches new high"}
+	got := completeToolAnswer("Let me pull the latest weather and news data for you.", rag)
 	if strings.Contains(strings.ToLower(got), "let me pull") {
 		t.Fatalf("expected progress narration to be replaced, got %q", got)
 	}
 	if strings.Contains(strings.ToLower(got), "couldn't synthesize") {
 		t.Fatalf("expected synthesized fallback instead of generic incomplete-answer copy, got %q", got)
 	}
-	if strings.Contains(got, "**markets**") || strings.Contains(got, "**news**") || !strings.Contains(got, "BTC: $100,000") || !strings.Contains(got, "Bitcoin reaches new high") || strings.Contains(got, "Here's what I found") {
+	if strings.Contains(got, "**weather_forecast**") || strings.Contains(got, "**news**") || !strings.Contains(got, "London: 21°C") || !strings.Contains(got, "Bitcoin reaches new high") || strings.Contains(got, "Here's what I found") {
 		t.Fatalf("expected answer-first fallback to include results without implementation headings, got %q", got)
 	}
 }
@@ -1120,41 +1006,6 @@ Freshness/source: Google Weather; generated at 2026-07-03 12:00 UTC.`}
 	}
 	if strings.Contains(firstLine, "Provider") || strings.Contains(firstLine, "timestamp") {
 		t.Fatalf("expected provider metadata below the answer lead, got %q", got)
-	}
-}
-
-func TestCompleteToolAnswerSkipsMarketSectionLabels(t *testing.T) {
-	rag := []string{`### markets
-Current request date: Friday, 3 July 2026 (2026-07-03, UTC).
-Live crypto prices:
-BTC: $97000.00 (+1.23% 24h)
-ETH: $3500.00 (-0.42% 24h)
-Last refresh: 2026-07-03 12:00 UTC.`}
-	got := completeToolAnswer("Let me pull the latest market data.", rag)
-	firstLine, _, _ := strings.Cut(got, "\n")
-	if !strings.Contains(firstLine, "BTC: $97000.00") {
-		t.Fatalf("expected market fallback to lead with prices, got %q", got)
-	}
-	if strings.Contains(got, "Live crypto prices:") || strings.Contains(firstLine, "Current request date:") {
-		t.Fatalf("expected market section labels and request context not to lead, got %q", got)
-	}
-}
-
-func TestCompleteToolAnswerMovesMarketsFreshnessAfterPrices(t *testing.T) {
-	rag := []string{`### markets
-Last refresh: 2026-07-03 12:00 UTC.
-Disclosure: market data may be stale.
-Live crypto prices:
-BTC: $97000.00 (+1.23% 24h)
-ETH: $3500.00 (-0.42% 24h)`}
-	got := completeToolAnswer("Let me pull the latest market data.", rag)
-	btc := strings.Index(got, "BTC: $97000.00")
-	freshness := strings.Index(got, "Last refresh:")
-	if btc < 0 || freshness < 0 || freshness < btc {
-		t.Fatalf("expected market fallback to lead with prices and keep freshness later, got %q", got)
-	}
-	if strings.HasPrefix(got, "- Last refresh:") {
-		t.Fatalf("expected first bullet to answer the market prompt, got %q", got)
 	}
 }
 
@@ -1688,7 +1539,7 @@ func TestShouldHoldNativeNewsStreamTokensForLatestNewsPrompt(t *testing.T) {
 	if shouldHoldNativeNewsStreamTokens("Find today's AI news", []string{"weather"}) {
 		t.Fatal("did not expect non-news native tool tokens to be held")
 	}
-	if shouldHoldNativeNewsStreamTokens("What is moving in markets?", []string{"news"}) {
+	if shouldHoldNativeNewsStreamTokens("What is the weather?", []string{"news"}) {
 		t.Fatal("did not expect non-latest-news prompts to hold native tokens")
 	}
 }
@@ -1803,8 +1654,8 @@ Freshness caveat: Only 1 of 3 dated news_search results are from 2026-07-08; lea
 }
 
 func TestCompleteToolAnswerKeepsSubstantiveAnswer(t *testing.T) {
-	want := "BTC is at $100,000, and the latest news says it reached a new high."
-	got := completeToolAnswer(want, []string{"### markets\nBTC: $100,000"})
+	want := "London is 21°C, and the latest news says it reached a new high."
+	got := completeToolAnswer(want, []string{"### weather_forecast\nLondon: 21°C"})
 	if got != want {
 		t.Fatalf("expected substantive answer unchanged, got %q", got)
 	}
@@ -1870,7 +1721,7 @@ func TestNativeToolRecorderFormatsDottedNewsSearchPayloads(t *testing.T) {
 }
 
 func TestCompleteNativeToolAnswerReplacesProgressWithUnavailableState(t *testing.T) {
-	got := completeNativeToolAnswer("I'll check the latest market and news data now.", []string{"📈 Checking market prices", "📰 Scanning headlines"})
+	got := completeNativeToolAnswer("I'll check the latest weather and news data now.", []string{"🌤 Checking the weather", "📰 Scanning headlines"})
 	if strings.Contains(strings.ToLower(got), "i'll check") {
 		t.Fatalf("expected progress narration to be replaced, got %q", got)
 	}

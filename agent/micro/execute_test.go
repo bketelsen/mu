@@ -23,7 +23,7 @@ func TestBuildToolsDescFiltersPrivateToolsForGuests(t *testing.T) {
 }
 
 func TestGuestAllowedToolsCoverPublicCoreServices(t *testing.T) {
-	for _, tool := range []string{"weather_forecast", "news_headlines", "markets", "web_search", "search"} {
+	for _, tool := range []string{"weather_forecast", "news_headlines", "web_search", "search"} {
 		t.Run(tool, func(t *testing.T) {
 			if !isGuestAllowedTool(tool) {
 				t.Fatalf("%s should be allowed for guest ask-answer smoke paths", tool)
