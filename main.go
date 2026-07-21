@@ -28,6 +28,7 @@ import (
 	"mu/client/telegram"
 	"mu/client/whatsapp"
 	"mu/docs"
+	"mu/github"
 	"mu/home"
 	"mu/images"
 	"mu/internal/a2a"
@@ -111,6 +112,8 @@ func main() {
 	// load the data index
 	data.Load()
 	app.Load()
+	github.Load()
+	github.RegisterTools()
 
 	// load admin/flags
 	admin.Load()
@@ -1152,6 +1155,7 @@ func main() {
 		"/places":                false, // Public map, auth for search
 		"/weather":               false, // Public page, auth for forecast lookup
 		"/mail":                  true,  // Require auth for inbox
+		"/github":                true,  // Require authentication; handler requires admin
 		"/logout":                true,
 		"/account":               true,
 		"/verify":                false, // Public — token in URL is the credential
@@ -1205,6 +1209,7 @@ func main() {
 	}
 	// serve video
 	http.HandleFunc("/video", video.Handler)
+	http.HandleFunc("/github", github.Handler)
 
 	// serve news
 	http.HandleFunc("/news", news.Handler)
