@@ -16,8 +16,8 @@ func APIPageHandler(w http.ResponseWriter, r *http.Request) {
 
 	b.WriteString(`<div class="card">`)
 	b.WriteString(`<h2>API</h2>`)
-	b.WriteString(`<p class="card-desc">The same services as the <a href="/mcp">MCP server</a>, over plain HTTP. Every tool is callable via <code>POST /mcp</code>; some also have a dedicated REST path. Metered tools show their per-call price below.</p>`)
-	b.WriteString(`<p>Authentication: <code>Authorization: Bearer YOUR_TOKEN</code> &mdash; <a href="/token">create an owner PAT</a>. x402 is used only for owner-initiated outbound calls.</p>`)
+	b.WriteString(`<p class="card-desc">The same services as the <a href="/mcp">MCP server</a>, over plain HTTP. Every tool is callable via <code>POST /mcp</code>; some also have a dedicated REST path.</p>`)
+	b.WriteString(`<p>Authentication: <code>Authorization: Bearer YOUR_TOKEN</code> &mdash; <a href="/token">create an owner PAT</a>.</p>`)
 	b.WriteString(`</div>`)
 
 	// Playground
@@ -225,7 +225,7 @@ func apiEndpointsJSON() string {
 // apiEndpointsSection renders the reference from the same tool registry as the
 // MCP page, so the two are always the same set of services. Every tool is
 // callable over HTTP — via its dedicated REST path when it has one, otherwise
-// via POST /mcp — and metered tools show their per-call price.
+// via POST /mcp.
 func apiEndpointsSection() string {
 	var nav strings.Builder
 	nav.WriteString(`<nav class="ep-nav"><div class="ep-nav-title">Endpoints</div>`)
@@ -236,16 +236,12 @@ func apiEndpointsSection() string {
 	return `<div class="ep-layout">` + nav.String() + `<div class="ep-main">` + app.List(apiEndpointsHTML()) + `</div></div>`
 }
 
-// apiEndpointsHTML lists every tool as an HTTP endpoint, with its price and a
-// ready-to-run call (REST path if it has one, else the POST /mcp JSON-RPC body).
+// apiEndpointsHTML lists every tool as an HTTP endpoint with a ready-to-run call
+// (REST path if it has one, else the POST /mcp JSON-RPC body).
 func apiEndpointsHTML() string {
 	var b strings.Builder
 	for _, t := range sortedTools() {
 		b.WriteString(`<div class="card" id="api-` + html.EscapeString(t.Name) + `">`)
-
-		if t.WalletOp != "" {
-			b.WriteString(`<span class="tool-price">credits</span>`)
-		}
 
 		// Title: the REST method+path when the tool has one, else the tool name.
 		if t.Path != "" {

@@ -1043,7 +1043,6 @@ func isUnavailableLine(line string) bool {
 		"no news headlines found",
 		"no videos found",
 		"no places found",
-		"no topup methods available",
 		"data unavailable",
 	}
 	for _, phrase := range unavailablePhrases {

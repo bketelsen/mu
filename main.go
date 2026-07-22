@@ -359,37 +359,6 @@ func main() {
 	// system account (low cadence; disable with NOTES=off).
 	blog.StartNotes()
 
-	// Wire MCP quota checking using wallet credit system
-	api.QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		sess, err := auth.GetSession(r)
-		if err != nil {
-			return false, 0, fmt.Errorf("authentication required")
-		}
-		canProceed, _, cost, err := wallet.CheckQuota(sess.Account, op)
-		return canProceed, cost, err
-	}
-
-	// Wire agent quota checking (same wallet credit system)
-	agent.QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		sess, err := auth.GetSession(r)
-		if err != nil {
-			return false, 0, fmt.Errorf("authentication required")
-		}
-		canProceed, _, cost, err := wallet.CheckQuota(sess.Account, op)
-		return canProceed, cost, err
-	}
-
-	apps.QuotaCheck = agent.QuotaCheck
-
-	// Deduct credits from the acting user for a metered call (SDK or the agent).
-	chargeUser := func(r *http.Request, op string) {
-		if sess, err := auth.GetSession(r); err == nil {
-			_ = wallet.ConsumeQuota(sess.Account, op)
-		}
-	}
-	apps.ChargeQuota = chargeUser
-	agent.ChargeQuota = chargeUser
-
 	// Inline visual cards now come from the capability registry (core), which
 	// each service self-registers into from its Load(). No central wiring here.
 
@@ -430,7 +399,6 @@ func main() {
 	api.RegisterTool(api.Tool{
 		Name:        "web_search",
 		Description: "Search the web for current information and news",
-		WalletOp:    "web_search",
 		Params: []api.ToolParam{
 			{Name: "q", Type: "string", Description: "Search query", Required: true},
 		},
@@ -451,7 +419,6 @@ func main() {
 		Description: "Fetch a web page and return its cleaned readable content (strips ads, popups, navigation)",
 		Method:      "GET",
 		Path:        "/web/fetch",
-		WalletOp:    "web_fetch",
 		Params: []api.ToolParam{
 			{Name: "url", Type: "string", Description: "The URL to fetch", Required: true},
 		},
@@ -550,7 +517,6 @@ func main() {
 		Description: "Store a record in your database (a named collection). Private by default; set public=true to share it. Pass an id to update a record you own.",
 		Method:      "POST",
 		Path:        "/db",
-		WalletOp:    "db_write",
 		Params: []api.ToolParam{
 			{Name: "collection", Type: "string", Description: "Collection name (e.g. notes, tasks)", Required: true},
 			{Name: "data", Type: "object", Description: "The record's fields as a JSON object", Required: true},
@@ -633,13 +599,10 @@ func main() {
 		return `{"status":"ok"}`, nil
 	})
 
-	// image_generate — text-to-image via Atlas Cloud (metered, per-user).
-	// Charging happens inside images.Generate so every path bills exactly once;
-	// WalletOp here gates affordability and advertises the per-call price.
+	// image_generate — text-to-image via Atlas Cloud.
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "image_generate",
 		Description: "Generate an image from a text prompt. Returns a URL to the generated image.",
-		WalletOp:    "image_generate",
 		Params: []api.ToolParam{
 			{Name: "prompt", Type: "string", Description: "Describe the image to generate", Required: true},
 		},
@@ -700,7 +663,6 @@ func main() {
 	api.RegisterTool(api.Tool{
 		Name:        "weather_forecast",
 		Description: "Get the weather forecast for a location (current conditions plus the next few days).",
-		WalletOp:    "weather_forecast",
 		Params: []api.ToolParam{
 			{Name: "lat", Type: "number", Description: "Latitude of the location", Required: true},
 			{Name: "lon", Type: "number", Description: "Longitude of the location", Required: true},
@@ -858,7 +820,6 @@ func main() {
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "apps_build",
 		Description: "Build a small app from a natural language description, save it, and return the app details with URL. Apps are one of: a tracker (a list you add entries to, optionally totalling a number), a checklist, or a counter.",
-		WalletOp:    "app_build",
 		Params: []api.ToolParam{
 			{Name: "prompt", Type: "string", Description: "Description of the app to build (e.g. 'an expense tracker', 'a packing checklist', 'a water intake counter')", Required: true},
 		},
@@ -913,7 +874,6 @@ func main() {
 	api.RegisterTool(api.Tool{
 		Name:        "apps_run",
 		Description: "Run JavaScript code in a sandboxed environment and return the result. Use for calculations, data processing, or any computation the user needs.",
-		WalletOp:    "agent_query",
 		Params: []api.ToolParam{
 			{Name: "code", Type: "string", Description: "JavaScript code to execute. The code runs as a function body — use 'return' to output a value. Has access to mu.ai(), mu.web.fetch(), mu.db and mu.store for platform features.", Required: true},
 		},
@@ -953,7 +913,6 @@ func main() {
 		Description: "Ask the AI agent a question. The agent can search GitHub, news, web, video, weather, places, and more to answer your question.",
 		Method:      "POST",
 		Path:        "/agent/run",
-		WalletOp:    "agent_query",
 		Params: []api.ToolParam{
 			{Name: "prompt", Type: "string", Description: "Your question or request", Required: true},
 		},
@@ -969,10 +928,10 @@ func main() {
 		return answer, nil
 	})
 
-	// Wallet: the user's x402 Base wallet — address + USDC balance.
+	// Wallet: the user's Base wallet address and USDC balance.
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "wallet",
-		Description: "Get your Base wallet address and USDC balance. This wallet pays for metered MCP tools via x402.",
+		Description: "Get your Base wallet address and USDC balance.",
 	}, func(args map[string]any, accountID string) (string, error) {
 		bw, err := wallet.GetOrCreateWallet(accountID)
 		if err != nil {
@@ -983,11 +942,10 @@ func main() {
 		return string(b), nil
 	})
 
-	// Pay: call a tool on an MCP server (this one or another in the registry)
-	// and settle it from the user's Base wallet via x402.
+	// Pay: call a tool on an MCP server (this one or another in the registry).
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "pay",
-		Description: "Call a metered tool on an MCP server and pay for it from your Base wallet via x402. Works on this server and any other server in the registry.",
+		Description: "Call a tool on an MCP server. Works on this server and any other server in the registry.",
 		Params: []api.ToolParam{
 			{Name: "tool", Type: "string", Description: "Name of the tool to call", Required: true},
 			{Name: "server", Type: "string", Description: "Server name from the registry, or a base URL (default: self)", Required: false},
@@ -1130,7 +1088,7 @@ func main() {
 	// first-run setup wizard (open only until an admin exists)
 	http.HandleFunc("/setup", setup.Handler)
 
-	// The API face for agents: MCP + REST, pay-per-call over x402.
+	// The API face for agents: MCP + REST.
 	http.HandleFunc("/agents", agents.Handler)
 	// Redirect the old path so existing links keep working.
 	http.HandleFunc("/developers", func(w http.ResponseWriter, r *http.Request) {
@@ -1458,7 +1416,7 @@ func updatesHandler(w http.ResponseWriter, r *http.Request) {
 
 // chargedWriteOp maps a request method + path to the wallet operation
 // that should be charged. Returns "" for routes that don't cost credits
-// (reads, auth, payments, MCP — MCP has its own QuotaCheck). This is
+// (reads, auth, payments, MCP). This is
 // the SINGLE source of truth for what costs money on the web/API side.
 func chargedWriteOp(r *http.Request) string {
 	if r.Method != "POST" {

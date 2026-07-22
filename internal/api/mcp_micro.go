@@ -8,13 +8,13 @@ import (
 )
 
 // mcpReqKey threads the originating HTTP request to the resolver so per-tool
-// guards, wallet metering and authenticated execution see the real caller.
+// guards and authenticated execution see the real caller.
 type mcpReqKey struct{}
 
 // mcpResolver builds a go-micro MCP manual resolver from the registered tools.
 // go-micro owns the MCP protocol/transport; mu keeps ownership of which tools
-// exist and how they execute — the per-IP guard, wallet metering and
-// authenticated dispatch ExecuteTool performs. No framework internals are
+// exist and how they execute — the per-IP guard and authenticated dispatch
+// ExecuteTool performs. No framework internals are
 // exposed (no store/broker tools).
 func mcpResolver() gwmcp.Resolver {
 	res := gwmcp.NewManualResolver()
@@ -35,7 +35,6 @@ func mcpResolver() gwmcp.Resolver {
 		}
 
 		name := t.Name
-		walletOp := t.WalletOp
 		res.Add(gwmcp.Tool{Name: name, Description: t.Description, InputSchema: schema},
 			func(ctx context.Context, args map[string]interface{}) (*gwmcp.CallResult, error) {
 				r, _ := ctx.Value(mcpReqKey{}).(*http.Request)
@@ -44,19 +43,6 @@ func mcpResolver() gwmcp.Resolver {
 				if ToolGuard != nil && r != nil {
 					if err := ToolGuard(r, name); err != nil {
 						return nil, &gwmcp.RPCError{Code: -32000, Message: err.Error()}
-					}
-				}
-				// Wallet metering for charged tools — protocol error -32000.
-				if walletOp != "" && QuotaCheck != nil && r != nil {
-					ok, cost, err := QuotaCheck(r, walletOp)
-					if !ok {
-						msg := "Insufficient credits"
-						if err != nil {
-							msg = err.Error()
-						} else {
-							msg = formatCredits(name, cost)
-						}
-						return nil, &gwmcp.RPCError{Code: -32000, Message: msg}
 					}
 				}
 				// Tool execution — a tool-level error is an isError result, not
@@ -69,32 +55,6 @@ func mcpResolver() gwmcp.Resolver {
 			})
 	}
 	return res
-}
-
-func formatCredits(name string, cost int) string {
-	return "Insufficient credits: " + name + " requires " + itoa(cost) + " credits"
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var b [20]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		b[i] = '-'
-	}
-	return string(b[i:])
 }
 
 // serveMCP serves a JSON-RPC MCP request through go-micro's gateway/mcp handler.

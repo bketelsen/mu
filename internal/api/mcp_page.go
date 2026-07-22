@@ -46,7 +46,7 @@ func mcpPageHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<h3>Authentication</h3>`)
 	b.WriteString(`<p>Pass an owner PAT or session token in every request:</p>`)
 	b.WriteString(`<pre style="background:#f5f5f5;padding:8px;font-size:12px;overflow-x:auto">Authorization: Bearer YOUR_TOKEN</pre>`)
-	b.WriteString(`<p>Create a <a href="/token">Personal Access Token</a> after owner login. Tool calls use the owner wallet and data.</p>`)
+	b.WriteString(`<p>Create a <a href="/token">Personal Access Token</a> after owner login. Tool calls use owner data.</p>`)
 	b.WriteString(`</div>`)
 
 	// Interactive playground
@@ -58,11 +58,7 @@ func mcpPageHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`<select id="mcp-tool" onchange="mcpSelectTool()" style="width:100%;padding:8px;font-size:14px;border:1px solid #ddd;border-radius:4px;margin-bottom:12px">`)
 	b.WriteString(`<option value="">Select a tool...</option>`)
 	for _, t := range sortedTools() {
-		metered := ""
-		if t.WalletOp != "" {
-			metered = " (metered)"
-		}
-		b.WriteString(`<option value="` + html.EscapeString(t.Name) + `">` + html.EscapeString(t.Name) + metered + `</option>`)
+		b.WriteString(`<option value="` + html.EscapeString(t.Name) + `">` + html.EscapeString(t.Name) + `</option>`)
 	}
 	b.WriteString(`</select>`)
 
@@ -161,8 +157,6 @@ func mcpPageHandler(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(`</details>`)
 	b.WriteString(`</div>`)
 
-	b.WriteString(`<div class="card"><h3>Payments</h3><p class="card-desc">Metered tools draw from owner credits. x402 is reserved for owner-initiated outbound calls to remote services.</p></div>`)
-
 	// Tools list with a sticky endpoint sidebar (desktop).
 	b.WriteString(mcpToolsSection())
 
@@ -189,7 +183,6 @@ func mcpToolsJSON() string {
 		m[t.Name] = map[string]any{
 			"description": t.Description,
 			"params":      params,
-			"metered":     t.WalletOp != "",
 		}
 	}
 	b, _ := json.Marshal(m)
@@ -214,14 +207,8 @@ func mcpToolsHTML() string {
 	var b strings.Builder
 	for _, t := range sortedTools() {
 		b.WriteString(`<div class="card" id="tool-` + html.EscapeString(t.Name) + `">`)
-		if t.WalletOp != "" {
-			b.WriteString(`<span class="tool-price">credits</span>`)
-		}
 		b.WriteString(`<span class="card-title">` + html.EscapeString(t.Name) + `</span>`)
 		b.WriteString(app.Desc(t.Description))
-		if t.WalletOp != "" {
-			b.WriteString(`<p class="card-meta">Metered &mdash; requires credits</p>`)
-		}
 		if len(t.Params) > 0 {
 			b.WriteString(`<table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0">`)
 			b.WriteString(`<tr><th style="text-align:left;padding:4px 8px;border-bottom:1px solid #eee">Param</th><th style="text-align:left;padding:4px 8px;border-bottom:1px solid #eee">Type</th><th style="text-align:left;padding:4px 8px;border-bottom:1px solid #eee">Description</th></tr>`)
