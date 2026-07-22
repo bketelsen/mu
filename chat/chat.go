@@ -1206,9 +1206,9 @@ func generateSummaries() {
 }
 
 func generateSummaryBatch(names []string) {
-	_, prompts := topicConfigSnapshot()
+	_, activePrompts := topicConfigSnapshot()
 	for _, name := range names {
-		prompt, active := prompts[name]
+		prompt, active := activePrompts[name]
 		if !active {
 			continue
 		}
@@ -1218,8 +1218,10 @@ func generateSummaryBatch(names []string) {
 			continue
 		}
 		mutex.Lock()
-		summaries[name] = resp
-		summaryMeta = SummaryMetadata{GeneratedAt: time.Now().UTC(), Source: "Mu indexed public content", Status: "fresh"}
+		if _, active := prompts[name]; active {
+			summaries[name] = resp
+			summaryMeta = SummaryMetadata{GeneratedAt: time.Now().UTC(), Source: "Mu indexed public content", Status: "fresh"}
+		}
 		mutex.Unlock()
 	}
 

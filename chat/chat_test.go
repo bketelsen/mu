@@ -124,6 +124,50 @@ func TestSummaryBatchRetainsPriorSummaryAfterPartialFailure(t *testing.T) {
 	}
 }
 
+func TestSummaryBatchDoesNotRestoreTopicDeletedDuringGeneration(t *testing.T) {
+	applyTopicSnapshot([]topicstore.Topic{{Name: "World", Prompt: "world"}})
+	mutex.Lock()
+	summaries = map[string]string{}
+	mutex.Unlock()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	finished := make(chan struct{})
+	original := generateTopicSummary
+	generateTopicSummary = func(name, prompt string) (string, error) {
+		close(started)
+		<-release
+		return "stale World summary", nil
+	}
+	defer func() { generateTopicSummary = original }()
+
+	go func() {
+		generateSummaryBatch([]string{"World"})
+		close(finished)
+	}()
+	<-started
+	applyTopicChange(nil, topicstore.Change{Deleted: []topicstore.Topic{{Name: "World"}}})
+	close(release)
+	<-finished
+
+	mutex.RLock()
+	_, exists := summaries["World"]
+	mutex.RUnlock()
+	if exists {
+		t.Fatal("deleted topic summary was restored in memory")
+	}
+	b, err := data.LoadFile("chat_summaries.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved map[string]string
+	if err := json.Unmarshal(b, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := saved["World"]; exists {
+		t.Fatal("deleted topic summary was restored on disk")
+	}
+}
+
 func TestHandlePatternMatchIgnoresUnsupportedPrompts(t *testing.T) {
 	tests := []string{
 		"",
