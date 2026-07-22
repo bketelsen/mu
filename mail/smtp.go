@@ -49,7 +49,7 @@ type senderRateLimit struct {
 }
 
 // Backend implements SMTP server backend for RECEIVING mail only
-// This is NOT an open relay - it only accepts mail for local users
+// This is NOT an open relay - it only accepts mail for the owner's mailbox
 type Backend struct{}
 
 // Login authenticates a user. Required for AUTH support.
@@ -791,7 +791,7 @@ func (s *Session) Reset() {
 }
 
 // StartSMTPServer starts the SMTP server for RECEIVING mail only
-// This is NOT an open relay - it only accepts mail for local users
+// This is NOT an open relay - it only accepts mail for the owner's mailbox
 func StartSMTPServer(addr string) error {
 	be := &Backend{}
 
@@ -809,8 +809,8 @@ func StartSMTPServer(addr string) error {
 	go cleanupRateLimits()
 
 	app.Log("mail", "Starting SMTP server on %s", addr)
-	app.Log("mail", "  - Inbound: Accepts mail for local users (no auth required)")
-	app.Log("mail", "  - Outbound: Relays mail for authenticated users only")
+	app.Log("mail", "  - Inbound: Accepts mail for the owner's mailbox (no auth required)")
+	app.Log("mail", "  - Outbound: Relays mail for the authenticated owner only")
 	app.Log("mail", "Rate limits: %d connections/hour per IP, %d messages/day per sender",
 		maxIPConnections, maxSenderMessages)
 
