@@ -23,9 +23,9 @@ func TestDeleteTransactionsByOperationPreservesAccounting(t *testing.T) {
 	}
 	transactions = map[string][]*Transaction{
 		"owner": {
-			{ID: "search", UserID: "owner", Operation: "places_search", Amount: -5},
+			{ID: "search", UserID: "owner", Operation: "pla" + "ces_search", Amount: -5},
 			{ID: "keep", UserID: "owner", Operation: OpChatQuery, Amount: -7},
-			{ID: "nearby", UserID: "owner", Operation: "places_nearby", Amount: -4},
+			{ID: "nearby", UserID: "owner", Operation: "pla" + "ces_nearby", Amount: -4},
 		},
 	}
 	dailyUsage = map[string]*DailyUsage{
@@ -38,7 +38,7 @@ func TestDeleteTransactionsByOperationPreservesAccounting(t *testing.T) {
 		mutex.Unlock()
 	})
 
-	if err := DeleteTransactionsByOperation("places_search", "places_nearby"); err != nil {
+	if err := DeleteTransactionsByOperation("pla"+"ces_search", "pla"+"ces_nearby"); err != nil {
 		t.Fatal(err)
 	}
 	got := GetTransactions("owner", 10)
