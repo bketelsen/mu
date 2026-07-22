@@ -1,8 +1,13 @@
 package search
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"mu/internal/auth"
 )
 
 func TestStripHTML(t *testing.T) {
@@ -21,6 +26,44 @@ func TestStripHTML(t *testing.T) {
 		got := stripHTML(tc.input)
 		if got != tc.want {
 			t.Errorf("stripHTML(%q) = %q; want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestOwnerWebSearchIsNotPaymentGated(t *testing.T) {
+	rec := httptest.NewRecorder()
+	WebHandler(rec, ownerSearchRequest(t, "/web?q=mu"))
+	assertNoSearchPaymentGate(t, rec)
+}
+
+func ownerSearchRequest(t *testing.T, target string) *http.Request {
+	t.Helper()
+	owner, err := auth.Owner()
+	if err != nil {
+		owner = &auth.Account{ID: "searchowner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}
+		if err := auth.Create(owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sess, err := auth.CreateSession(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req.Header.Set("Accept", "application/json")
+	req.AddCookie(&http.Cookie{Name: "session", Value: sess.Token})
+	return req
+}
+
+func assertNoSearchPaymentGate(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if recorder.Code == http.StatusPaymentRequired {
+		t.Fatalf("request was payment-gated: %s", recorder.Body.String())
+	}
+	body := strings.ToLower(recorder.Body.String())
+	for _, forbidden := range []string{"insufficient credits", "top up", "/wallet"} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("response contains removed payment copy %q: %s", forbidden, recorder.Body.String())
 		}
 	}
 }

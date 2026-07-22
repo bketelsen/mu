@@ -4,9 +4,13 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
+
+	"mu/internal/auth"
 )
 
 func TestResolveLinkNeutralizesUnsafeSchemes(t *testing.T) {
@@ -23,6 +27,44 @@ func TestResolveLinkNeutralizesUnsafeSchemes(t *testing.T) {
 	} {
 		if got := resolveLink(href, base); got != "#" {
 			t.Errorf("resolveLink(%q) = %q; want #", href, got)
+		}
+	}
+}
+
+func TestOwnerFetchRequestIsNotPaymentGated(t *testing.T) {
+	rec := httptest.NewRecorder()
+	FetchHandler(rec, ownerFetchRequest(t, "/fetch?url=https://example.invalid/article"))
+	assertNoFetchPaymentGate(t, rec)
+}
+
+func ownerFetchRequest(t *testing.T, target string) *http.Request {
+	t.Helper()
+	owner, err := auth.Owner()
+	if err != nil {
+		owner = &auth.Account{ID: "fetchowner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}
+		if err := auth.Create(owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sess, err := auth.CreateSession(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req.Header.Set("Accept", "application/json")
+	req.AddCookie(&http.Cookie{Name: "session", Value: sess.Token})
+	return req
+}
+
+func assertNoFetchPaymentGate(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if recorder.Code == http.StatusPaymentRequired {
+		t.Fatalf("request was payment-gated: %s", recorder.Body.String())
+	}
+	body := strings.ToLower(recorder.Body.String())
+	for _, forbidden := range []string{"insufficient credits", "top up", "/wallet"} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("response contains removed payment copy %q: %s", forbidden, recorder.Body.String())
 		}
 	}
 }

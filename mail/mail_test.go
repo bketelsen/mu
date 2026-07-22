@@ -1,7 +1,14 @@
 package mail
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	"mu/internal/auth"
 )
 
 func TestConvertPlainTextToHTML(t *testing.T) {
@@ -59,6 +66,46 @@ func TestConvertPlainTextToHTML(t *testing.T) {
 				t.Errorf("convertPlainTextToHTML() = %q, want %q", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestOwnerInternalMailIsNotPaymentGated(t *testing.T) {
+	owner, req := ownerMailRequest(t)
+	rec := httptest.NewRecorder()
+	req.Body = io.NopCloser(strings.NewReader(`{"to":"` + owner.ID + `","subject":"hello","body":"world"}`))
+	req.Header.Set("Content-Type", "application/json")
+	Handler(rec, req)
+	assertNoMailPaymentGate(t, rec)
+}
+
+func ownerMailRequest(t *testing.T) (*auth.Account, *http.Request) {
+	t.Helper()
+	owner, err := auth.Owner()
+	if err != nil {
+		owner = &auth.Account{ID: "mailowner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}
+		if err := auth.Create(owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sess, err := auth.CreateSession(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/mail", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: sess.Token})
+	return owner, req
+}
+
+func assertNoMailPaymentGate(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if recorder.Code == http.StatusPaymentRequired {
+		t.Fatalf("request was payment-gated: %s", recorder.Body.String())
+	}
+	body := strings.ToLower(recorder.Body.String())
+	for _, forbidden := range []string{"insufficient credits", "top up", "/wallet"} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("response contains removed payment copy %q: %s", forbidden, recorder.Body.String())
+		}
 	}
 }
 

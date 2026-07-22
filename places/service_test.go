@@ -1,8 +1,13 @@
 package places
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"mu/internal/auth"
 )
 
 func TestResolveLocation(t *testing.T) {
@@ -13,6 +18,43 @@ func TestResolveLocation(t *testing.T) {
 	// No location at all → not resolvable.
 	if _, _, ok := resolveLocation("", 0, 0); ok {
 		t.Error("empty near + zero coords should not resolve")
+	}
+}
+
+func TestOwnerPlacesValidationIsNotPaymentGated(t *testing.T) {
+	rec := httptest.NewRecorder()
+	handleSearch(rec, ownerPlacesRequest(t, "/places/search"))
+	assertNoPlacesPaymentGate(t, rec)
+}
+
+func ownerPlacesRequest(t *testing.T, target string) *http.Request {
+	t.Helper()
+	owner, err := auth.Owner()
+	if err != nil {
+		owner = &auth.Account{ID: "placesowner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}
+		if err := auth.Create(owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sess, err := auth.CreateSession(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, target, nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: sess.Token})
+	return req
+}
+
+func assertNoPlacesPaymentGate(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if recorder.Code == http.StatusPaymentRequired {
+		t.Fatalf("request was payment-gated: %s", recorder.Body.String())
+	}
+	body := strings.ToLower(recorder.Body.String())
+	for _, forbidden := range []string{"insufficient credits", "top up", "/wallet"} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("response contains removed payment copy %q: %s", forbidden, recorder.Body.String())
+		}
 	}
 }
 
