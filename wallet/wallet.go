@@ -24,8 +24,6 @@ var (
 	CostBlogCreate        = getEnvInt("CREDIT_COST_BLOG_CREATE", 1)
 	CostMailSend          = getEnvInt("CREDIT_COST_MAIL", 1)  // Internal mail send
 	CostExternalEmail     = getEnvInt("CREDIT_COST_EMAIL", 4) // External email (SMTP delivery cost)
-	CostPlacesSearch      = getEnvInt("CREDIT_COST_PLACES_SEARCH", 5)
-	CostPlacesNearby      = getEnvInt("CREDIT_COST_PLACES_NEARBY", 4)
 	CostWeatherForecast   = getEnvInt("CREDIT_COST_WEATHER", 1)
 	CostWeatherPollen     = getEnvInt("CREDIT_COST_WEATHER_POLLEN", 1)
 	CostWebSearch         = getEnvInt("CREDIT_COST_SEARCH", 5)
@@ -57,8 +55,6 @@ const (
 	OpBlogCreate        = "blog_create"
 	OpMailSend          = "mail_send"
 	OpExternalEmail     = "external_email"
-	OpPlacesSearch      = "places_search"
-	OpPlacesNearby      = "places_nearby"
 	OpWeatherForecast   = "weather_forecast"
 	OpWeatherPollen     = "weather_pollen"
 	OpWebSearch         = "web_search"
@@ -400,10 +396,6 @@ func GetOperationCost(operation string) int {
 		return CostMailSend
 	case OpExternalEmail:
 		return CostExternalEmail
-	case OpPlacesSearch:
-		return CostPlacesSearch
-	case OpPlacesNearby:
-		return CostPlacesNearby
 	case OpWeatherForecast:
 		return CostWeatherForecast
 	case OpWeatherPollen:

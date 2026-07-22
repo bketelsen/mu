@@ -30,8 +30,6 @@ var publicPrivateAssets = map[string]bool{
 	"/membership.png":       true,
 	"/mu.png":               true,
 	"/news.png":             true,
-	"/places.png":           true,
-	"/places.svg":           true,
 	"/post.png":             true,
 	"/saved.svg":            true,
 	"/search.svg":           true,

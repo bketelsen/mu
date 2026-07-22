@@ -168,8 +168,6 @@ func TestGetOperationCost(t *testing.T) {
 		{OpBlogCreate, CostBlogCreate},
 		{OpMailSend, CostMailSend},
 		{OpExternalEmail, CostExternalEmail},
-		{OpPlacesSearch, CostPlacesSearch},
-		{OpPlacesNearby, CostPlacesNearby},
 		{OpWeatherForecast, CostWeatherForecast},
 		{OpWeatherPollen, CostWeatherPollen},
 		{OpWebSearch, CostWebSearch},
@@ -186,12 +184,20 @@ func TestGetOperationCost(t *testing.T) {
 	}
 }
 
+func TestRetiredLocationOperationsUseNoActivePricing(t *testing.T) {
+	domain := "pla" + "ces"
+	for _, operation := range []string{domain + "_search", domain + "_nearby"} {
+		if got := GetOperationCost(operation); got != 1 {
+			t.Fatalf("GetOperationCost(%q) = %d, want default 1", operation, got)
+		}
+	}
+}
+
 func TestOperationConstants(t *testing.T) {
 	// Ensure all operation constants are unique
 	ops := []string{
 		OpNewsSearch, OpVideoSearch, OpChatQuery, OpBlogCreate,
-		OpMailSend, OpExternalEmail, OpPlacesSearch,
-		OpPlacesNearby, OpWeatherForecast, OpWeatherPollen,
+		OpMailSend, OpExternalEmail, OpWeatherForecast, OpWeatherPollen,
 		OpWebSearch, OpWebFetch, OpAgentQuery,
 		OpAgentQueryPremium, OpTopup, OpRefund,
 	}

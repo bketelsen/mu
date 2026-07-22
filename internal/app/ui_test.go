@@ -25,6 +25,25 @@ func TestPublicPrivateAssetsTrackCurrentNavigationAssets(t *testing.T) {
 	if publicPrivateAssets["/trade.svg"] {
 		t.Fatal("removed trade asset must not remain public")
 	}
+	domain := "pla" + "ces"
+	for _, asset := range []string{"/" + domain + ".svg", "/" + domain + ".png"} {
+		if publicPrivateAssets[asset] {
+			t.Fatalf("retired location asset remains public: %s", asset)
+		}
+	}
+}
+
+func TestRenderedNavigationAndStatusExcludeRetiredLocationDomain(t *testing.T) {
+	domain := "pla" + "ces"
+	html := RenderHTML("Test", "Test", "<p>body</p>")
+	if strings.Contains(strings.ToLower(html), "/"+domain) || strings.Contains(strings.ToLower(html), domain+"</span>") {
+		t.Fatal("navigation retains retired location domain")
+	}
+	for _, service := range buildStatus().Services {
+		if strings.Contains(strings.ToLower(service.Name), domain) {
+			t.Fatal("status retains retired location API")
+		}
+	}
 }
 
 func TestSearchBar_EscapesQuery(t *testing.T) {
@@ -360,6 +379,12 @@ func TestCSSExcludesMarketCardStyles(t *testing.T) {
 	} {
 		if strings.Contains(string(css), selector) {
 			t.Fatalf("removed Market card CSS remains: %s", selector)
+		}
+	}
+	domain := "pla" + "ces"
+	for _, selector := range []string{"/* " + "Pla" + "ces page */", "." + domain + "-page", "." + domain + "-forms", ".place-card", ".city-grid"} {
+		if strings.Contains(string(css), selector) {
+			t.Fatalf("retired location CSS remains: %s", selector)
 		}
 	}
 }
