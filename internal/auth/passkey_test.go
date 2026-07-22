@@ -150,13 +150,16 @@ func TestUpdatePasskeyUsage(t *testing.T) {
 }
 
 func TestCreateSession(t *testing.T) {
-	// Set up a test account
+	// Set up a test account as the sole owner — sessions require exactly
+	// one account, so clear anything earlier tests left behind.
 	mutex.Lock()
-	accounts["sessiontest"] = &Account{
-		ID:      "sessiontest",
-		Name:    "Session Test",
-		Secret:  "$2a$10$dummyhash",
-		Created: time.Now(),
+	accounts = map[string]*Account{
+		"sessiontest": {
+			ID:      "sessiontest",
+			Name:    "Session Test",
+			Secret:  "$2a$10$dummyhash",
+			Created: time.Now(),
+		},
 	}
 	mutex.Unlock()
 

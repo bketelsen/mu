@@ -678,11 +678,11 @@ func handleGetBlog(w http.ResponseWriter, r *http.Request) {
 	// Return JSON if requested
 	if app.WantsJSON(r) {
 		mutex.RLock()
-		// Check if user is admin
+		// Private posts are only visible to the signed-in owner.
 		_, acc := auth.TrySession(r)
-		isAdmin := acc != nil && acc.Admin
+		isAdmin := acc != nil
 
-		// Filter out private posts (unless admin)
+		// Filter out private posts (unless owner)
 		var visiblePosts []*Post
 		for _, post := range posts {
 			// Skip private posts for non-admins
@@ -831,13 +831,8 @@ func handleGetBlog(w http.ResponseWriter, r *http.Request) {
 		// Show posts list with conditional write link
 		var actions string
 		_, acc := auth.TrySession(r)
-		if acc != nil && acc.Admin {
-			// Owners can write posts.
-			actions = `<div class="mb-4">
-				<a href="/blog?write=true" class="btn">+ Write</a>
-			</div>`
-		} else if acc != nil {
-			// Regular user: show only write link
+		if acc != nil {
+			// The owner can write posts.
 			actions = `<div class="mb-4">
 				<a href="/blog?write=true" class="btn">+ Write</a>
 			</div>`
@@ -1185,12 +1180,10 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if post is private and user is not admin
+	// Private posts are only visible to the signed-in owner.
 	if post.Private {
-		_, acc := auth.TrySession(r)
-		isAdmin := acc != nil && acc.Admin
-		if !isAdmin {
-			app.Forbidden(w, r, "This post is private and only visible to admins")
+		if _, acc := auth.TrySession(r); acc == nil {
+			app.Forbidden(w, r, "This post is private")
 			return
 		}
 	}
@@ -1198,15 +1191,9 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 	// Handle PATCH - update the post
 	if r.Method == "PATCH" || (r.Method == "POST" && r.FormValue("_method") == "PATCH") {
 		// Must be authenticated
-		_, acc, err := auth.RequireSession(r)
+		_, _, err := auth.RequireSession(r)
 		if err != nil {
 			app.Unauthorized(w, r)
-			return
-		}
-
-		// Check if user is the author or admin
-		if post.AuthorID != acc.ID && !acc.Admin {
-			app.Forbidden(w, r, "You can only edit your own posts")
 			return
 		}
 
@@ -1272,15 +1259,9 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "DELETE" || (r.Method == "POST" && r.FormValue("_method") == "DELETE") {
 
 		// Must be authenticated
-		_, acc, err := auth.RequireSession(r)
+		_, _, err := auth.RequireSession(r)
 		if err != nil {
 			app.Unauthorized(w, r)
-			return
-		}
-
-		// Check if user is the author or admin
-		if post.AuthorID != acc.ID && !acc.Admin {
-			app.Forbidden(w, r, "You can only delete your own posts")
 			return
 		}
 
@@ -1368,15 +1349,13 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 
 	authorLink := htmlpkg.EscapeString(post.Author)
 
-	// Admin controls (edit/delete for author or admin)
+	// Edit/delete controls for the signed-in owner.
 	_, acc := auth.TrySession(r)
 	var userID string
-	var isAdmin bool
 	if acc != nil {
 		userID = acc.ID
-		isAdmin = acc.Admin
 	}
-	editButton := app.ItemControls(userID, isAdmin, "post", post.ID, post.AuthorID, "/blog/post?id="+post.ID+"&edit=true", "/blog/post?id="+post.ID)
+	editButton := app.ItemControls(userID, "post", post.ID, "/blog/post?id="+post.ID+"&edit=true", "/blog/post?id="+post.ID)
 
 	tagsHtml := ""
 	if post.Tags != "" {

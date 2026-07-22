@@ -32,7 +32,7 @@ type Account struct {
 	Name            string    `json:"name"`
 	Secret          string    `json:"secret"`
 	Created         time.Time `json:"created"`
-	Admin           bool      `json:"admin"`
+	Admin           bool      `json:"admin"` // Legacy JSON compatibility + migration survivor selection only — never gate behavior on this.
 	Language        string    `json:"language"`
 	Widgets         []string  `json:"widgets,omitempty"`         // App IDs to show as home widgets
 	HomeCards       []string  `json:"home_cards,omitempty"`      // Card IDs the user has chosen to show (empty = all defaults)
@@ -256,20 +256,6 @@ func GetAccountByEmail(email string) (*Account, error) {
 	return nil, errors.New("account not found")
 }
 
-// GetAccountByName finds an account by username (case-insensitive)
-func GetAccountByName(name string) (*Account, error) {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	nameLower := strings.ToLower(name)
-	for _, acc := range accounts {
-		if strings.ToLower(acc.Name) == nameLower || strings.ToLower(acc.ID) == nameLower {
-			return acc, nil
-		}
-	}
-	return nil, errors.New("account not found")
-}
-
 func Login(id, secret string) (*Session, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -455,15 +441,16 @@ func TrySession(r *http.Request) (*Session, *Account) {
 	return sess, acc
 }
 
-// RequireAdmin returns the session and account if the user is an admin, or an error
-func RequireAdmin(r *http.Request) (*Session, *Account, error) {
+// RequireOwner returns the session and account if the caller is the owner, or
+// an error.
+func RequireOwner(r *http.Request) (*Session, *Account, error) {
 	sess, acc, err := RequireSession(r)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if !IsOwner(acc.ID) {
-		return nil, nil, errors.New("admin access required")
+		return nil, nil, errors.New("owner access required")
 	}
 
 	return sess, acc, nil

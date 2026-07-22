@@ -1,95 +1,16 @@
-// Per-account post rate limiting and email verification token storage.
-// Sits in the auth package so handlers in blog/apps can call into
-// a single place without import cycles.
+// Email verification token storage. Sits in the auth package so handlers
+// can call into a single place without import cycles.
 package auth
 
 import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	"mu/internal/data"
 )
-
-// ============================================================
-// Per-account post rate limiter
-// ============================================================
-
-// postLimitBucket tracks how many content actions an account has
-// performed inside the current window.
-type postLimitBucket struct {
-	count   int
-	resetAt time.Time
-}
-
-var (
-	postLimitMu sync.Mutex
-	postBuckets = map[string]*postLimitBucket{}
-)
-
-// postLimitFor returns (max, window) for the given account based on age.
-// During the first 24 hours after initial setup the owner is on a tight cap;
-// after that it gets a generous hourly cap that still throttles abuse.
-// Admins and approved accounts are unlimited.
-func postLimitFor(acc *Account) (int, time.Duration) {
-	if acc.Admin || acc.Approved {
-		return 1<<31 - 1, time.Hour
-	}
-	if time.Since(acc.Created) < 24*time.Hour {
-		// New account: 10 actions per hour by default. Also caps the
-		// theoretical 24h ceiling at 240 — combined with the per-action
-		// rate limit, this is enough to stop a runaway bot.
-		return envIntAuth("NEW_POST_LIMIT_PER_HOUR", 10), time.Hour
-	}
-	return envIntAuth("POST_LIMIT_PER_HOUR", 60), time.Hour
-}
-
-// CheckPostRate returns nil if the account is allowed to create another
-// piece of content right now, otherwise an error explaining the limit.
-// This is a sliding-bucket limiter: the count resets after the window
-// elapses from the first action in the bucket.
-func CheckPostRate(accountID string) error {
-	mutex.Lock()
-	acc, exists := accounts[accountID]
-	mutex.Unlock()
-	if !exists {
-		return errors.New("account not found")
-	}
-
-	max, window := postLimitFor(acc)
-
-	postLimitMu.Lock()
-	defer postLimitMu.Unlock()
-
-	now := time.Now()
-	b, ok := postBuckets[accountID]
-	if !ok || now.After(b.resetAt) {
-		b = &postLimitBucket{count: 0, resetAt: now.Add(window)}
-		postBuckets[accountID] = b
-	}
-	if b.count >= max {
-		remaining := time.Until(b.resetAt).Round(time.Minute)
-		if remaining < time.Minute {
-			remaining = time.Minute
-		}
-		return fmt.Errorf("post rate limit reached (%d per %s). Try again in %s", max, window, remaining)
-	}
-	b.count++
-
-	// Opportunistic GC.
-	if len(postBuckets) > 50000 {
-		for k, v := range postBuckets {
-			if now.After(v.resetAt) {
-				delete(postBuckets, k)
-			}
-		}
-	}
-	return nil
-}
 
 // ============================================================
 // Email verification tokens
@@ -190,15 +111,4 @@ func SetAccountEmail(accountID, email string) error {
 // saveAccountsUnlocked persists the accounts map. Caller must hold mutex.
 func saveAccountsUnlocked() error {
 	return data.SaveJSON("accounts.json", accounts)
-}
-
-// envIntAuth is a tiny helper so this file doesn't depend on app.envInt.
-func envIntAuth(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		var n int
-		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
-			return n
-		}
-	}
-	return def
 }

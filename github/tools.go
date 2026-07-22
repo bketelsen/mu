@@ -13,11 +13,12 @@ import (
 
 var callService = service.Call
 var getAccount = auth.GetAccount
+var isOwner = auth.IsOwner
 
-func requireAdminAccount(accountID string) error {
+func requireOwnerAccount(accountID string) error {
 	acc, err := getAccount(accountID)
-	if err != nil || !acc.Admin {
-		return errors.New("admin access required")
+	if err != nil || !isOwner(acc.ID) {
+		return errors.New("owner access required")
 	}
 	return nil
 }
@@ -35,7 +36,7 @@ func toolInt(v any) int {
 }
 
 func repositoriesTool(args map[string]any, accountID string) (string, error) {
-	if err := requireAdminAccount(accountID); err != nil {
+	if err := requireOwnerAccount(accountID); err != nil {
 		return "", err
 	}
 	var rsp RepositoriesResponse
@@ -46,7 +47,7 @@ func repositoriesTool(args map[string]any, accountID string) (string, error) {
 }
 
 func repositoryTool(args map[string]any, accountID string) (string, error) {
-	if err := requireAdminAccount(accountID); err != nil {
+	if err := requireOwnerAccount(accountID); err != nil {
 		return "", err
 	}
 	var rsp RepositoryResponse
@@ -58,7 +59,7 @@ func repositoryTool(args map[string]any, accountID string) (string, error) {
 }
 
 func searchTool(args map[string]any, accountID string) (string, error) {
-	if err := requireAdminAccount(accountID); err != nil {
+	if err := requireOwnerAccount(accountID); err != nil {
 		return "", err
 	}
 	var rsp SearchResponse
@@ -70,7 +71,7 @@ func searchTool(args map[string]any, accountID string) (string, error) {
 }
 
 func issueTool(args map[string]any, accountID string) (string, error) {
-	if err := requireAdminAccount(accountID); err != nil {
+	if err := requireOwnerAccount(accountID); err != nil {
 		return "", err
 	}
 	var rsp IssueResponse

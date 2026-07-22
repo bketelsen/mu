@@ -375,12 +375,10 @@ func handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess, acc := auth.TrySession(r)
+	sess, _ := auth.TrySession(r)
 	var userID string
-	var isAdmin bool
 	if sess != nil {
 		userID = sess.Account
-		isAdmin = acc.Admin
 	}
 
 	// HTML
@@ -434,7 +432,7 @@ func handleList(w http.ResponseWriter, r *http.Request) {
 			if a.Tags != "" {
 				tagsHTML = " · " + htmlpkg.EscapeString(a.Tags)
 			}
-			controls := app.ItemControls(userID, isAdmin, "app", a.Slug, a.AuthorID, "/apps/"+a.Slug+"/edit", "/apps/"+a.Slug+"/delete")
+			controls := app.ItemControls(userID, "app", a.Slug, "/apps/"+a.Slug+"/edit", "/apps/"+a.Slug+"/delete")
 			sb.WriteString(fmt.Sprintf(`<div style="position:relative;border:1px solid #eee;border-radius:8px;padding:12px;margin-bottom:12px;display:flex;gap:12px;align-items:flex-start;">
 <img src="/apps/%s/icon.svg" width="32" height="32" style="flex-shrink:0;margin-top:2px;">
 <div>
@@ -677,21 +675,15 @@ func handleView(w http.ResponseWriter, r *http.Request, slug string) {
 	// Action buttons
 	sb.WriteString(fmt.Sprintf(`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;">
 <a href="/apps/%s/run" style="display:inline-block;padding:8px 24px;background:#000;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;">Launch App</a>`, htmlpkg.EscapeString(a.Slug)))
-	_, detailAcc, detailErr := auth.RequireSession(r)
+	_, _, detailErr := auth.RequireSession(r)
 	if detailErr == nil {
 		sb.WriteString(fmt.Sprintf(`<a href="/apps/%s/fork" style="display:inline-block;padding:8px 24px;background:#fff;color:#333;border:1px solid #e0e0e0;border-radius:6px;text-decoration:none;font-size:14px;">Fork</a>`,
 			htmlpkg.EscapeString(a.Slug)))
 	}
 	sb.WriteString(`</div>`)
 
-	// Owner/admin controls
-	var detailUserID string
-	var detailAdmin bool
+	// Owner controls
 	if detailErr == nil {
-		detailUserID = detailAcc.ID
-		detailAdmin = detailAcc.Admin
-	}
-	if detailAdmin || detailUserID == a.AuthorID {
 		sb.WriteString(`<p style="font-size:13px">`)
 		sb.WriteString(fmt.Sprintf(`<a href="/apps/%s/edit" style="color:#888;text-decoration:none">Edit</a>`, htmlpkg.EscapeString(a.Slug)))
 		sb.WriteString(fmt.Sprintf(` · <a href="#" style="color:#c00;text-decoration:none" onclick="if(confirm('Delete this app?')){fetch('/apps/%s/delete',{method:'POST'}).then(function(){window.location='/apps'})}return false;">Delete</a>`, htmlpkg.EscapeString(a.Slug)))
@@ -707,7 +699,7 @@ func handleView(w http.ResponseWriter, r *http.Request, slug string) {
 
 // handleEdit shows the editor pre-populated with the app's data for editing.
 func handleEdit(w http.ResponseWriter, r *http.Request, slug string) {
-	_, acc, err := auth.RequireSession(r)
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		app.Unauthorized(w, r)
 		return
@@ -720,11 +712,6 @@ func handleEdit(w http.ResponseWriter, r *http.Request, slug string) {
 		app.Error(w, r, http.StatusNotFound, "App not found")
 		return
 	}
-	if a.AuthorID != acc.ID && !acc.Admin {
-		app.Forbidden(w, r, "You can only edit your own apps")
-		return
-	}
-
 	var sb strings.Builder
 	sb.WriteString(editPageHTML(a))
 
@@ -1105,7 +1092,7 @@ func injectSDK(html, sdk string) string {
 
 // handleUpdate processes PATCH requests to update an app.
 func handleUpdate(w http.ResponseWriter, r *http.Request, slug string) {
-	_, acc, err := auth.RequireSession(r)
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		app.Unauthorized(w, r)
 		return
@@ -1118,11 +1105,6 @@ func handleUpdate(w http.ResponseWriter, r *http.Request, slug string) {
 		app.Error(w, r, http.StatusNotFound, "App not found")
 		return
 	}
-	if a.AuthorID != acc.ID && !acc.Admin {
-		app.Forbidden(w, r, "You can only edit your own apps")
-		return
-	}
-
 	var req struct {
 		Name        *string `json:"name"`
 		Slug        *string `json:"slug"`
@@ -1231,11 +1213,6 @@ func handleDelete(w http.ResponseWriter, r *http.Request, slug string) {
 		app.Error(w, r, http.StatusNotFound, "App not found")
 		return
 	}
-	if a.AuthorID != acc.ID && !acc.Admin {
-		app.Forbidden(w, r, "You can only delete your own apps")
-		return
-	}
-
 	mutex.Lock()
 	delete(apps, slug)
 	mutex.Unlock()

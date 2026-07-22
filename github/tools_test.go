@@ -14,29 +14,33 @@ func stubTools(t *testing.T, account *auth.Account, err error, call func(string,
 	t.Helper()
 	originalGetAccount := getAccount
 	originalCallService := callService
+	originalIsOwner := isOwner
 	getAccount = func(string) (*auth.Account, error) { return account, err }
+	isOwner = func(id string) bool { return account != nil && id == account.ID }
 	callService = func(_ context.Context, _ string, method string, req, rsp any) error {
 		return call(method, req, rsp)
 	}
 	t.Cleanup(func() {
 		getAccount = originalGetAccount
 		callService = originalCallService
+		isOwner = originalIsOwner
 	})
 }
 
-func TestGitHubToolRequiresAdmin(t *testing.T) {
+func TestGitHubToolRequiresOwner(t *testing.T) {
 	called := false
 	stubTools(t, &auth.Account{ID: "user"}, nil, func(string, any, any) error {
 		called = true
 		return nil
 	})
+	isOwner = func(string) bool { return false }
 
 	_, err := repositoriesTool(nil, "user")
-	if err == nil || err.Error() != "admin access required" {
-		t.Fatalf("repositoriesTool error = %v, want admin access required", err)
+	if err == nil || err.Error() != "owner access required" {
+		t.Fatalf("repositoriesTool error = %v, want owner access required", err)
 	}
 	if called {
-		t.Fatal("repositoriesTool called the service before checking admin access")
+		t.Fatal("repositoriesTool called the service before checking owner access")
 	}
 }
 
@@ -82,7 +86,7 @@ func TestGitHubToolRequestMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stubTools(t, &auth.Account{ID: "admin", Admin: true}, nil, func(method string, req, rsp any) error {
+			stubTools(t, &auth.Account{ID: "admin"}, nil, func(method string, req, rsp any) error {
 				if method != tt.method {
 					t.Fatalf("method = %q, want %q", method, tt.method)
 				}
@@ -112,7 +116,7 @@ func TestGitHubToolRequestMapping(t *testing.T) {
 func TestGitHubIssueToolNumberMapping(t *testing.T) {
 	for _, number := range []any{"42", float64(43)} {
 		t.Run("number", func(t *testing.T) {
-			stubTools(t, &auth.Account{ID: "admin", Admin: true}, nil, func(method string, req, rsp any) error {
+			stubTools(t, &auth.Account{ID: "admin"}, nil, func(method string, req, rsp any) error {
 				got, ok := req.(*IssueRequest)
 				if method != "Server.Issue" || !ok || got.Owner != "micro" || got.Repo != "mu" || got.Number == 0 {
 					t.Fatalf("method = %q, request = %#v", method, req)
@@ -142,9 +146,9 @@ func TestRegisterTools(t *testing.T) {
 	}
 }
 
-func TestRequireAdminAccountLookupFailure(t *testing.T) {
+func TestRequireOwnerAccountLookupFailure(t *testing.T) {
 	stubTools(t, nil, errors.New("missing"), func(string, any, any) error { return nil })
-	if err := requireAdminAccount("admin"); err == nil || err.Error() != "admin access required" {
-		t.Fatalf("requireAdminAccount error = %v, want admin access required", err)
+	if err := requireOwnerAccount("owner"); err == nil || err.Error() != "owner access required" {
+		t.Fatalf("requireOwnerAccount error = %v, want owner access required", err)
 	}
 }

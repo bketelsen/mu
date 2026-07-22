@@ -15,9 +15,9 @@ import (
 
 // ConsoleHandler provides an admin console.
 func ConsoleHandler(w http.ResponseWriter, r *http.Request) {
-	_, _, err := auth.RequireAdmin(r)
+	_, _, err := auth.RequireOwner(r)
 	if err != nil {
-		app.Forbidden(w, r, "Admin access required")
+		app.Forbidden(w, r, "Owner access required")
 		return
 	}
 
@@ -205,7 +205,7 @@ func runCommand(cmd string) string {
 
 	case "help":
 		return `Apps:     apps · app <slug>
-Content:  search <query> · delete <type> <id> · flags
+Content:  search <query> · delete <type> <id>
 System:   stats · types · help`
 
 	default:

@@ -33,7 +33,7 @@ func newHandler(server *Server, authorize adminCheck) http.Handler {
 }
 
 // NewHandler returns the production GitHub workspace handler.
-func NewHandler(server *Server) http.Handler { return newHandler(server, auth.RequireAdmin) }
+func NewHandler(server *Server) http.Handler { return newHandler(server, auth.RequireOwner) }
 
 // Handler serves the production GitHub workspace.
 func Handler(w http.ResponseWriter, r *http.Request) { NewHandler(defaultServer).ServeHTTP(w, r) }
@@ -44,7 +44,7 @@ func handleWorkspace(server *Server, authorize adminCheck, w http.ResponseWriter
 		return
 	}
 	if _, _, err := authorize(r); err != nil {
-		app.Forbidden(w, r, "Admin access required")
+		app.Forbidden(w, r, "Owner access required")
 		return
 	}
 

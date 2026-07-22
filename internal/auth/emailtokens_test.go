@@ -6,60 +6,21 @@ import (
 	"time"
 )
 
-func resetPostLimitStateForTest(t *testing.T) {
+func resetEmailTokenStateForTest(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("NEW_POST_LIMIT_PER_HOUR", "")
-	t.Setenv("POST_LIMIT_PER_HOUR", "")
 
 	mutex.Lock()
 	accounts = map[string]*Account{}
 	mutex.Unlock()
-
-	postLimitMu.Lock()
-	postBuckets = map[string]*postLimitBucket{}
-	postLimitMu.Unlock()
 
 	emailTokenMu.Lock()
 	emailTokens = map[string]*emailToken{}
 	emailTokenMu.Unlock()
 }
 
-func TestCheckPostRateHonorsNewAccountLimit(t *testing.T) {
-	resetPostLimitStateForTest(t)
-	t.Setenv("NEW_POST_LIMIT_PER_HOUR", "2")
-
-	mutex.Lock()
-	accounts["new-account"] = &Account{ID: "new-account", Created: time.Now()}
-	mutex.Unlock()
-
-	for i := 0; i < 2; i++ {
-		if err := CheckPostRate("new-account"); err != nil {
-			t.Fatalf("CheckPostRate attempt %d returned error: %v", i+1, err)
-		}
-	}
-	if err := CheckPostRate("new-account"); err == nil || !strings.Contains(err.Error(), "post rate limit reached (2 per 1h0m0s)") {
-		t.Fatalf("CheckPostRate after limit = %v, want rate limit error", err)
-	}
-}
-
-func TestCheckPostRateApprovedAccountBypassesLimit(t *testing.T) {
-	resetPostLimitStateForTest(t)
-	t.Setenv("NEW_POST_LIMIT_PER_HOUR", "1")
-
-	mutex.Lock()
-	accounts["approved-account"] = &Account{ID: "approved-account", Created: time.Now(), Approved: true}
-	mutex.Unlock()
-
-	for i := 0; i < 3; i++ {
-		if err := CheckPostRate("approved-account"); err != nil {
-			t.Fatalf("CheckPostRate approved attempt %d returned error: %v", i+1, err)
-		}
-	}
-}
-
 func TestEmailVerificationTokenInvalidatesPreviousAndIsSingleUse(t *testing.T) {
-	resetPostLimitStateForTest(t)
+	resetEmailTokenStateForTest(t)
 
 	mutex.Lock()
 	accounts["acct-1"] = &Account{ID: "acct-1", Created: time.Now()}
@@ -94,7 +55,7 @@ func TestEmailVerificationTokenInvalidatesPreviousAndIsSingleUse(t *testing.T) {
 }
 
 func TestConsumeEmailVerificationTokenRejectsExpiredToken(t *testing.T) {
-	resetPostLimitStateForTest(t)
+	resetEmailTokenStateForTest(t)
 
 	mutex.Lock()
 	accounts["acct-1"] = &Account{ID: "acct-1", Created: time.Now()}
@@ -110,7 +71,7 @@ func TestConsumeEmailVerificationTokenRejectsExpiredToken(t *testing.T) {
 }
 
 func TestSetAccountEmailClearsVerificationState(t *testing.T) {
-	resetPostLimitStateForTest(t)
+	resetEmailTokenStateForTest(t)
 
 	verifiedAt := time.Now().Add(-time.Hour)
 	mutex.Lock()
