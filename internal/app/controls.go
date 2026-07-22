@@ -11,7 +11,6 @@ import (
 
 	"mu/internal/auth"
 	"mu/internal/data"
-	"mu/internal/flag"
 )
 
 // ControlsHandler handles generic content actions: /app/{action}
@@ -70,14 +69,6 @@ func ControlsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch action {
-	case "flag":
-		if contentType == "" || contentID == "" {
-			respond("missing type or id")
-			return
-		}
-		flag.Add(contentType, contentID, sess.Account)
-		respond("flagged")
-
 	case "save":
 		if contentType == "" || contentID == "" {
 			respond("missing type or id")

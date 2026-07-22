@@ -87,7 +87,7 @@ func TestConsoleRejectsLocalAccountCommands(t *testing.T) {
 }
 
 func TestConsoleRetainsOperationalCommands(t *testing.T) {
-	for _, command := range []string{"search nothing", "delete post missing", "flags", "stats", "types", "help"} {
+	for _, command := range []string{"search nothing", "delete post missing", "stats", "types", "help"} {
 		if got := runCommand(command); strings.HasPrefix(got, "Unknown:") {
 			t.Errorf("runCommand(%q) = %q, want operational command", command, got)
 		}

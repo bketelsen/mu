@@ -16,7 +16,6 @@ import (
 	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/event"
-	"mu/internal/flag"
 	"mu/internal/service"
 	"mu/internal/snapshot"
 )
@@ -240,9 +239,6 @@ func Load() {
 		}
 	}()
 
-	// Register with moderation subsystem
-	flag.RegisterDeleter("post", &postDeleter{})
-
 	// Register with admin delete
 	data.RegisterDeleter("blog", DeletePost)
 }
@@ -277,30 +273,6 @@ func loadPersistedPosts() {
 	sort.Slice(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
 	populateComments()
 	mutex.Unlock()
-}
-
-// postDeleter implements flag.ContentDeleter interface
-type postDeleter struct{}
-
-func (d *postDeleter) Delete(id string) error {
-	return DeletePost(id)
-}
-
-func (d *postDeleter) Get(id string) interface{} {
-	post := GetPost(id)
-	if post == nil {
-		return nil
-	}
-	return flag.PostContent{
-		Title:     post.Title,
-		Content:   post.Content,
-		Author:    post.Author,
-		CreatedAt: post.CreatedAt,
-	}
-}
-
-func (d *postDeleter) RefreshCache() {
-	updateCache()
 }
 
 // countComments returns the number of comments for a given post
@@ -365,15 +337,11 @@ func updateCacheUnlocked() {
 		return ti.After(tj)
 	})
 
-	// Generate preview for home page (latest public, unflagged post).
+	// Generate preview for home page (latest public post).
 	var preview []string
 	count := 0
 	for i := 0; i < len(posts) && count < 1; i++ {
 		post := posts[i]
-		// Skip flagged posts
-		if flag.IsHidden("post", post.ID) {
-			continue
-		}
 		// Skip private posts (home page shows only public posts)
 		if post.Private {
 			continue
@@ -465,14 +433,9 @@ func updateCacheUnlocked() {
 		postsPreviewHtml = strings.Join(preview, "\n")
 	}
 
-	// Generate full list for blog page (exclude flagged posts)
+	// Generate full list for blog page
 	var fullList []string
 	for _, post := range posts {
-		// Skip flagged posts
-		if flag.IsHidden("post", post.ID) {
-			continue
-		}
-
 		// Skip private posts (blog list shows only public posts)
 		if post.Private {
 			continue
@@ -587,16 +550,11 @@ func previewUncached() string {
 		return "<p>No posts yet. Be the first to share a thought!</p>"
 	}
 
-	// Get latest 1 post (exclude flagged and new accounts)
+	// Get latest 1 post
 	var preview []string
 	count := 0
 	for i := 0; i < len(posts) && count < 1; i++ {
 		post := posts[i]
-		// Skip flagged posts
-		if flag.IsHidden("post", post.ID) {
-			continue
-		}
-		// Skip posts from new accounts (< 24 hours old)
 		count++
 
 		content := post.Content
@@ -724,16 +682,14 @@ func handleGetBlog(w http.ResponseWriter, r *http.Request) {
 		_, acc := auth.TrySession(r)
 		isAdmin := acc != nil && acc.Admin
 
-		// Filter out flagged posts and private posts (unless admin)
+		// Filter out private posts (unless admin)
 		var visiblePosts []*Post
 		for _, post := range posts {
-			if !flag.IsHidden("post", post.ID) {
-				// Skip private posts for non-admins
-				if post.Private && !isAdmin {
-					continue
-				}
-				visiblePosts = append(visiblePosts, post)
+			// Skip private posts for non-admins
+			if post.Private && !isAdmin {
+				continue
 			}
+			visiblePosts = append(visiblePosts, post)
 		}
 		mutex.RUnlock()
 
@@ -1205,9 +1161,6 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Run async LLM-based content moderation
-		go flag.CheckContent("post", postID, title, content)
-
 		if app.SendsJSON(r) {
 			app.RespondJSON(w, map[string]interface{}{
 				"success": true,
@@ -1511,13 +1464,8 @@ func renderComments(postID string, r *http.Request) string {
 
 	commentsHTML.WriteString(`<div class="mt-5">`)
 	// Display newest comments first
-	isAdmin := acc != nil && acc.Admin
 	for i := len(postComments) - 1; i >= 0; i-- {
 		comment := postComments[i]
-		// Skip flagged/hidden comments unless viewer is admin.
-		if !isAdmin && flag.IsHidden("comment", comment.ID) {
-			continue
-		}
 		authorLink := htmlpkg.EscapeString(comment.Author)
 
 		renderedContent := app.RenderString(comment.Content)
@@ -1672,14 +1620,10 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the post
-	postID := fmt.Sprintf("%d", time.Now().UnixNano())
 	if err := CreatePost(title, content, author, authorID, tags, private); err != nil {
 		http.Error(w, "Failed to save post", http.StatusInternalServerError)
 		return
 	}
-
-	// Run async LLM-based content moderation (non-blocking)
-	go flag.CheckContent("post", postID, title, content)
 
 	// Redirect back to posts page
 	http.Redirect(w, r, "/blog", http.StatusSeeOther)
@@ -1735,14 +1679,10 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 	authorID := acc.ID
 
 	// Create the comment
-	comment, err := CreateComment(postID, content, author, authorID)
-	if err != nil {
+	if _, err := CreateComment(postID, content, author, authorID); err != nil {
 		app.ServerError(w, r, "Failed to save comment")
 		return
 	}
-
-	// Async content moderation — uses the comment's ID, not the post's.
-	go flag.CheckContent("comment", comment.ID, "", content)
 
 	// Redirect back to the post
 	http.Redirect(w, r, "/blog/post?id="+postID, http.StatusSeeOther)

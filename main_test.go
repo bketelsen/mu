@@ -115,13 +115,12 @@ func TestRoutesExcludeProfilesFederationAndPresence(t *testing.T) {
 		"/presence",
 		"/ping",
 		"strings.HasPrefix(r.URL.Path, \"/@\")",
+		"/user/status",
+		"/admin/flag",
 	} {
 		if strings.Contains(string(source), route) {
 			t.Errorf("main route registration retains %s", route)
 		}
-	}
-	if !strings.Contains(string(source), `http.HandleFunc("/user/status", user.StatusHandler)`) {
-		t.Error("owner-private status route is missing")
 	}
 }
 
@@ -216,7 +215,7 @@ func TestMigrateRemoveSocialBacksUpBeforeLoadingAndCleansUp(t *testing.T) {
 	if err := migrateRemoveSocial(); err != nil {
 		t.Fatalf("migrateRemoveSocial: %v", err)
 	}
-	want := []string{"backup", "load index", "delete index", "delete social.json", "delete social_posts.json", "remove card", "save marker"}
+	want := []string{"backup", "load index", "delete index", "delete social.json", "delete social_posts.json", "delete profiles.json", "delete flags.json", "remove card", "remove card", "save marker"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)
 	}
@@ -240,7 +239,7 @@ func TestMigrateRemoveSocialPurgesPreferencesBeforeSavingMarker(t *testing.T) {
 	if err := migrateRemoveSocial(); err != nil {
 		t.Fatalf("migrateRemoveSocial: %v", err)
 	}
-	want := []string{"backup", "load index", "delete index", "delete social.json", "delete social_posts.json", "remove card", "remove preferences", "save marker"}
+	want := []string{"backup", "load index", "delete index", "delete social.json", "delete social_posts.json", "delete profiles.json", "delete flags.json", "remove card", "remove card", "remove preferences", "save marker"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)
 	}
@@ -279,7 +278,10 @@ func TestMigrateRemoveSocialLoadsIndexWhenCompleted(t *testing.T) {
 		func(string) error { calls = append(calls, "delete index"); return nil },
 		func(string) error { calls = append(calls, "delete file"); return nil },
 		func(string) error { calls = append(calls, "remove card"); return nil },
-		func(marker *map[string]int) error { *marker = map[string]int{"version": 1}; return nil },
+		func(marker *map[string]int) error {
+			*marker = map[string]int{"version": removeSocialMigrationVersion}
+			return nil
+		},
 		func(map[string]int) error { calls = append(calls, "save marker"); return nil },
 	)
 
@@ -394,7 +396,7 @@ func TestMigrateRemoveSocialAbortsOnHomeCardCleanupFailure(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("migrateRemoveSocial error = %v, want %v", err, wantErr)
 	}
-	want := []string{"backup", "load index", "delete index", "delete social.json", "delete social_posts.json", "remove card"}
+	want := []string{"backup", "load index", "delete index", "delete social.json", "delete social_posts.json", "delete profiles.json", "delete flags.json", "remove card"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls after home card failure = %v, want %v", calls, want)
 	}
@@ -451,7 +453,7 @@ func TestMigrateRemoveSocialRetriesAfterCleanupFailure(t *testing.T) {
 	if err := migrateRemoveSocial(); err != nil {
 		t.Fatalf("retry migration: %v", err)
 	}
-	if backups != 2 || loads != 2 || indexDeletes != 2 || fileDeletes != 4 || cardRemovals != 1 || markerSaves != 1 {
+	if backups != 2 || loads != 2 || indexDeletes != 2 || fileDeletes != 6 || cardRemovals != 2 || markerSaves != 1 {
 		t.Fatalf("retry counts backup=%d load=%d index=%d files=%d cards=%d marker=%d", backups, loads, indexDeletes, fileDeletes, cardRemovals, markerSaves)
 	}
 }
@@ -490,7 +492,7 @@ func TestRequiresWritePermission(t *testing.T) {
 		path   string
 		want   bool
 	}{
-		{name: "user status", method: http.MethodPost, path: "/user/status", want: true},
+		{name: "removed user status", method: http.MethodPost, path: "/user/status", want: false},
 		{name: "removed social post", method: http.MethodPost, path: "/social", want: false},
 		{name: "removed social thread", method: http.MethodPost, path: "/social/thread", want: false},
 		{name: "blog create", method: http.MethodPost, path: "/blog", want: true},
