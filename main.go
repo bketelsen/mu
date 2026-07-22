@@ -50,6 +50,7 @@ import (
 	"mu/recall"
 	"mu/search"
 	"mu/stream"
+	"mu/topics"
 	"mu/user"
 	"mu/video"
 	"mu/wallet"
@@ -62,6 +63,11 @@ var AddressFlag = flag.String("address", ":8080", "Address for server")
 
 var backupData = func() (string, error) { return data.Backup(time.Now()) }
 var runOwnerMigration = auth.MigrateSingleOwner
+var loadTopics = topics.Load
+
+func loadTopicConfiguration() error {
+	return loadTopics()
+}
 
 const removeSocialMigrationVersion = 1
 
@@ -214,6 +220,10 @@ func main() {
 	// scattered per-request errors from background loops.
 	app.Log("ai", "AI provider: %s", ai.ProviderStatus())
 
+	if err := loadTopicConfiguration(); err != nil {
+		app.Log("topics", "topic configuration failed: %v", err)
+		os.Exit(1)
+	}
 	app.Load()
 	github.Load()
 	github.RegisterTools()
@@ -1122,6 +1132,7 @@ func main() {
 	// admin console
 	http.HandleFunc("/admin/console", admin.ConsoleHandler)
 	http.HandleFunc("/admin/diagnostics", admin.DiagnosticsHandler)
+	http.HandleFunc("/admin/topics", admin.TopicsHandler)
 
 	// wallet - credits and payments
 	http.HandleFunc("/wallet", wallet.Handler)
