@@ -46,6 +46,8 @@ var refreshFeed = make(chan struct{}, 1)
 
 var unsubscribeTopics func()
 
+var beforeFeedPublish func()
+
 // Semaphore to limit concurrent metadata fetches (reduces memory spike on startup)
 var metadataFetchSem = make(chan struct{}, 10) // Allow max 10 concurrent fetches
 
@@ -1351,6 +1353,9 @@ func parseFeedOnce() {
 		}
 	}
 
+	if beforeFeedPublish != nil {
+		beforeFeedPublish()
+	}
 	mutex.Lock()
 	// Topics can change while feeds are being fetched. Publish only data for the
 	// current snapshot, while retaining anything already indexed on disk.
@@ -1398,8 +1403,8 @@ func parseFeedOnce() {
 	saveHtml(head, allContent)
 	data.SaveFile("headlines.html", headlinesHtml)
 	data.SaveJSON("feed.json", feed)
-	cardSnap.Publish(headlineHtml)
 	mutex.Unlock()
+	cardSnap.Publish(headlineHtml)
 }
 
 func filterPostsForFeeds(posts []*Post, active map[string]bool) []*Post {
@@ -1432,10 +1437,6 @@ func feedRefreshLoop() {
 			}
 		}
 	}
-}
-
-func parseFeed() {
-	feedRefreshLoop()
 }
 
 func Load() {
@@ -1533,10 +1534,8 @@ func Load() {
 	b, _ = data.LoadFile("news.html")
 	html = string(b)
 	// Extract body content from saved HTML for serving
-	// The newsBodyHtml will be rebuilt by parseFeed, but load from file for immediate serving
+	// The newsBodyHtml will be rebuilt by the feed refresh loop, but load from file for immediate serving.
 	if len(html) > 0 {
-		// Parse out just the body content between the main content divs
-		// For now just set newsBodyHtml from the full html - parseFeed will update it
 		newsBodyHtml = html
 	}
 

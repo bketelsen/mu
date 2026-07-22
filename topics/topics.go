@@ -60,6 +60,9 @@ func Load() error {
 	if errors.Is(err, os.ErrNotExist) {
 		defaults := copyTopics(defaultTopics)
 		normalizeTopics(defaults)
+		if err := validateTopics(defaults); err != nil {
+			return err
+		}
 		sortTopics(defaults)
 		if err := persist(defaults); err != nil {
 			return err
@@ -125,6 +128,10 @@ func Update(name string, replacement Topic) (Change, error) {
 		return Change{}, fmt.Errorf("topic name cannot be changed")
 	}
 	previous := records[index]
+	if previous == replacement {
+		mu.Unlock()
+		return Change{}, nil
+	}
 	proposed := copyTopics(records)
 	proposed[index] = replacement
 	if err := validateTopics(proposed); err != nil {

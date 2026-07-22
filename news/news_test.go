@@ -2,6 +2,8 @@ package news
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/mmcdole/gofeed"
 	"mu/internal/data"
+	"mu/internal/snapshot"
 	"mu/topics"
 )
 
@@ -40,6 +43,91 @@ func TestNewsRelevantTopicChanges(t *testing.T) {
 		if !newsRelevant(change) {
 			t.Fatalf("change should refresh: %#v", change)
 		}
+	}
+}
+
+func TestParsePrunesDeletedTopicBeforePublication(t *testing.T) {
+	if err := topics.Load(); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/rss+xml")
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>Tech</title><item><guid>tech-item</guid><title>Tech deletion race</title><link>https://example.com/tech</link><description>Tech content</description><pubDate>Mon, 02 Jan 2006 15:04:05 MST</pubDate></item></channel></rss>`))
+	}))
+	defer server.Close()
+
+	mutex.Lock()
+	oldFeeds, oldStatus, oldFeed, oldHeadlines, oldSnap := feeds, status, feed, headlinesHtml, cardSnap
+	feeds = map[string]string{}
+	status = map[string]*Feed{}
+	feed = nil
+	headlinesHtml = ""
+	cardSnap = snapshot.New("news-test")
+	mutex.Unlock()
+	t.Cleanup(func() {
+		mutex.Lock()
+		feeds, status, feed, headlinesHtml, cardSnap = oldFeeds, oldStatus, oldFeed, oldHeadlines, oldSnap
+		mutex.Unlock()
+	})
+
+	historyID := "history-kept-after-topic-delete"
+	data.StartIndexing()
+	data.Index(historyID, "news", "Historical", "must remain indexed", nil)
+	deadline := time.Now().Add(time.Second)
+	for data.GetByID(historyID) == nil && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if historical := data.GetByID(historyID); historical == nil || historical.Content != "must remain indexed" {
+		t.Fatalf("could not establish historical indexed data: %#v", historical)
+	}
+	before, release := make(chan struct{}), make(chan struct{})
+	beforeFeedPublish = func() {
+		close(before)
+		<-release
+	}
+	t.Cleanup(func() { beforeFeedPublish = nil })
+
+	applyTopics([]topics.Topic{{Name: "Tech", FeedURL: server.URL, Prompt: "tech"}}, topics.Change{})
+	unsubscribe := topics.Subscribe(applyTopics)
+	defer unsubscribe()
+	finished := make(chan struct{})
+	go func() {
+		parseFeedOnce()
+		close(finished)
+	}()
+	<-before
+	if _, err := topics.Delete("Tech"); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	<-finished
+
+	mutex.RLock()
+	_, active := feeds["Tech"]
+	_, tracked := status["Tech"]
+	published := append([]*Post(nil), feed...)
+	headlines := headlinesHtml
+	mutex.RUnlock()
+	if active || tracked {
+		t.Fatalf("deleted topic survived active state: feeds=%t status=%t", active, tracked)
+	}
+	for _, post := range published {
+		if post.Category == "Tech" {
+			t.Fatalf("deleted topic survived feed: %#v", published)
+		}
+	}
+	if strings.Contains(headlines, "Tech") {
+		t.Fatalf("deleted topic survived headlines: %q", headlines)
+	}
+	body, err := data.LoadFile("news.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), "Tech") {
+		t.Fatalf("deleted topic survived navigation or publication: %q", body)
+	}
+	if historical := data.GetByID(historyID); historical == nil || historical.Content != "must remain indexed" {
+		t.Fatalf("historical indexed data changed: %#v", historical)
 	}
 }
 

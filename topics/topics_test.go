@@ -167,6 +167,60 @@ func TestUpdateClassifiesChangesAndRejectsRename(t *testing.T) {
 	}
 }
 
+func TestUpdateNoOpDoesNotPersistOrNotify(t *testing.T) {
+	useTempHome(t)
+	if err := Load(); err != nil {
+		t.Fatal(err)
+	}
+	tech := topicNamed(t, Snapshot(), "Tech")
+	persisted := 0
+	originalPersist := persist
+	persist = func([]Topic) error {
+		persisted++
+		return nil
+	}
+	t.Cleanup(func() { persist = originalPersist })
+	notified := false
+	unsubscribe := Subscribe(func([]Topic, Change) { notified = true })
+	defer unsubscribe()
+
+	change, err := Update("Tech", tech)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(change, Change{}) {
+		t.Fatalf("change = %#v, want empty", change)
+	}
+	if persisted != 0 {
+		t.Fatalf("persist called %d times", persisted)
+	}
+	if notified {
+		t.Fatal("subscriber called for no-op update")
+	}
+}
+
+func TestLoadValidatesDefaultsBeforePersisting(t *testing.T) {
+	useTempHome(t)
+	originalDefaults, originalPersist := defaultTopics, persist
+	defaultTopics = []Topic{{Name: "Invalid/Name", FeedURL: "https://example.com/feed", Prompt: "prompt"}}
+	persisted := false
+	persist = func([]Topic) error {
+		persisted = true
+		return nil
+	}
+	t.Cleanup(func() {
+		defaultTopics = originalDefaults
+		persist = originalPersist
+	})
+
+	if err := Load(); err == nil {
+		t.Fatal("Load succeeded with invalid defaults")
+	}
+	if persisted {
+		t.Fatal("invalid defaults were persisted")
+	}
+}
+
 func TestSnapshotsAndSubscriberArgumentsAreCopied(t *testing.T) {
 	useTempHome(t)
 	if err := Load(); err != nil {

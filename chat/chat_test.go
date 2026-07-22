@@ -100,14 +100,18 @@ func TestSummaryBatchRetainsPriorSummaryAfterPartialFailure(t *testing.T) {
 	mutex.Lock()
 	summaries = map[string]string{"Dev": "old dev", "World": "old world"}
 	mutex.Unlock()
-	original := generateTopicSummary
+	originalConfigured, original := summaryAIConfigured, generateTopicSummary
+	summaryAIConfigured = func() bool { return true }
 	generateTopicSummary = func(name, prompt string) (string, error) {
 		if name == "World" || name == "New" {
 			return "", errors.New("LLM unavailable")
 		}
 		return "new " + name, nil
 	}
-	defer func() { generateTopicSummary = original }()
+	defer func() {
+		summaryAIConfigured = originalConfigured
+		generateTopicSummary = original
+	}()
 
 	generateSummaryBatch([]string{"Dev", "World", "New"})
 
@@ -124,6 +128,26 @@ func TestSummaryBatchRetainsPriorSummaryAfterPartialFailure(t *testing.T) {
 	}
 }
 
+func TestSummaryBatchSkipsUnconfiguredAIOnce(t *testing.T) {
+	applyTopicSnapshot([]topicstore.Topic{{Name: "Dev", Prompt: "dev"}, {Name: "World", Prompt: "world"}})
+	originalConfigured, originalGenerate := summaryAIConfigured, generateTopicSummary
+	summaryAIConfigured = func() bool { return false }
+	called := 0
+	generateTopicSummary = func(string, string) (string, error) {
+		called++
+		return "", nil
+	}
+	t.Cleanup(func() {
+		summaryAIConfigured = originalConfigured
+		generateTopicSummary = originalGenerate
+	})
+
+	generateSummaryBatch([]string{"Dev", "World"})
+	if called != 0 {
+		t.Fatalf("generated %d summaries while AI was unconfigured", called)
+	}
+}
+
 func TestSummaryBatchDoesNotRestoreTopicDeletedDuringGeneration(t *testing.T) {
 	applyTopicSnapshot([]topicstore.Topic{{Name: "World", Prompt: "world"}})
 	mutex.Lock()
@@ -132,13 +156,17 @@ func TestSummaryBatchDoesNotRestoreTopicDeletedDuringGeneration(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	finished := make(chan struct{})
-	original := generateTopicSummary
+	originalConfigured, original := summaryAIConfigured, generateTopicSummary
+	summaryAIConfigured = func() bool { return true }
 	generateTopicSummary = func(name, prompt string) (string, error) {
 		close(started)
 		<-release
 		return "stale World summary", nil
 	}
-	defer func() { generateTopicSummary = original }()
+	defer func() {
+		summaryAIConfigured = originalConfigured
+		generateTopicSummary = original
+	}()
 
 	go func() {
 		generateSummaryBatch([]string{"World"})

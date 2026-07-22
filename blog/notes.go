@@ -19,12 +19,12 @@ import (
 // It is produced the same way as the daily brief (news/digest) and the opinion
 // pieces (blog/opinion.go): the voice lives in a System prompt here in code, the
 // SET of things to produce lives in an embedded JSON (notes.json, a
-// name -> instruction map like chat/prompts.json), and each piece is generated
+// name -> instruction map), and each piece is generated
 // with ai.Ask (PriorityLow, BackgroundModel) and posted as the system account on
 // a cadence. Disable with the NOTES setting (off/false/0/no).
 
 // notesJSON is the set of angles: a map of title -> writing instruction, the
-// same shape as chat/prompts.json. Edit this file (data) to manage what gets
+// map of title -> instruction. Edit this file (data) to manage what gets
 // produced — no code change needed.
 //
 //go:embed notes.json

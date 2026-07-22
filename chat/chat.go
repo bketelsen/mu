@@ -83,6 +83,8 @@ var generateTopicSummary = func(topic, prompt string) (string, error) {
 	})
 }
 
+var summaryAIConfigured = ai.Configured
+
 // SummaryMetadata describes when and how the generated topic summaries were refreshed.
 type SummaryMetadata struct {
 	GeneratedAt time.Time `json:"generated_at,omitempty"`
@@ -99,8 +101,6 @@ func currentSummaryMeta() SummaryMetadata {
 
 var topics = []string{}
 
-var head string
-
 var unsubscribeTopics func()
 
 func applyTopicSnapshot(snapshot []topicstore.Topic) {
@@ -115,7 +115,6 @@ func applyTopicSnapshot(snapshot []topicstore.Topic) {
 	mutex.Lock()
 	topics = names
 	prompts = updatedPrompts
-	head = app.Head("chat", names)
 	mutex.Unlock()
 }
 
@@ -1207,22 +1206,26 @@ func generateSummaries() {
 
 func generateSummaryBatch(names []string) {
 	_, activePrompts := topicConfigSnapshot()
-	for _, name := range names {
-		prompt, active := activePrompts[name]
-		if !active {
-			continue
+	if len(names) > 0 && !summaryAIConfigured() {
+		app.Log("chat", "Skipping summary batch: no AI provider configured")
+	} else {
+		for _, name := range names {
+			prompt, active := activePrompts[name]
+			if !active {
+				continue
+			}
+			resp, err := generateTopicSummary(name, prompt)
+			if err != nil {
+				app.Log("chat", "Failed to generate summary for topic %s: %v", name, err)
+				continue
+			}
+			mutex.Lock()
+			if _, active := prompts[name]; active {
+				summaries[name] = resp
+				summaryMeta = SummaryMetadata{GeneratedAt: time.Now().UTC(), Source: "Mu indexed public content", Status: "fresh"}
+			}
+			mutex.Unlock()
 		}
-		resp, err := generateTopicSummary(name, prompt)
-		if err != nil {
-			app.Log("chat", "Failed to generate summary for topic %s: %v", name, err)
-			continue
-		}
-		mutex.Lock()
-		if _, active := prompts[name]; active {
-			summaries[name] = resp
-			summaryMeta = SummaryMetadata{GeneratedAt: time.Now().UTC(), Source: "Mu indexed public content", Status: "fresh"}
-		}
-		mutex.Unlock()
 	}
 
 	mutex.RLock()
