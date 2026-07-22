@@ -16,7 +16,7 @@ func TestPrivatePublicAllowlist(t *testing.T) {
 		"/setup", "/login", "/passkey/login/begin", "/passkey/login/finish",
 		"/oauth2/google", "/oauth2/callback", "/.well-known/oauth-authorization-server",
 		"/.well-known/oauth-protected-resource", "/oauth/register", "/oauth/authorize",
-		"/oauth/token", "/whatsapp/webhook", "/wallet/stripe/webhook", "/status", "/version", "/mu.css",
+		"/oauth/token", "/whatsapp/webhook", "/status", "/version", "/mu.css",
 	}
 	for _, path := range public {
 		t.Run(path, func(t *testing.T) {
@@ -31,7 +31,7 @@ func TestPrivatePublicAllowlist(t *testing.T) {
 }
 
 func TestPrivateDeniesApplicationRoutesByDefault(t *testing.T) {
-	denied := []string{"/home", "/news", "/docs", "/mcp", "/a2a", "/api", "/agent", "/images/file/private.png", "/apps/private.js", "/session", "/verify"}
+	denied := []string{"/home", "/news", "/docs", "/mcp", "/a2a", "/api", "/agent", "/images/file/private.png", "/apps/private.js", "/session", "/verify", "/wallet/stripe/webhook"}
 	for _, path := range denied {
 		t.Run(path, func(t *testing.T) {
 			hit := false

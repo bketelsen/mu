@@ -123,9 +123,6 @@ func runHealthChecks() []healthCheck {
 	// Mail
 	checks = append(checks, checkMail())
 
-	// Trading
-	checks = append(checks, checkTrading())
-
 	return checks
 }
 
@@ -292,27 +289,6 @@ func checkMail() healthCheck {
 		Name:   "Mail",
 		Status: "ok",
 		Detail: domain,
-	}
-}
-
-func checkTrading() healthCheck {
-	rpc := settings.Get("TRADE_RPC_URL")
-	chain := settings.Get("TRADE_CHAIN")
-	if chain == "" {
-		chain = "ethereum"
-	}
-
-	detail := fmt.Sprintf("%s chain", chain)
-	if rpc != "" {
-		detail += " (custom RPC)"
-	} else {
-		detail += " (public RPC)"
-	}
-
-	return healthCheck{
-		Name:   "Trading",
-		Status: "ok",
-		Detail: detail,
 	}
 }
 

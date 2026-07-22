@@ -1,6 +1,9 @@
 package admin
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestGitHubTokenSetting(t *testing.T) {
 	count := 0
@@ -18,5 +21,18 @@ func TestGitHubTokenSetting(t *testing.T) {
 	}
 	if !isSecretSetting("GITHUB_TOKEN") {
 		t.Fatal("GITHUB_TOKEN should be treated as secret")
+	}
+}
+
+func TestSettingGroupsExcludePayments(t *testing.T) {
+	for _, group := range settingGroups {
+		for _, key := range group.Vars {
+			upper := strings.ToUpper(key)
+			if strings.HasPrefix(upper, "STRIPE_") || strings.HasPrefix(upper, "X402_") ||
+				strings.HasPrefix(upper, "CREDIT_COST_") || upper == "DAILY_QUOTA" ||
+				upper == "FREE_DAILY_QUOTA" || upper == "TRADE_RPC_URL" || upper == "TRADE_CHAIN" {
+				t.Errorf("payment setting remains: %s", key)
+			}
+		}
 	}
 }

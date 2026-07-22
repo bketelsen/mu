@@ -47,7 +47,6 @@ weather, GitHub and video, handled by one agent. No ads and no tracking.</p>
 		Body:        body,
 		TopRight:    `<a href="/login">Sign in →</a>`,
 		Footer: `<a href="/agents">Agents</a>
-  <a href="/pricing">Pricing</a>
   <a href="/api">API</a>
   <a href="/docs">Docs</a>
   <a href="/mcp">MCP</a>

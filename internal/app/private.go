@@ -37,7 +37,6 @@ var publicPrivateAssets = map[string]bool{
 	"/search.svg":           true,
 	"/social.svg":           true,
 	"/video.png":            true,
-	"/wallet.png":           true,
 	"/weather.png":          true,
 	"/weather.svg":          true,
 }
@@ -73,7 +72,7 @@ func publicPrivatePath(path string, setupNeeded bool) bool {
 	case "/login", "/passkey/login/begin", "/passkey/login/finish",
 		"/oauth2/google", "/oauth2/callback", "/.well-known/oauth-authorization-server",
 		"/.well-known/oauth-protected-resource", "/oauth/register", "/oauth/authorize",
-		"/oauth/token", "/whatsapp/webhook", "/wallet/stripe/webhook", "/status", "/version":
+		"/oauth/token", "/whatsapp/webhook", "/status", "/version":
 		return true
 	case "/setup":
 		return setupNeeded
