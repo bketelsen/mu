@@ -39,11 +39,11 @@ func ensureSeedPosts() {
 const buildAppsPostContent = "Mu is a set of everyday services you own — news, mail, weather, video, and the rest — with an agent that drives them. But not everything belongs in the core. You shouldn't have to fork Mu to get a bookmarks tool, a reading list, or whatever small thing fits *your* day. That's what apps are for.\n\n" +
 	"A Mu app is just an HTML page with a little JavaScript. What makes it more than a static page is the SDK — a global `mu` object that gives the page real backend building blocks, without you standing up a backend.\n\n" +
 	"```html\n<script src=\"/apps/sdk.js\"></script>\n```\n\n" +
-	"## Who's using it\n\n`mu.user()` tells you who is signed in, so an app can greet them and keep their data separate from everyone else's:\n\n" +
-	"```javascript\nconst u = await mu.user();   // { account: 'alice', admin: false }\n```\n\n" +
-	"## Storage that knows who you are\n\n`mu.db` is a small database, not just a key-value bucket. Each record has an owner (you) and a public flag, so one app can hold *your* private data and a *shared* public set at the same time:\n\n" +
-	"```javascript\nawait mu.db.create('notes', { title: 'Idea', body: '...' });            // private to me\nawait mu.db.create('notes', { title: 'Public tip' }, { public: true }); // shared\n\nawait mu.db.list('notes');                       // my notes\nawait mu.db.list('notes', { scope: 'public' });  // everyone's public notes\nawait mu.db.list('tasks', { where: { done: false, priority: { gte: 2 } } });\n```\n\n" +
-	"The owner is set on the server from your session — never from the page — so an app can't read or write someone else's private data even if it tries.\n\n" +
+	"## Who's using it\n\n`mu.user()` tells you who is signed in, so an app can greet you by name:\n\n" +
+	"```javascript\nconst u = await mu.user();   // { account: 'alice' }\n```\n\n" +
+	"## Storage built in\n\n`mu.db` is a small database, not just a key-value bucket. Records live in named collections with filters and sorting:\n\n" +
+	"```javascript\nawait mu.db.create('notes', { title: 'Idea', body: '...' });\n\nawait mu.db.list('notes');\nawait mu.db.list('tasks', { where: { done: false, priority: { gte: 2 } } });\n```\n\n" +
+	"Ownership is set on the server from your session — never from the page — and everything is private to you.\n\n" +
 	"## Reach the web, server-side\n\n`mu.web.fetch` makes an HTTP request from the server, so your app gets past CORS and can keep API keys off the client. It's SSRF-guarded — public hosts only:\n\n" +
 	"```javascript\nconst res = await mu.web.fetch('https://api.example.com/data');\nconst data = JSON.parse(res.body);\n```\n\n" +
 	"## The agent, in your app\n\n`mu.ai(prompt)` for a one-shot answer, `mu.agent(prompt)` for the full tool-using agent — plus typed wrappers for services such as `mu.weather`, `mu.news`, and `mu.video`:\n\n" +

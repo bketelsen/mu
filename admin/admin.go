@@ -13,9 +13,9 @@ import (
 // AdminHandler shows operational owner controls.
 func AdminHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if user is admin
-	_, _, err := auth.RequireAdmin(r)
+	_, _, err := auth.RequireOwner(r)
 	if err != nil {
-		app.Forbidden(w, r, "Admin access required")
+		app.Forbidden(w, r, "Owner access required")
 		return
 	}
 
@@ -41,9 +41,9 @@ func AdminHandler(w http.ResponseWriter, r *http.Request) {
 // BlocklistHandler shows and manages the mail blocklist
 func BlocklistHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if user is admin
-	_, _, err := auth.RequireAdmin(r)
+	_, _, err := auth.RequireOwner(r)
 	if err != nil {
-		app.Forbidden(w, r, "Admin access required")
+		app.Forbidden(w, r, "Owner access required")
 		return
 	}
 
@@ -206,7 +206,7 @@ func blocklistIPRow(ip string) string {
 
 // SpamFilterHandler shows and manages the spam filter settings
 func SpamFilterHandler(w http.ResponseWriter, r *http.Request) {
-	_, _, err := auth.RequireAdmin(r)
+	_, _, err := auth.RequireOwner(r)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

@@ -142,11 +142,6 @@ func GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Google account is not linked to this Mu owner", http.StatusForbidden)
 		return
 	}
-	if acc.Banned {
-		http.Error(w, "This account is not available", http.StatusForbidden)
-		return
-	}
-
 	sess, err := auth.CreateSession(acc.ID)
 	if err != nil {
 		http.Error(w, "Session error, please try again", http.StatusInternalServerError)

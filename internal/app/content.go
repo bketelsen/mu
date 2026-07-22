@@ -15,10 +15,11 @@ type Action struct {
 	Class   string
 }
 
-// ItemControls renders a ⋯ dropdown with all applicable controls for a content item.
-func ItemControls(userID string, isAdmin bool, contentType, contentID, authorID, editURL, deleteURL string) string {
-	isOwner := userID == authorID
-	if !isOwner && !isAdmin {
+// ItemControls renders a ⋯ dropdown with all applicable controls for a content
+// item. Any signed-in viewer is the owner, who can manage everything —
+// including content authored by the system user.
+func ItemControls(userID string, contentType, contentID, editURL, deleteURL string) string {
+	if userID == "" {
 		return ""
 	}
 

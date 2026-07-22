@@ -1227,9 +1227,9 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 // handleClearChat handles DELETE /chat - clear chat history (admin only)
 func handleClearChat(w http.ResponseWriter, r *http.Request, roomID string) {
 	// Require admin
-	_, _, err := auth.RequireAdmin(r)
+	_, _, err := auth.RequireOwner(r)
 	if err != nil {
-		http.Error(w, "Admin access required", http.StatusForbidden)
+		http.Error(w, "Owner access required", http.StatusForbidden)
 		return
 	}
 

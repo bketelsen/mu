@@ -12,8 +12,8 @@ import (
 
 // TopicsHandler shows and manages the owner-configured news feeds and chat prompts.
 func TopicsHandler(w http.ResponseWriter, r *http.Request) {
-	if _, _, err := auth.RequireAdmin(r); err != nil {
-		app.Forbidden(w, r, "Admin access required")
+	if _, _, err := auth.RequireOwner(r); err != nil {
+		app.Forbidden(w, r, "Owner access required")
 		return
 	}
 

@@ -13,9 +13,9 @@ import (
 // DeleteHandler handles admin deletion of any registered content type.
 // GET shows the delete form, POST performs the deletion.
 func DeleteHandler(w http.ResponseWriter, r *http.Request) {
-	_, _, err := auth.RequireAdmin(r)
+	_, _, err := auth.RequireOwner(r)
 	if err != nil {
-		app.Forbidden(w, r, "Admin access required")
+		app.Forbidden(w, r, "Owner access required")
 		return
 	}
 

@@ -44,9 +44,9 @@ func sourceDir() string {
 
 // UpdateHandler shows the update/restart page and handles requests
 func UpdateHandler(w http.ResponseWriter, r *http.Request) {
-	_, _, err := auth.RequireAdmin(r)
+	_, _, err := auth.RequireOwner(r)
 	if err != nil {
-		app.Forbidden(w, r, "Admin access required")
+		app.Forbidden(w, r, "Owner access required")
 		return
 	}
 

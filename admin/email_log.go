@@ -14,9 +14,9 @@ import (
 // EmailLogHandler shows the email log page
 func EmailLogHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if user is admin
-	_, _, err := auth.RequireAdmin(r)
+	_, _, err := auth.RequireOwner(r)
 	if err != nil {
-		app.Forbidden(w, r, "Admin access required")
+		app.Forbidden(w, r, "Owner access required")
 		return
 	}
 

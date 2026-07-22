@@ -401,10 +401,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Check if this is a block sender action (admin only)
+		// Check if this is a block sender action
 		if r.FormValue("action") == "block_sender" {
 			senderEmail := r.FormValue("sender_email")
-			if senderEmail != "" && acc.Admin {
+			if senderEmail != "" {
 				if err := BlockEmail(senderEmail); err != nil {
 					app.Log("mail", "Failed to block sender %s: %v", senderEmail, err)
 				}
@@ -1001,9 +1001,9 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		}
 		otherPartyDisplay := html.EscapeString(otherParty)
 
-		// Add block link if other party is external email and user is admin
+		// Add block link if other party is an external email address
 		blockButton := ""
-		if acc.Admin && IsExternalEmail(otherParty) {
+		if IsExternalEmail(otherParty) {
 			blockButton = fmt.Sprintf(`
 			<span class="mx-2">·</span>
 			<a href="#" onclick="if(confirm('Block %s from sending mail?')){var form=document.createElement('form');form.method='POST';form.action='/mail';var input1=document.createElement('input');input1.type='hidden';input1.name='action';input1.value='block_sender';form.appendChild(input1);var input2=document.createElement('input');input2.type='hidden';input2.name='sender_email';input2.value='%s';form.appendChild(input2);var input3=document.createElement('input');input3.type='hidden';input3.name='msg_id';input3.value='%s';form.appendChild(input3);document.body.appendChild(form);form.submit();}return false;" class="text-muted">Block Sender</a>

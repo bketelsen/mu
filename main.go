@@ -1219,10 +1219,6 @@ func main() {
 					http.Error(w, "owner authentication required", http.StatusForbidden)
 					return
 				}
-				if err := auth.CheckPostRate(sess.Account); err != nil {
-					http.Error(w, err.Error(), http.StatusTooManyRequests)
-					return
-				}
 			}
 
 			http.DefaultServeMux.ServeHTTP(w, r)

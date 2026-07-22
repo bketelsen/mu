@@ -645,11 +645,8 @@ func Account(w http.ResponseWriter, r *http.Request) {
 		languageOptions += fmt.Sprintf(`<option value="%s"%s>%s</option>`, code, selected, name)
 	}
 
-	// Admin link
-	adminLinks := ""
-	if acc.Admin {
-		adminLinks = `<p><a href="/admin">Admin Dashboard →</a></p>`
-	}
+	// Admin link — the signed-in owner always has the dashboard.
+	adminLinks := `<p><a href="/admin">Admin Dashboard →</a></p>`
 
 	// Email verification card + Google connect card
 	emailCard := renderEmailCard(acc)
@@ -763,14 +760,6 @@ func Account(w http.ResponseWriter, r *http.Request) {
 // page. The card looks different depending on whether the email is set,
 // pending, or verified — and whether email sending is configured at all.
 func renderEmailCard(acc *auth.Account) string {
-	if acc.Admin || acc.Approved {
-		// Admins/approved users don't need verification.
-		if acc.EmailVerified {
-			return fmt.Sprintf(`<div class="card"><h4>Email</h4><p>%s — verified</p></div>`, htmlpkg.EscapeString(acc.Email))
-		}
-		return ""
-	}
-
 	if EmailSender == nil {
 		return `<div class="card"><h4>Email</h4><p class="text-muted">Email verification is not configured on this instance.</p></div>`
 	}
@@ -906,7 +895,7 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 
 // Session handler
 func Session(w http.ResponseWriter, r *http.Request) {
-	sess, acc := auth.TrySession(r)
+	sess, _ := auth.TrySession(r)
 	if sess == nil {
 		// Return guest session instead of error
 		guestSess := map[string]interface{}{
@@ -924,10 +913,6 @@ func Session(w http.ResponseWriter, r *http.Request) {
 		"type":    sess.Type,
 		"account": sess.Account,
 		"created": sess.Created,
-	}
-
-	if acc != nil {
-		response["admin"] = acc.Admin
 	}
 
 	b, _ := json.Marshal(response)

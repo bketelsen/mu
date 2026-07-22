@@ -104,9 +104,6 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 	e := PostUser(sess.Account, content)
 
-	// Async moderation — same LLM check as status.
-	go moderateEvent(sess.Account, content)
-
 	// @micro mention → agent reply.
 	if ContainsMicro(content) && AIReplyHook != nil && sess.Account != app.SystemUserID {
 		go AIReplyHook(sess.Account, content)
@@ -117,15 +114,6 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/stream", http.StatusSeeOther)
-}
-
-func moderateEvent(authorID, text string) {
-	if acc, err := auth.GetAccount(authorID); err == nil && acc.Admin {
-		return
-	}
-	// Reuse the flag package's LLM classifier.
-	// Import cycle prevention: the caller in main.go wires this via
-	// a callback if needed. For now, inline a simple check.
 }
 
 // FragmentHandler returns just the event list as an HTML fragment at
