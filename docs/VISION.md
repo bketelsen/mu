@@ -19,8 +19,7 @@ session, OAuth credential, or PAT. Linked Discord, Telegram, and WhatsApp direct
 messages use the same owner boundary.
 
 The agent remembers owner preferences and works across private owner data. It
-does not expose a shared social stream, public profile system, or local user
-directory.
+does not expose a shared stream, public profile system, or local user directory.
 
 ## Design choices
 

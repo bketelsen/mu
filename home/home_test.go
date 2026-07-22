@@ -24,7 +24,7 @@ func TestHtmlEsc(t *testing.T) {
 	}
 }
 
-func TestCardConfigExcludesMarkets(t *testing.T) {
+func TestCardConfigExcludesRemovedCards(t *testing.T) {
 	b, err := f.ReadFile("cards.json")
 	if err != nil {
 		t.Fatal(err)
@@ -36,6 +36,9 @@ func TestCardConfigExcludesMarkets(t *testing.T) {
 	for _, card := range append(config.Left, config.Right...) {
 		if card.ID == "markets" || card.Type == "markets" || card.Link == "/markets" {
 			t.Fatalf("removed Markets card remains configured: %#v", card)
+		}
+		if card.ID == "social" || card.Type == "social" || card.Link == "/social" {
+			t.Fatalf("removed Social card remains configured: %#v", card)
 		}
 	}
 }

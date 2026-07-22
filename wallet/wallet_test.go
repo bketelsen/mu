@@ -131,12 +131,48 @@ func TestGetOperationCost(t *testing.T) {
 		{OpWebFetch, CostWebFetch},
 		{OpAgentQuery, CostAgentQuery},
 		{OpAgentQueryPremium, CostAgentQueryPremium},
+		{OpContentPost, CostContentPost},
 		{"unknown_op", 1}, // default
 	}
 	for _, tt := range tests {
 		got := GetOperationCost(tt.op)
 		if got != tt.expected {
 			t.Errorf("GetOperationCost(%q) = %d, want %d", tt.op, got, tt.expected)
+		}
+	}
+}
+
+func TestSocialTransactionsAreNotMappedToContentCost(t *testing.T) {
+	if got := GetOperationCost("social_post"); got != 1 {
+		t.Fatalf("GetOperationCost(legacy social_post) = %d, want default 1", got)
+	}
+}
+
+func TestWalletPricingOmitsSocialRows(t *testing.T) {
+	contentPostFound := false
+	for _, item := range getPricingData() {
+		if strings.HasPrefix(item.Operation, "social_") {
+			t.Errorf("pricing includes legacy social operation %q", item.Operation)
+		}
+		if item.Operation == OpContentPost {
+			contentPostFound = true
+			if item.Description != "Content post" || item.Cost != CostContentPost {
+				t.Errorf("content post pricing = %#v, want description %q and cost %d", item, "Content post", CostContentPost)
+			}
+		}
+	}
+	if !contentPostFound {
+		t.Error("pricing omits content post")
+	}
+
+	for _, page := range []string{WalletPage("owner"), PublicWalletPage()} {
+		if !strings.Contains(page, "Content post") {
+			t.Error("wallet page omits content post")
+		}
+		for _, row := range []string{"Social search", "Status update", "Reply"} {
+			if strings.Contains(page, row) {
+				t.Errorf("wallet page includes removed row %q", row)
+			}
 		}
 	}
 }
@@ -148,7 +184,7 @@ func TestOperationConstants(t *testing.T) {
 		OpMailSend, OpExternalEmail, OpPlacesSearch,
 		OpPlacesNearby, OpWeatherForecast, OpWeatherPollen,
 		OpWebSearch, OpWebFetch, OpAgentQuery,
-		OpAgentQueryPremium, OpTopup, OpRefund,
+		OpAgentQueryPremium, OpContentPost, OpTopup, OpRefund,
 	}
 	seen := make(map[string]bool)
 	for _, op := range ops {

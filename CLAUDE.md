@@ -5,7 +5,7 @@ A personal home server. News, mail, search, weather, video — the everyday inte
 ## Architecture
 
 - **Single Go binary** — `mu --serve` starts the web server, `mu <command>` runs CLI
-- **Services** — each domain (news, mail, weather, blog, social, video, search, places) is a package under the top level
+- **Services** — each domain (news, mail, weather, blog, video, search, places) is a package under the top level
 - **Agents** — `agent/micro/` contains specialised micro-agents per domain, routed by keyword + LLM
 - **Channels** — Discord (`client/discord/`), Telegram (`client/telegram/`), WhatsApp (`client/whatsapp/`)
 - **Protocols** — owner-authenticated MCP server at `/mcp`, A2A at `/a2a`, outbound x402 payments

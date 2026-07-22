@@ -20,7 +20,6 @@ import (
 	"mu/internal/event"
 	"mu/mail"
 	"mu/news"
-	"mu/social"
 	"mu/video"
 	"mu/weather"
 )
@@ -123,7 +122,6 @@ func Load() {
 		"news":    newsCard,
 		"video":   video.Latest,
 		"apps":    apps.Preview,
-		"social":  social.CardHTML,
 		"weather": weather.CardHTML,
 		"images":  images.CardHTML,
 	}
@@ -170,7 +168,7 @@ func Load() {
 	// Do initial refresh
 	RefreshCards()
 
-	// Subscribe to blog and apps update events
+	// Subscribe to blog and apps update events.
 	go func() {
 		sub := event.Subscribe("blog_updated")
 		for range sub.Chan {
@@ -179,12 +177,6 @@ func Load() {
 	}()
 	go func() {
 		sub := event.Subscribe("apps_updated")
-		for range sub.Chan {
-			ForceRefresh()
-		}
-	}()
-	go func() {
-		sub := event.Subscribe("social_updated")
 		for range sub.Chan {
 			ForceRefresh()
 		}
@@ -490,7 +482,7 @@ function fetchW(la,lo){
 	if viewerAcc != nil {
 		allCardDefs := []struct{ id, label string }{
 			{"blog", "Blog"}, {"news", "News"},
-			{"social", "Social"}, {"video", "Video"},
+			{"video", "Video"},
 			{"images", "Images"}, {"mail", "Mail"}, {"web", "Search"},
 		}
 		optIn := map[string]bool{"mail": true, "web": true}
@@ -583,10 +575,9 @@ function fetchW(la,lo){
 	}
 
 	tooltips := map[string]string{
-		"blog":   "Microblog posts with daily AI-generated digests",
-		"news":   "Headlines from RSS feeds, sorted by time",
-		"social": "Public discussion threads",
-		"video":  "Latest videos from curated channels",
+		"blog":  "Microblog posts with daily AI-generated digests",
+		"news":  "Headlines from RSS feeds, sorted by time",
+		"video": "Latest videos from curated channels",
 	}
 
 	var leftHTML, rightHTML []string

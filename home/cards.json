@@ -27,18 +27,10 @@
       "icon": "/images.svg"
     },
     {
-      "id": "social",
-      "title": "Social",
-      "type": "social",
-      "position": 1,
-      "link": "/social",
-      "icon": ""
-    },
-    {
       "id": "video",
       "title": "Video",
       "type": "video",
-      "position": 2,
+      "position": 1,
       "link": "/video",
       "icon": "/video.png"
     }

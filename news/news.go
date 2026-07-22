@@ -60,11 +60,6 @@ var headlinesHtml string
 // the cached feed
 var feed []*Post
 
-// FetchSocialContext is an optional callback set by main.go to fetch social post
-// context for news articles that reference social media URLs.
-// Returns HTML to embed in the article view, or empty string.
-var FetchSocialContext func(articleURL, articleContent string) string
-
 type Feed struct {
 	Name     string
 	URL      string
@@ -1673,11 +1668,7 @@ func handleArticleView(w http.ResponseWriter, r *http.Request, articleID string)
 		descriptionSection = fmt.Sprintf(`<div class="article-description"><p>%s</p></div>`, description)
 	}
 
-	// Fetch social context if callback is set
-	socialContextHTML := ""
-	if FetchSocialContext != nil && articleURL != "" {
-		socialContextHTML = FetchSocialContext(articleURL, description+" "+summary)
-	}
+	socialContextHTML := renderSocialContextHTML(fetchSocialContext(articleURL, description+" "+summary))
 
 	articleHtml := fmt.Sprintf(`
 		<div id="news-article">

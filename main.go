@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -48,7 +49,6 @@ import (
 	"mu/places"
 	"mu/recall"
 	"mu/search"
-	"mu/social"
 	"mu/stream"
 	"mu/user"
 	"mu/video"
@@ -63,9 +63,23 @@ var AddressFlag = flag.String("address", ":8080", "Address for server")
 var backupData = func() (string, error) { return data.Backup(time.Now()) }
 var runOwnerMigration = auth.MigrateSingleOwner
 
+const removeSocialMigrationVersion = 1
+
+var (
+	backupRemoveSocialData = func() (string, error) {
+		return backupSocialData(func() (string, error) { return data.Backup(time.Now()) })
+	}
+	loadRemoveSocialIndex       = data.Load
+	deleteRemoveSocialIndexType = data.DeleteIndexType
+	deleteRemoveSocialFile      = data.DeleteFile
+	removeSocialHomeCard        = auth.RemoveHomeCard
+	removeSocialPrefs           = func() error { return app.RemoveContentTypePrefs("social") }
+	loadRemoveSocialMarker      = func(marker *map[string]int) error { return data.LoadJSON("remove_social_migration.json", marker) }
+	saveRemoveSocialMarker      = func(marker map[string]int) error { return data.SaveJSON("remove_social_migration.json", marker) }
+)
+
 func registerAccountCleanup() {
 	auth.RegisterAccountDeleteHook("blog", blog.DeletePostsByAuthor)
-	auth.RegisterAccountDeleteHook("social", social.DeleteByAuthor)
 	auth.RegisterAccountDeleteHook("apps", apps.DeleteAppsByAuthor)
 	auth.RegisterAccountDeleteHook("stream", stream.ClearByAuthor)
 	auth.RegisterAccountDeleteHook("user", user.ClearStatusHistory)
@@ -89,6 +103,53 @@ func migrateSingleOwner() error {
 		app.Log("auth", "single-owner migration complete owner=%s deleted=%d reset=%v backup=%s", result.OwnerID, result.Deleted, result.Reset, result.BackupPath)
 	}
 	return nil
+}
+
+// migrateRemoveSocial removes persisted social data after a backup. The index
+// still loads after completion so normal startup always has search state ready.
+func migrateRemoveSocial() error {
+	var marker map[string]int
+	err := loadRemoveSocialMarker(&marker)
+	completed := err == nil && marker["version"] == removeSocialMigrationVersion
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("load social removal marker: %w", err)
+	}
+	if !completed {
+		if _, err := backupRemoveSocialData(); err != nil {
+			return fmt.Errorf("backup data: %w", err)
+		}
+	}
+
+	loadRemoveSocialIndex()
+	if completed {
+		return nil
+	}
+	if err := deleteRemoveSocialIndexType("social"); err != nil {
+		return fmt.Errorf("delete social index: %w", err)
+	}
+	for _, key := range []string{"social.json", "social_posts.json"} {
+		if err := deleteRemoveSocialFile(key); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("delete %s: %w", key, err)
+		}
+	}
+	if err := removeSocialHomeCard("social"); err != nil {
+		return fmt.Errorf("remove social home card: %w", err)
+	}
+	if err := removeSocialPrefs(); err != nil {
+		return fmt.Errorf("remove social preferences: %w", err)
+	}
+	if err := saveRemoveSocialMarker(map[string]int{"version": removeSocialMigrationVersion}); err != nil {
+		return fmt.Errorf("save social removal marker: %w", err)
+	}
+	return nil
+}
+
+func backupSocialData(backup func() (string, error)) (string, error) {
+	path, err := backup()
+	if errors.Is(err, data.ErrBackupAlreadyExists) {
+		return "", nil
+	}
+	return path, err
 }
 
 // argFloat coerces a tool argument (JSON number or string) to a float64.
@@ -139,14 +200,16 @@ func main() {
 		app.Log("auth", "single-owner migration failed: %v", err)
 		os.Exit(1)
 	}
+	if err := migrateRemoveSocial(); err != nil {
+		app.Log("data", "social removal migration failed: %v", err)
+		os.Exit(1)
+	}
 
 	// log the resolved AI provider up front so misconfiguration (missing
 	// token/key in this environment) is visible immediately, not as
 	// scattered per-request errors from background loops.
 	app.Log("ai", "AI provider: %s", ai.ProviderStatus())
 
-	// load the data index
-	data.Load()
 	app.Load()
 	github.Load()
 	github.RegisterTools()
@@ -203,15 +266,6 @@ func main() {
 			return acc.Name
 		}
 		return accountID
-	}
-
-	// load social
-	social.Load()
-
-	// Wire social context into news article views
-	news.FetchSocialContext = func(articleURL, articleContent string) string {
-		ctx := social.FetchContext(articleURL, articleContent)
-		return social.RenderContextHTML(ctx)
 	}
 
 	// load the home cards
@@ -506,13 +560,13 @@ func main() {
 	})
 
 	// recall tool — unified search across everything mu knows for the caller:
-	// the public indexed corpus (news, blog, social, video) plus their own mail.
+	// the public indexed corpus (news, blog, video) plus their own mail.
 	if err := service.Register("recall", recall.Server{}); err != nil {
 		app.Log("main", "recall service register failed: %v", err)
 	}
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "recall",
-		Description: "Search across everything mu knows — indexed news, blog, social and video, plus the user's own mail — and return the most relevant items with ids. Use for 'do you remember', 'what did I get about X', 'search my stuff' and cross-source lookups.",
+		Description: "Search across everything mu knows — indexed news, blog and video, plus the user's own mail — and return the most relevant items with ids. Use for 'do you remember', 'what did I get about X', 'search my stuff' and cross-source lookups.",
 		Params: []api.ToolParam{
 			{Name: "query", Type: "string", Description: "What to look for", Required: true},
 			{Name: "limit", Type: "string", Description: "Optional max results (default 12)", Required: false},
@@ -721,21 +775,6 @@ func main() {
 		},
 	})
 
-	// social — latest social feed (AI-first).
-	api.RegisterTool(api.Tool{
-		Name:        "social_list",
-		Aliases:     []string{"social"},
-		Description: "Get the latest social posts from the network.",
-		Handle: func(args map[string]any) (string, error) {
-			var rsp social.FeedResponse
-			if err := service.Call(context.Background(), "social", "Server.Feed",
-				&social.FeedRequest{}, &rsp); err != nil {
-				return "", err
-			}
-			return rsp.Text, nil
-		},
-	})
-
 	// video — latest videos from curated channels (AI-first).
 	api.RegisterTool(api.Tool{
 		Name:        "video_list",
@@ -770,7 +809,6 @@ func main() {
 	// card the home screen shows. Cards render from each service's live data;
 	// wiring them here keeps internal/api free of service imports.
 	api.SetCard("news_list", "News", news.Headlines)
-	api.SetCard("social_list", "Social", social.CardHTML)
 	api.SetCard("video_list", "Videos", video.Latest)
 	api.SetCard("blog_list", "Blog", blog.Preview)
 
@@ -1151,9 +1189,6 @@ func main() {
 	http.HandleFunc("/images", images.Handler)
 	http.HandleFunc("/images/file/", images.FileHandler)
 
-	// serve social page
-	http.HandleFunc("/social", social.Handler)
-	http.HandleFunc("/social/thread", social.ThreadHandler)
 	http.HandleFunc("/user/status", user.StatusHandler)
 	http.HandleFunc("/user/status/stream", user.StatusStreamHandler)
 
@@ -1404,7 +1439,7 @@ func main() {
 // updatesHandler serves GET /updates?since=<unix> — a single lightweight
 // endpoint the client polls for change counts. Returns JSON:
 //
-//	{"mail":3,"status":2,"social":1,"ts":1713254400}
+//	{"mail":3,"status":2,"stream":1,"ts":1713254400}
 //
 // The client stores ts and sends it back on the next poll. If since is
 // omitted, returns current totals (unread mail, stream size, etc.).
@@ -1443,11 +1478,9 @@ func updatesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if since.IsZero() {
 		result["status"] = 0
-		result["social"] = 0
 		result["stream"] = 0
 	} else {
 		result["status"] = user.StatusCountSince(since)
-		result["social"] = social.CountSince(since)
 		result["stream"] = stream.CountSince(since)
 	}
 
@@ -1468,12 +1501,7 @@ func chargedWriteOp(r *http.Request) string {
 	switch {
 	// Status updates
 	case path == "/user/status":
-		return wallet.OpSocialPost
-	// Social threads and replies
-	case path == "/social":
-		return wallet.OpSocialPost
-	case path == "/social/thread":
-		return wallet.OpSocialReply
+		return wallet.OpContentPost
 	// Blog — only CREATE is charged (no id param). Updates are free.
 	case path == "/blog" && r.URL.Query().Get("id") == "":
 		return wallet.OpBlogCreate
@@ -1481,12 +1509,12 @@ func chargedWriteOp(r *http.Request) string {
 		return wallet.OpBlogComment
 	// Apps
 	case path == "/apps/new":
-		return wallet.OpSocialPost
+		return wallet.OpContentPost
 	case path == "/apps/generate":
 		return wallet.OpAppBuild
 	// Stream (console)
 	case path == "/stream":
-		return wallet.OpSocialPost
+		return wallet.OpContentPost
 	}
 	return ""
 }

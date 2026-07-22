@@ -282,6 +282,26 @@ func TestRenderHTML(t *testing.T) {
 	if !strings.Contains(result, "<p>content</p>") {
 		t.Error("expected body content")
 	}
+	if strings.Contains(result, `href="/social"`) {
+		t.Fatal("navigation must not link to removed social feed")
+	}
+}
+
+func TestSocialContentIntegrationsAreRemoved(t *testing.T) {
+	if publicPrivateAssets["/social.svg"] {
+		t.Fatal("removed social asset must not remain public")
+	}
+	if contentURL("social", "post-1") != "" {
+		t.Fatal("saved social content must not have a permalink")
+	}
+	if _, ok := typeLabels["social"]; ok {
+		t.Fatal("saved social content must not have a type label")
+	}
+	for _, id := range homeCardUniverse {
+		if id == "social" {
+			t.Fatal("removed social card must not be selectable")
+		}
+	}
 }
 
 func TestRenderHTMLGuestNavHidesSignedInActions(t *testing.T) {

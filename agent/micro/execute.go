@@ -175,8 +175,6 @@ var guestAllowedTools = map[string]bool{
 	"video_search":     true,
 	"web_search":       true,
 	"web_fetch":        true,
-	"social":           true,
-	"social_search":    true,
 	"blog_list":        true,
 	"blog_read":        true,
 	"apps_search":      true,

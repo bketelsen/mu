@@ -118,8 +118,6 @@ func handleInteraction(raw json.RawMessage) {
 		} else {
 			prompt = "show me available apps"
 		}
-	case "social":
-		prompt = "show the social feed"
 	case "video":
 		q := inter.getOption("query")
 		prompt = "search videos for " + q
