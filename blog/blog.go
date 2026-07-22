@@ -428,7 +428,7 @@ func updateCacheUnlocked() {
 	}
 
 	if len(preview) == 0 {
-		postsPreviewHtml = "<p>No posts yet. Be the first to share a thought!</p>"
+		postsPreviewHtml = "<p>No posts yet.</p>"
 	} else {
 		postsPreviewHtml = strings.Join(preview, "\n")
 	}
@@ -547,7 +547,7 @@ func Preview() string {
 // Deprecated: Use Preview() instead which now uses cache
 func previewUncached() string {
 	if len(posts) == 0 {
-		return "<p>No posts yet. Be the first to share a thought!</p>"
+		return "<p>No posts yet.</p>"
 	}
 
 	// Get latest 1 post
@@ -609,7 +609,7 @@ func previewUncached() string {
 	}
 
 	if len(preview) == 0 {
-		return "<p>No posts yet. Be the first to share a thought!</p>"
+		return "<p>No posts yet.</p>"
 	}
 	return strings.Join(preview, "\n")
 }
@@ -1440,7 +1440,9 @@ func renderComments(postID string, r *http.Request) string {
 
 	var commentsHTML strings.Builder
 
-	// Add comment form if authenticated
+	// The comment thread is a discussion between the owner and the
+	// agent, so only the owner gets a compose form. Logged-out viewers
+	// see the thread without any call to action.
 	_, acc := auth.TrySession(r)
 	isAuthenticated := acc != nil
 
@@ -1453,12 +1455,9 @@ func renderComments(postID string, r *http.Request) string {
 				</div>
 			</form>
 		`, postID))
-	} else {
-		commentsHTML.WriteString(`<p class="text-muted my-5"><a href="/login">Login</a> to add a comment</p>`)
 	}
 
 	if len(postComments) == 0 {
-		commentsHTML.WriteString(`<p class="text-muted italic my-5">No comments yet. Be the first to comment!</p>`)
 		return commentsHTML.String()
 	}
 
