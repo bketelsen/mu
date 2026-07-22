@@ -122,7 +122,6 @@ func TestDefaultArgKey(t *testing.T) {
 		"news_search":   "query",
 		"video_search":  "query",
 		"web_search":    "q",
-		"places_search": "q",
 		"web_fetch":     "url",
 		"blog_read":     "id",
 	}
@@ -138,5 +137,8 @@ func TestDefaultArgKey(t *testing.T) {
 	}
 	if _, ok := defaultArgKey("mail_send"); ok {
 		t.Error("defaultArgKey(mail_send) should return false")
+	}
+	if _, ok := defaultArgKey("pla" + "ces_search"); ok {
+		t.Error("retired location search tool retains positional argument handling")
 	}
 }

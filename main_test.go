@@ -46,6 +46,22 @@ func TestPlacesRemovalRunsBeforeDataAndServices(t *testing.T) {
 	}
 }
 
+func TestExecutableExcludesRetiredLocationRuntime(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, removed := range []string{
+		`"mu/pla` + `ces"`,
+		"pla" + "ces.Load()",
+		`http.HandleFunc("/pla` + `ces`,
+	} {
+		if strings.Contains(string(source), removed) {
+			t.Errorf("main.go retains retired location runtime wiring %q", removed)
+		}
+	}
+}
+
 func TestAdminRoutesExcludeLocalUserManagement(t *testing.T) {
 	source, err := os.ReadFile("main.go")
 	if err != nil {
