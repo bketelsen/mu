@@ -1200,10 +1200,8 @@ func main() {
 				isAuth := r.URL.Path == "/login" ||
 					strings.HasPrefix(r.URL.Path, "/passkey/") ||
 					strings.HasPrefix(r.URL.Path, "/oauth/")
-				// Skip CSRF for SMTP/ActivityPub inbound
-				isInbound := strings.HasSuffix(r.URL.Path, "/inbox")
 
-				if !isBearerAuth && !isMCP && !isAuth && !isInbound && !auth.ValidCSRF(r) {
+				if !isBearerAuth && !isMCP && !isAuth && !auth.ValidCSRF(r) {
 					http.Error(w, `{"error":"invalid CSRF token"}`, http.StatusForbidden)
 					return
 				}

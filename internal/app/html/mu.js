@@ -1112,7 +1112,7 @@ function displayRoomMessage(msg, shouldScroll = true) {
   msgDiv.className = 'message';
   
   const userSpan = msg.is_llm ?
-    '<span class="llm"><a href="/@micro" style="color:inherit;text-decoration:none;">micro</a></span>' :
+    '<span class="llm">micro</span>' :
     '<span class="you"><a href="/@' + msg.username + '">' + msg.username + '</a></span>';
   
   let content;

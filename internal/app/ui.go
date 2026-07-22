@@ -151,8 +151,8 @@ func Page(opts PageOpts) string {
 }
 
 // --- System user ---
-// The internal/system account used for automated posts, seeded threads, and AI responses.
-// "micro" is already registered as a user account.
+// "micro" is a virtual author label for automated posts and AI responses.
+// It is not a real account — the auth layer only ever has the single owner.
 const (
 	SystemUserID   = "micro"
 	SystemUserName = "Micro"

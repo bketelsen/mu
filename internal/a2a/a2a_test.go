@@ -6,7 +6,19 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"mu/internal/auth"
 )
+
+// stubOwnerAuth makes Handler treat every request as the authenticated owner.
+func stubOwnerAuth(t *testing.T) {
+	t.Helper()
+	old := requireOwner
+	requireOwner = func(*http.Request) (*auth.Session, *auth.Account, error) {
+		return &auth.Session{Account: "owner"}, &auth.Account{ID: "owner"}, nil
+	}
+	t.Cleanup(func() { requireOwner = old })
+}
 
 func TestAgentCardHandlerUsesConfiguredBaseURLAndListsSkills(t *testing.T) {
 	oldBaseURL := BaseURL
@@ -56,7 +68,17 @@ func TestHandlerRejectsNonPOST(t *testing.T) {
 	}
 }
 
+func TestHandlerRejectsUnauthenticated(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/a2a", strings.NewReader("{}"))
+	rr := httptest.NewRecorder()
+	Handler(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("Handler status = %d, want %d", rr.Code, http.StatusUnauthorized)
+	}
+}
+
 func TestHandlerReturnsParseErrorForInvalidJSON(t *testing.T) {
+	stubOwnerAuth(t)
 	req := httptest.NewRequest(http.MethodPost, "/a2a", strings.NewReader("{"))
 	rr := httptest.NewRecorder()
 
@@ -66,6 +88,7 @@ func TestHandlerReturnsParseErrorForInvalidJSON(t *testing.T) {
 }
 
 func TestHandlerReturnsMethodNotFound(t *testing.T) {
+	stubOwnerAuth(t)
 	req := httptest.NewRequest(http.MethodPost, "/a2a", strings.NewReader(`{"jsonrpc":"2.0","id":"req-1","method":"Nope"}`))
 	rr := httptest.NewRecorder()
 
@@ -75,6 +98,7 @@ func TestHandlerReturnsMethodNotFound(t *testing.T) {
 }
 
 func TestGetTaskAndCancelTaskReturnNotFoundForMissingTask(t *testing.T) {
+	stubOwnerAuth(t)
 	resetTasks(t)
 
 	for _, method := range []string{"GetTask", "CancelTask"} {
@@ -91,6 +115,7 @@ func TestGetTaskAndCancelTaskReturnNotFoundForMissingTask(t *testing.T) {
 }
 
 func TestCancelTaskUpdatesStoredTask(t *testing.T) {
+	stubOwnerAuth(t)
 	resetTasks(t)
 	taskMu.Lock()
 	tasks["task-1"] = &Task{ID: "task-1", Status: TaskStatus{State: "TASK_STATE_WORKING"}}

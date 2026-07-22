@@ -20,6 +20,7 @@ import (
 
 	"mu/agent/micro"
 	"mu/internal/app"
+	"mu/internal/auth"
 
 	"github.com/google/uuid"
 )
@@ -165,10 +166,19 @@ func AgentCardHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(card)
 }
 
-// Handler serves POST /a2a — the JSON-RPC endpoint.
+// requireOwner is a seam for tests; the real check is auth.RequireOwner.
+var requireOwner = auth.RequireOwner
+
+// Handler serves POST /a2a — the JSON-RPC endpoint. The Private middleware
+// already gates /a2a behind owner auth; the in-handler check is defense in
+// depth so the handler is safe even if the route wiring changes.
 func Handler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", 405)
+		return
+	}
+	if _, _, err := requireOwner(r); err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -249,9 +259,13 @@ func handleSendMessage(w http.ResponseWriter, req rpcRequest) {
 	tasks[taskID] = task
 	taskMu.Unlock()
 
-	// Execute agent
-	// Use a generic account for A2A requests (no user session)
-	answer, err := micro.Orchestrate("a2a", prompt, agentIDs, true)
+	// Execute agent as the owner — A2A is an owner-authenticated surface,
+	// so work runs under the real owner identity, not a phantom account.
+	ownerID := "a2a"
+	if owner, err := auth.Owner(); err == nil {
+		ownerID = owner.ID
+	}
+	answer, err := micro.Orchestrate(ownerID, prompt, agentIDs, true)
 	if err != nil {
 		task.Status = TaskStatus{
 			State:     "TASK_STATE_FAILED",
