@@ -9,7 +9,7 @@ The core idea: **Technology should serve people — not use them.**
 **No ads.** We don't sell your attention.
 **No algorithms.** No doomscrolling or recommendations designed to keep you addicted.
 **No tracking.** We don't profile you or sell your data.
-**Pay as you go.** Browsing is included. AI and search cost credits. No subscriptions, no hidden fees.
+**Owner access.** Run Mu on your own server and access its services as its owner.
 **Open source.** Licensed under AGPL-3.0. Run it, modify it, share it.
 
 ## The Five Principles

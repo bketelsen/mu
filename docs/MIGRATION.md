@@ -48,6 +48,12 @@ agent cards (micro/go-micro#3342 — task lifecycle already shipped upstream).
 `agent/micro` stays load-bearing until both land. The dogfood loop shipped
 **8 go-micro releases (v6.3.1–v6.3.8)**.
 
+## Legacy payment data removal
+
+At startup, Mu runs a one-time destructive removal migration before services
+load. It deletes legacy payment data and keys, records a completion marker, and
+stops startup if the cleanup cannot complete.
+
 ## Done
 
 - ✅ `internal/service` runtime core (registry/client/broker/store, Register, Call, loopback proxy bypass).
@@ -55,7 +61,7 @@ agent cards (micro/go-micro#3342 — task lifecycle already shipped upstream).
   (Atlas/Anthropic/local), history + per-caller token caps preserved.
 - ✅ Services: weather, news, GitHub, social, video, blog, search, places, recall, apps, and mail.
 - ✅ Native go-micro agent is the **default** for `agent.Query` (AGENT_NATIVE=off opts out), full tool coverage.
-- ✅ `/mcp` served by go-micro's `gateway/mcp` (manual resolver of mu's tools; metering/auth preserved).
+- ✅ `/mcp` served by go-micro's `gateway/mcp` (manual resolver of Mu's tools; authentication preserved).
 - ✅ `/version` + `/status` for deploy verification.
 
 ## Overnight / unsupervised policy
@@ -129,7 +135,7 @@ or improve test coverage; never break `main`.
    - ✅ **Cutover done (default on, no env var).** `POST /mcp` is served by
      go-micro's `gateway/mcp` via a **manual resolver** of mu's tools
      (`internal/api/mcp_micro.go`): go-micro owns the MCP protocol/transport;
-     mu keeps the per-IP guard, wallet metering, auth and dispatch
+     Mu keeps the per-IP guard, authentication, and dispatch
      (`ExecuteTool`). `GET /mcp` still renders mu's own doc page. No framework
      internals exposed. Every prior behaviour preserved (notifications→204,
      tool errors→isError results, quota→-32000, protocolVersion 2025-03-26,

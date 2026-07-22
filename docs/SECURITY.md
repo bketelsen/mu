@@ -17,15 +17,9 @@ The LLM treats fetched content as untrusted data. Account-scoped tools bind the
 internal owner ID server-side, and mutations verify ownership. Internal IDs are
 architectural storage keys, not client-selectable principals.
 
-## Payments
-
-Wallet credits and card top-ups belong to the owner. Outbound x402 requests are
-restricted to configured services and spend limits. Incoming x402 payment never
-grants access, authenticates an API request, or changes the owner boundary.
-
 ## Operations
 
 Keep Mu behind private network controls, use TLS for remote access, protect PATs
 and environment secrets, and back up the complete data directory before upgrades
-or migration. Review auth, wallet, and tool-registration changes for owner
-binding regressions.
+or migration. Review auth and tool-registration changes for owner binding
+regressions.

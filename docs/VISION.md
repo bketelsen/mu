@@ -32,9 +32,6 @@ directory.
   AI models through Ollama or another OpenAI-compatible endpoint.
 - **Private channels.** Messaging integrations accept only linked-owner direct
   messages.
-- **Bounded payments.** Credits meter configured work. x402 is only an outbound
-  owner payment mechanism for a remote service and never authenticates incoming
-  access.
 
 ## For developers
 

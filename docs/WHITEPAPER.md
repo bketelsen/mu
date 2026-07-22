@@ -33,13 +33,6 @@ mail, GitHub, weather, video, places, apps, and owner data. The agent composes
 those services through authenticated tools. JSON files provide persistence, with
 an optional SQLite search index; static assets and documentation are embedded.
 
-## Payments
-
-The owner wallet holds credits for metered work and can receive card top-ups.
-Mu can make outbound x402 payments to remote services for owner-initiated work,
-subject to configured limits. Mu does not accept inbound x402 payment as a route
-authentication mechanism. Payment proof never bypasses owner credentials.
-
 ## Migration and operation
 
 Before legacy migration, Mu creates a backup of the entire data directory. It
@@ -50,6 +43,6 @@ before upgrades.
 ## Scope
 
 Mu is intentionally not a hosted multi-user network. It does not provide local
-account provisioning, credit transfers, public profiles, or federation. The
+account provisioning, public profiles, or federation. The
 historical ideas of a shared settlement network and distributed social publishing
 are not capabilities of the current product.

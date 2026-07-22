@@ -17,8 +17,8 @@ The bot reconnects automatically after its token is configured.
 ## Use
 
 After linking, direct-message the bot or use its supported commands, such as
-`/agent`, `/news`, `/weather`, `/mail`, and `/balance`. Requests use
-the owner data and wallet. Unlinking removes the channel association.
+`/agent`, `/news`, `/weather`, and `/mail`. Requests use the owner data.
+Unlinking removes the channel association.
 
 ## Security
 

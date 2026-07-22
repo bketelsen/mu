@@ -21,11 +21,4 @@ GitHub, weather, video, places, mail, notes, apps, and the home dashboard.
 The system is designed to serve its owner rather than advertising, engagement,
 or profile discovery.
 
-## Payments
-
-Credits meter configured external and AI costs. Card top-ups add credits to the
-owner wallet. x402 is an outbound owner capability: the agent can pay a remote
-x402-enabled service within configured spend limits. Incoming payment never
-authenticates a request or bypasses owner authentication.
-
 See [Installation](/docs/installation) to create the owner and run Mu.

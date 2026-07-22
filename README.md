@@ -41,12 +41,6 @@ channels.
 Back up the complete data directory before upgrading. Legacy migration retains
 that backup, uses the oldest admin as owner, or resets an instance with no admin.
 
-## Payments
-
-Credits meter configured AI and external operations. Card payments top up the
-owner wallet. x402 is available only for owner-initiated outbound calls to remote
-services; an incoming payment never bypasses authentication.
-
 ## Documentation
 
 - [Installation](docs/INSTALLATION.md)

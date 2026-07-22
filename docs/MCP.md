@@ -33,12 +33,3 @@ curl -X POST https://mu.example.com/mcp \
 `tools/list` returns the live tool catalog. Tools that read or change owner data
 bind the internal owner ID on the server. That ID is an architectural namespace,
 not a tool argument for choosing an account.
-
-## Billing and x402
-
-Metered MCP tools consume credits from the owner wallet. Card top-ups add owner
-credits. Mu can also make outbound x402 payments when the owner agent calls a
-remote x402 service; configure spend limits and the owner wallet first.
-
-Incoming x402 payment is not supported as an MCP authentication method. Payment
-headers never bypass the PAT/session requirement.
