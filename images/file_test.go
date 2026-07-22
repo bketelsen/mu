@@ -37,6 +37,17 @@ func TestOwnerImageGenerationFailureIsNotPaymentGated(t *testing.T) {
 	assertNoImagesPaymentGate(t, rec)
 }
 
+func TestImageGenerationRejectsEmptyPrompt(t *testing.T) {
+	rec := httptest.NewRecorder()
+	Handler(rec, ownerImagesRequest(t, `{"prompt":"  "}`))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "prompt is required") {
+		t.Errorf("response = %q, want required-prompt error", rec.Body.String())
+	}
+}
+
 func ownerImagesRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
 	owner, err := auth.Owner()

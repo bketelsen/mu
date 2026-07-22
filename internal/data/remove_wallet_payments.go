@@ -68,7 +68,7 @@ func removeWalletPaymentFiles(home string) error {
 	temp := marker + ".tmp"
 	f, err := os.OpenFile(temp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
-		return fmt.Errorf("remove wallet payments migration: create marker %s: %w", temp, err)
+		return fmt.Errorf("remove wallet payments migration: create temporary marker %s: %w", temp, err)
 	}
 	if _, err = f.WriteString("completed\n"); err == nil {
 		err = f.Sync()

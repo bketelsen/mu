@@ -301,7 +301,6 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// All users can access mail for internal DMs
-	// External email costs credits (checked at send time)
 
 	// Handle POST - send message or delete
 	if r.Method == "POST" {

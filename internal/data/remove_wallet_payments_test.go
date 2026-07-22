@@ -105,8 +105,8 @@ func TestRemoveWalletPaymentFilesLeavesNoMarkerWhenMarkerWriteFails(t *testing.T
 	if err := os.MkdirAll(marker+".tmp", 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := removeWalletPaymentFiles(home); err == nil || !strings.Contains(err.Error(), marker) {
-		t.Fatalf("error = %v, want marker path", err)
+	if err := removeWalletPaymentFiles(home); err == nil || !strings.Contains(err.Error(), "create temporary marker "+marker+".tmp") {
+		t.Fatalf("error = %v, want temporary marker creation error", err)
 	}
 	if _, err := os.Lstat(marker); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("marker exists after marker-write failure: %v", err)

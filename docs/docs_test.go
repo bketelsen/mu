@@ -14,7 +14,7 @@ var forbiddenSingleOwnerCopy = []string{
 	"without an account", "no account needed", "no login to call",
 	"pay per call with x402", "x-payment header instead of authenticating",
 	"/wallet", "wallet_topup", "wallet_balance", "STRIPE_SECRET_KEY",
-	"X402_PAY_TO", "pay per call with x402", "credits meter", "card top-ups",
+	"X402_PAY_TO", "credits meter", "card top-ups",
 	"outbound x402", "paid apps",
 }
 

@@ -146,8 +146,7 @@ func Generate(owner, prompt string) (string, error) {
 		"prompt": prompt,
 		"url":    url,
 	}, false); err != nil {
-		// The image exists and was paid for; a storage hiccup shouldn't fail
-		// the call — just log and return the URL.
+		// The image exists; a storage hiccup should not fail the call.
 		app.Log("images", "failed to save generation for %s: %v", owner, err)
 	}
 	return url, nil
@@ -269,6 +268,10 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.TrimSpace(req.Prompt) == "" {
+		app.RespondError(w, http.StatusBadRequest, "prompt is required")
+		return
+	}
 	url, err := Generate(acc.ID, req.Prompt)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

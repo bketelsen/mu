@@ -15,7 +15,6 @@
 - Retain account IDs in domain records and service signatures as internal partition keys.
 - Keep the non-login `micro` system identity.
 - Require owner authentication for every application and service except setup/auth callbacks, validated webhooks, static assets, and health/version probes.
-- Require owner authentication at every application boundary.
 - Before destructive legacy migration, atomically create a complete timestamped sibling backup of the data directory and abort startup if backup fails.
 - Keep the oldest admin by `Created`, tie-breaking by account ID; if no admin exists, delete all accounts and return to setup.
 - Messaging integrations accept only a linked owner in direct messages and never auto-create accounts.

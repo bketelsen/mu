@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Do not add redirects, deprecation handlers, compatibility tools, or replacement market workflows.
-- Preserve ordinary finance and market language when it belongs to news, web search, payments, or editorial content.
+- Preserve ordinary finance and market language when it belongs to news, web search, or editorial content.
 - Preserve stale `markets` strings in persisted `Account.HomeCards` data; unknown card IDs are ignored naturally.
 - The final repository must contain no `markets/` package or market-specific image asset.
 - Use `go test ./... -short` and `go build ./...` as the completion gates.
