@@ -46,13 +46,13 @@ After setup, the unauthenticated allowlist contains only:
 
 - Password, passkey, and Google sign-in entry points and callbacks.
 - Mu OAuth authorization and token endpoints required to authenticate an owner-controlled client.
-- Signed provider webhooks, such as WhatsApp and Stripe callbacks, that validate their provider credentials before processing.
+- Signed provider webhooks that validate their provider credentials before processing.
 - Static assets.
 - Minimal health and version probes.
 
 Unauthenticated browser requests outside that list redirect to `/login`. API, MCP, A2A, and JSON requests receive HTTP `401`. A credential that is structurally valid but does not resolve to the current owner receives HTTP `403` and cannot create a session.
 
-x402 payment no longer substitutes for authentication. Account-free inbound x402 calls are disabled. The owner's wallet remains for personal usage accounting and outbound paid calls.
+No unauthenticated service mechanism substitutes for owner authentication.
 
 Password login, passkey assertions, PATs, existing sessions, Mu OAuth, API, MCP, A2A, and CLI access remain available when they resolve to the owner. Google sign-in may authenticate an owner whose Google email is already linked, or link Google from an existing owner session. It never provisions an account.
 
@@ -71,10 +71,9 @@ The following features and their routes, tools, controls, templates, and documen
 - Public user profiles and directories.
 - Public blog, social, stream, app, documentation, agent, API, MCP, A2A, pricing, and service pages.
 - ActivityPub and WebFinger publication, because federation requires unauthenticated content access.
-- Public and account-free x402 service access.
 - Self-service deletion of the sole owner account.
 
-Owner-authored blog, social, stream, app, mail, memory, wallet, and preference data remain available privately. References to signup, invitations, public use, multiple users, and account-free paid calls are removed from UI copy and current product documentation.
+Owner-authored blog, social, stream, app, mail, memory, and preference data remain available privately. References to signup, invitations, public use, and multiple users are removed from UI copy and current product documentation.
 
 Implementation code with no remaining caller should be deleted, including invite storage, account auto-provisioning helpers, and obsolete moderation operations. Account ownership fields remain where they provide stable storage partitioning.
 
@@ -113,7 +112,7 @@ If any backup operation fails, remove the incomplete temporary backup, abort sta
 After backup succeeds, migration performs cleanup synchronously:
 
 - Run every registered account-deletion hook for each non-surviving account.
-- Remove deleted accounts' sessions, PATs, passkeys, channel links, content, inboxes, wallets, preferences, memories, and user-created agents.
+- Remove deleted accounts' sessions, PATs, passkeys, channel links, content, inboxes, preferences, memories, and user-created agents.
 - Remove invites, invite requests, and obsolete multi-user moderation state.
 - When no admin survives, run the same cleanup for every account.
 - Persist the survivor's owner/admin/approved state and a migration-version marker only after cleanup succeeds.
@@ -172,7 +171,6 @@ Background jobs that act for a user must resolve the owner at execution time. Th
 - Setup and authentication exceptions are reachable only in their intended lifecycle states.
 - Browser and machine-client failures use the expected redirect, `401`, or `403` behavior.
 - API, MCP, A2A, and CLI calls work for the owner.
-- x402 cannot bypass owner authentication.
 - Signup, invite, federation, public profile, transfer, and multi-user administration endpoints are absent.
 
 ### Messaging Channels
@@ -186,7 +184,7 @@ Background jobs that act for a user must resolve the owner at execution time. Th
 ### Product Cleanup
 
 - Signup, invite, public-use, moderation, user-transfer, and multi-user language is absent from current UI and documentation.
-- Owner mail, memory, apps, wallet data, posts, settings, and authentication methods continue to work.
+- Owner mail, memory, apps, posts, settings, and authentication methods continue to work.
 
 ### Repository Verification
 

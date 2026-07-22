@@ -15,7 +15,7 @@
 - Retain account IDs in domain records and service signatures as internal partition keys.
 - Keep the non-login `micro` system identity.
 - Require owner authentication for every application and service except setup/auth callbacks, validated webhooks, static assets, and health/version probes.
-- Disable x402 as an authentication alternative while retaining the owner's wallet and outbound x402 client.
+- Require owner authentication at every application boundary.
 - Before destructive legacy migration, atomically create a complete timestamped sibling backup of the data directory and abort startup if backup fails.
 - Keep the oldest admin by `Created`, tie-breaking by account ID; if no admin exists, delete all accounts and return to setup.
 - Messaging integrations accept only a linked owner in direct messages and never auto-create accounts.
@@ -352,7 +352,7 @@ git commit -m "data: add atomic migration backups"
 - Create: `internal/auth/migration.go`
 - Create: `internal/auth/migration_test.go`
 - Modify: `internal/auth/auth.go:273-314`
-- Modify cleanup return signatures in: `blog/blog.go`, `social/social.go`, `apps/apps.go`, `stream/stream.go`, `user/user.go`, `mail/mail.go`, `wallet/wallet.go`, `wallet/basewallet.go`, `agent/micro/userstore.go`, `client/discord/discord.go`, `client/telegram/telegram.go`, `client/whatsapp/whatsapp.go`, `internal/app/prefs.go`, `internal/memory/memory.go`
+- Modify cleanup return signatures in: `blog/blog.go`, `social/social.go`, `apps/apps.go`, `stream/stream.go`, `user/user.go`, `mail/mail.go`, `agent/micro/userstore.go`, `client/discord/discord.go`, `client/telegram/telegram.go`, `client/whatsapp/whatsapp.go`, `internal/app/prefs.go`, `internal/memory/memory.go`
 
 **Interfaces:**
 - Produces: `type AccountDeleteHook struct { Name string; Delete func(string) error }`
@@ -521,14 +521,14 @@ Change each registered cleanup function listed in **Files** to `func(string) err
 
 - [ ] **Step 4: Run migration and affected package tests**
 
-Run: `go test ./internal/auth ./blog ./social ./apps ./stream ./user ./mail ./wallet ./agent/micro ./client/discord ./client/telegram ./client/whatsapp ./internal/app ./internal/memory -count=1`
+Run: `go test ./internal/auth ./blog ./social ./apps ./stream ./user ./mail ./agent/micro ./client/discord ./client/telegram ./client/whatsapp ./internal/app ./internal/memory -count=1`
 
 Expected: PASS with cleanup failures propagated and migration tests green.
 
 - [ ] **Step 5: Commit the migration**
 
 ```bash
-git add internal/auth/migration.go internal/auth/migration_test.go internal/auth/auth.go blog/blog.go social/social.go apps/apps.go stream/stream.go user/user.go mail/mail.go wallet/wallet.go wallet/basewallet.go agent/micro/userstore.go client/discord/discord.go client/telegram/telegram.go client/whatsapp/whatsapp.go internal/app/prefs.go internal/memory/memory.go
+git add internal/auth/migration.go internal/auth/migration_test.go internal/auth/auth.go blog/blog.go social/social.go apps/apps.go stream/stream.go user/user.go mail/mail.go agent/micro/userstore.go client/discord/discord.go client/telegram/telegram.go client/whatsapp/whatsapp.go internal/app/prefs.go internal/memory/memory.go
 git commit -m "auth: migrate legacy accounts to one owner"
 ```
 
@@ -638,7 +638,7 @@ func TestPrivatePublicAllowlist(t *testing.T) {
 		"/setup", "/login", "/passkey/login/begin", "/passkey/login/finish",
 		"/oauth2/google", "/oauth2/callback", "/.well-known/oauth-authorization-server",
 		"/.well-known/oauth-protected-resource", "/oauth/register", "/oauth/authorize",
-		"/oauth/token", "/whatsapp/webhook", "/wallet/stripe/webhook", "/status", "/version", "/mu.css",
+		"/oauth/token", "/whatsapp/webhook", "/status", "/version", "/mu.css",
 	}
 	for _, path := range public {
 		t.Run(path, func(t *testing.T) {
@@ -738,13 +738,13 @@ func Private(next http.Handler, setupNeeded func() bool) http.Handler {
 
 Allow `/setup` only while `setupNeeded()` is true. Allow `/login`, the two passkey login endpoints, Google login/callback, OAuth discovery/register/authorize/token, validated webhook endpoints, `/status`, `/version`, and only exact embedded root assets needed by login/setup: `/mu.css`, `/mu.js`, `/qrcode.js`, `/sdk.css`, `/sdk.js`, `/manifest.webmanifest`, `/favicon.ico`, and the fixed icon/image basenames under `internal/app/html`. Do not allow arbitrary file extensions: `/images/file/private.png` and `/apps/private.js` still require owner authentication. Do not allow passkey registration/deletion, `/session`, `/verify`, or any application prefix.
 
-Reduce the unauthenticated `/status` response to `{"status":"ok"}` with no account count, online count, provider configuration, wallet configuration, or service details. Keep detailed operational diagnostics behind owner-authenticated `/admin/diagnostics`. Keep `/version` limited to build/runtime identifiers and remove the in-process service list.
+Reduce the unauthenticated `/status` response to `{"status":"ok"}` with no account count, online count, provider configuration, or service details. Keep detailed operational diagnostics behind owner-authenticated `/admin/diagnostics`. Keep `/version` limited to build/runtime identifiers and remove the in-process service list.
 
-Wrap the existing top-level server handler with `app.Private(..., setup.Needed)`. Delete the `authenticated` map and its token/x402 alternative branch. Simplify `/` to redirect an authenticated owner to `/home`; setup redirection remains the middleware/setup handler responsibility. Remove logged-out guest home rendering.
+Wrap the existing top-level server handler with `app.Private(..., setup.Needed)`. Delete the `authenticated` map and its alternate authentication branch. Simplify `/` to redirect an authenticated owner to `/home`; setup redirection remains the middleware/setup handler responsibility. Remove logged-out guest home rendering.
 
 Delete unauthenticated `GuestNewsSearch` branches from `ExecuteToolAs` and `ExecuteTool`; all MCP execution now requires owner context.
 
-- [ ] **Step 4: Verify private access and no x402 bypass**
+- [ ] **Step 4: Verify private access without bypasses**
 
 Run: `go test ./internal/app ./internal/api . -count=1`
 
@@ -1067,7 +1067,6 @@ git commit -m "channels: allow linked owner DMs only"
 - Modify: `admin/flag.go`
 - Modify: `main.go:284-338,1273-1315,1388-1389,1453-1472,1636-1689,1715-1750`
 - Modify: `blog/blog.go`, `social/social.go`, `apps/apps.go`, `stream/stream.go`, `user/user.go`, `mail/mail.go`
-- Modify: `wallet/wallet.go`, `wallet/handlers.go`, `wallet/wallet_test.go`
 - Delete: `blog/activitypub.go`, `blog/activitypub_test.go`
 
 **Interfaces:**
@@ -1106,24 +1105,6 @@ func TestAdminDashboardContainsOnlyOperationalLinks(t *testing.T) {
 }
 ```
 
-Add to `wallet/wallet_test.go`:
-
-```go
-func TestWalletTransferRemoved(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/wallet/transfer", nil)
-	req.AddCookie(ownerSessionCookie(t))
-	rr := httptest.NewRecorder()
-	Handler(rr, req)
-	if rr.Code != http.StatusNotFound { t.Fatalf("GET /wallet/transfer = %d, want 404", rr.Code) }
-
-	req = httptest.NewRequest(http.MethodGet, "/wallet", nil)
-	req.AddCookie(ownerSessionCookie(t))
-	rr = httptest.NewRecorder()
-	Handler(rr, req)
-	if strings.Contains(rr.Body.String(), "/wallet/transfer") { t.Fatal("wallet page still links to transfers") }
-}
-```
-
 Implement this helper independently in each package test file:
 
 ```go
@@ -1143,7 +1124,7 @@ func ownerSessionCookie(t *testing.T) *http.Cookie {
 
 - [ ] **Step 2: Run focused tests and verify red state**
 
-Run: `go test ./internal/auth ./admin ./wallet -run 'Test(OwnerCanAlwaysWrite|AdminDashboard|WalletTransferRemoved)' -count=1`
+Run: `go test ./internal/auth ./admin -run 'Test(OwnerCanAlwaysWrite|AdminDashboard)' -count=1`
 
 Expected: FAIL because `CanWrite` does not exist and multi-user UI/routes remain.
 
@@ -1151,7 +1132,7 @@ Expected: FAIL because `CanWrite` does not exist and multi-user UI/routes remain
 
 Remove `Banned` behavior, `GetAllAccounts` from production callers, presence maps/functions, `VerificationRequired`, `CanPost`, `PostBlockReason`, `IsNewAccount`, `IsBanned`, `BanAccount`, `UnbanAccount`, and `ApproveAccount`. Keep `Admin`, `Approved`, and `Banned` fields for persisted migration input; owner creation/migration always sets admin/approved true and banned false.
 
-Delete block/unblock/blocked actions from `ControlsHandler`, remove the `Blocked` preference map and its helpers, and remove MCP tools `wallet_transfer`, `block_user`, and `unblock_user`.
+Delete block/unblock/blocked actions from `ControlsHandler`, remove the `Blocked` preference map and its helpers, and remove MCP tools `block_user` and `unblock_user`.
 
 Replace charged-write checks in `main.go` with:
 
@@ -1170,24 +1151,24 @@ Replace every background-job account enumeration or persisted arbitrary user tar
 
 Reduce `admin.AdminHandler` to operational links only. Delete `UsersHandler`, `ModerateHandler`, account/invite/ban/approve console commands, and account-specific flag actions. Keep server configuration, logs, diagnostics, mail spam controls, API usage, and generic content deletion.
 
-Delete transfer constants/functions/UI/tests: `DailyTransferCap`, `OpTransfer`, `TxTransfer` handling, `DailyTransferTotal`, `TransferCredits`, `/wallet/transfer`, `handleTransferPage`, `handleTransfer`, and `respondTransferError`. Preserve historical transaction rendering as generic debit/credit text if old `type:"transfer"` records are encountered; do not expose a new transfer action.
+Delete peer-to-peer transfer constants, functions, UI, and tests. Preserve historical transaction rendering as generic debit/credit text if old `type:"transfer"` records are encountered; do not expose a new transfer action.
 
 Delete ActivityPub implementation/tests and remove WebFinger, actor, inbox, outbox, and content-negotiation routing from `main.go` and blog handlers. These removed paths fall through to authenticated `404` after login and never publish owner content.
 
 - [ ] **Step 5: Run affected tests and static absence checks**
 
-Run: `go test ./internal/auth ./internal/app ./internal/api ./admin ./wallet ./blog ./social ./apps ./stream ./user ./mail . -count=1`
+Run: `go test ./internal/auth ./internal/app ./internal/api ./admin ./blog ./social ./apps ./stream ./user ./mail . -count=1`
 
 Expected: PASS.
 
-Run: `rg -n 'GetAllAccounts|IsBanned|BanAccount|UnbanAccount|ApproveAccount|IsNewAccount|PostBlockReason|GetOnlineUsers|wallet_transfer|block_user|unblock_user|/wallet/transfer|WebFingerHandler|ActorHandler|OutboxHandler|InboxHandler' --glob '*.go'`
+Run: `rg -n 'GetAllAccounts|IsBanned|BanAccount|UnbanAccount|ApproveAccount|IsNewAccount|PostBlockReason|GetOnlineUsers|block_user|unblock_user|WebFingerHandler|ActorHandler|OutboxHandler|InboxHandler' --glob '*.go'`
 
 Expected: no production matches. Migration tests may construct multiple account values directly but must not expose runtime multi-user APIs.
 
 - [ ] **Step 6: Commit multi-user feature removal**
 
 ```bash
-git add -A internal/auth internal/app internal/api admin wallet blog social apps stream user mail main.go
+git add -A internal/auth internal/app internal/api admin blog social apps stream user mail main.go
 git commit -m "product: remove multi-user features"
 ```
 
@@ -1198,13 +1179,13 @@ git commit -m "product: remove multi-user features"
 **Files:**
 - Modify: `README.md`
 - Modify: `CLAUDE.md`
-- Modify: `docs/ABOUT.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/DISCORD.md`, `docs/ENVIRONMENT_VARIABLES.md`, `docs/INSTALLATION.md`, `docs/MCP.md`, `docs/MESSAGING_SYSTEM.md`, `docs/SECURITY.md`, `docs/SYSTEM_DESIGN.md`, `docs/TELEGRAM.md`, `docs/WALLET_AND_CREDITS.md`, `docs/WHITEPAPER.md`, `docs/X402.md`
+- Modify: `docs/ABOUT.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/DISCORD.md`, `docs/ENVIRONMENT_VARIABLES.md`, `docs/INSTALLATION.md`, `docs/MCP.md`, `docs/MESSAGING_SYSTEM.md`, `docs/SECURITY.md`, `docs/SYSTEM_DESIGN.md`, `docs/TELEGRAM.md`, `docs/WHITEPAPER.md`
 - Delete: `docs/ACTIVITYPUB.md`
-- Modify generated UI copy in: `chat/chat.go`, `places/places.go`, `wallet/handlers.go`, `home/*`, `agents/*`, `internal/api/*`, `internal/app/*`
+- Modify generated UI copy in: `chat/chat.go`, `places/places.go`, `home/*`, `agents/*`, `internal/api/*`, `internal/app/*`
 - Modify: `docs/docs_test.go`, `chat/chat_test.go`
 
 **Interfaces:**
-- Documents: private single-owner setup, owner authentication, PAT/CLI/MCP, linked-owner DMs, migration selection/backup, and outbound-only x402.
+- Documents: private single-owner setup, owner authentication, PAT/CLI/MCP, linked-owner DMs, and migration selection/backup.
 - Removes: hosted/public/multi-user/signup/invite/transfer/federation claims.
 
 - [ ] **Step 1: Add documentation and rendered-copy regression tests**
@@ -1235,11 +1216,10 @@ Make README lead with “A private, single-owner home server.” Document:
 - Password, passkey, linked Google, PAT, OAuth, CLI, API, MCP, and A2A access all resolve to the owner.
 - Discord, Telegram, and WhatsApp work only in DMs after linking the owner.
 - Legacy migration backs up the complete data directory, keeps the oldest admin, or resets admin-less instances.
-- x402 remains available only for owner-initiated outbound calls; incoming payment does not bypass authentication.
 
 Delete public hosting, signup/invite, account-free API, local-user moderation, transfer, public social/profile, and ActivityPub instructions. Update architecture tables and `CLAUDE.md` conventions so future code does not reintroduce auto-provisioning.
 
-Remove stale “Try without an account”, signup, invite, public pricing, multi-user counts, and account-free x402 strings from rendered Go templates. Logged-out pages present only owner login or first-run setup.
+Remove stale “Try without an account”, signup, invite, public pricing, and multi-user counts from rendered Go templates. Logged-out pages present only owner login or first-run setup.
 
 - [ ] **Step 4: Run copy scans and docs tests**
 
@@ -1254,7 +1234,7 @@ Expected: no stale product claims. Matches in descriptions of removed behavior m
 - [ ] **Step 5: Commit documentation cleanup**
 
 ```bash
-git add -A README.md CLAUDE.md docs chat places wallet home agents internal/api internal/app
+git add -A README.md CLAUDE.md docs chat places home agents internal/api internal/app
 git commit -m "docs: describe private single-owner Mu"
 ```
 
@@ -1297,7 +1277,7 @@ Expected: exit `0`.
 Run:
 
 ```bash
-rg -n 'Name:\s*"signup"|/signup|request-invite|CreateInvite|autoCreateAccount|findOrCreateGoogleAccount|GetAllAccounts|BanAccount|ApproveAccount|wallet_transfer|block_user|/wallet/transfer|WebFingerHandler|ActorHandler' --glob '*.go'
+rg -n 'Name:\s*"signup"|/signup|request-invite|CreateInvite|autoCreateAccount|findOrCreateGoogleAccount|GetAllAccounts|BanAccount|ApproveAccount|block_user|WebFingerHandler|ActorHandler' --glob '*.go'
 rg -ni 'sign.?up|invite-only|auto.?created accounts|transfer credits to other users|without an account' README.md CLAUDE.md docs --glob '!docs/superpowers/**'
 ```
 
@@ -1305,7 +1285,7 @@ Expected: no production-code or current-documentation matches. Test names docume
 
 - [ ] **Step 6: Inspect migration and route ordering manually**
 
-Confirm in `main.go` that `registerAccountCleanup()` and `migrateSingleOwner()` run before every service `Load`, listener, channel startup, indexing worker, and background loop. Confirm `app.Private` wraps the complete default mux and that no inner branch accepts x402 in place of owner authentication.
+Confirm in `main.go` that `registerAccountCleanup()` and `migrateSingleOwner()` run before every service `Load`, listener, channel startup, indexing worker, and background loop. Confirm `app.Private` wraps the complete default mux and that no inner branch bypasses owner authentication.
 
 - [ ] **Step 7: Commit verification fixes, if any**
 
