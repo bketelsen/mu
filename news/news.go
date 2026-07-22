@@ -2,7 +2,6 @@ package news
 
 import (
 	"crypto/md5"
-	"embed"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -28,6 +27,7 @@ import (
 	"mu/internal/event"
 	"mu/internal/service"
 	"mu/internal/snapshot"
+	"mu/topics"
 
 	"mu/wallet"
 )
@@ -36,14 +36,15 @@ import (
 // broker); see internal/snapshot and docs/GO_MICRO_ARCHITECTURE.md.
 var cardSnap *snapshot.Snapshot
 
-//go:embed feeds.json
-var f embed.FS
-
 var mutex sync.RWMutex
 
 var feeds = map[string]string{}
 
 var status = map[string]*Feed{}
+
+var refreshFeed = make(chan struct{}, 1)
+
+var unsubscribeTopics func()
 
 // Semaphore to limit concurrent metadata fetches (reduces memory spike on startup)
 var metadataFetchSem = make(chan struct{}, 10) // Allow max 10 concurrent fetches
@@ -59,6 +60,40 @@ var headlinesHtml string
 
 // the cached feed
 var feed []*Post
+
+func feedURLs(snapshot []topics.Topic) map[string]string {
+	urls := make(map[string]string, len(snapshot))
+	for _, topic := range snapshot {
+		urls[topic.Name] = topic.FeedURL
+	}
+	return urls
+}
+
+func newsRelevant(change topics.Change) bool {
+	return len(change.Added) > 0 || len(change.Deleted) > 0 || len(change.FeedChanged) > 0
+}
+
+func requestFeedRefresh() {
+	select {
+	case refreshFeed <- struct{}{}:
+	default:
+	}
+}
+
+func applyTopics(snapshot []topics.Topic, change topics.Change) {
+	mutex.Lock()
+	feeds = feedURLs(snapshot)
+	for name := range status {
+		if _, ok := feeds[name]; !ok {
+			delete(status, name)
+		}
+	}
+	mutex.Unlock()
+
+	if newsRelevant(change) {
+		requestFeedRefresh()
+	}
+}
 
 // FetchSocialContext is an optional callback set by main.go to fetch social post
 // context for news articles that reference social media URLs.
@@ -479,9 +514,11 @@ func generateNewsHtml() string {
 
 	// Get topics header
 	var sortedFeeds []string
+	mutex.RLock()
 	for name := range feeds {
 		sortedFeeds = append(sortedFeeds, name)
 	}
+	mutex.RUnlock()
 	sort.Strings(sortedFeeds)
 	head := app.Head("news", sortedFeeds)
 
@@ -542,17 +579,6 @@ func generateHeadlinesHtml() string {
 
 	headline = append(headline, []byte(`</div>`)...)
 	return string(headline)
-}
-
-func loadFeed() {
-	// load the feeds file
-	data, _ := f.ReadFile("feeds.json")
-	// unpack into feeds
-	mutex.Lock()
-	if err := json.Unmarshal(data, &feeds); err != nil {
-		fmt.Println("Error parsing feeds.json", err)
-	}
-	mutex.Unlock()
 }
 
 func getMetadataPath(uri string) string {
@@ -1279,14 +1305,11 @@ func generateHeadlinesHTML(headlines []*Post) string {
 	return sb.String()
 }
 
-func parseFeed() {
+func parseFeedOnce() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("Recovered from panic in feed parser: %v\n", r)
 			debug.PrintStack()
-			fmt.Println("Relaunching feed parser in 1 minute")
-			time.Sleep(time.Minute)
-			go parseFeed()
 		}
 	}()
 
@@ -1312,7 +1335,7 @@ func parseFeed() {
 	sort.Strings(sorted)
 
 	// Process all feeds
-	var allContent []byte
+	contentByFeed := map[string][]byte{}
 	var allNews []*Post
 	var allHeadlines []*Post
 
@@ -1320,7 +1343,7 @@ func parseFeed() {
 		feedURL := urls[name]
 		content, headlines, _ := processFeedCategory(name, feedURL, p, stats)
 		if content != nil {
-			allContent = append(allContent, content...)
+			contentByFeed[name] = content
 		}
 		if headlines != nil {
 			allHeadlines = append(allHeadlines, headlines...)
@@ -1328,19 +1351,35 @@ func parseFeed() {
 		}
 	}
 
-	allNews = dedupePosts(allNews)
-	allHeadlines = dedupePosts(allHeadlines)
+	mutex.Lock()
+	// Topics can change while feeds are being fetched. Publish only data for the
+	// current snapshot, while retaining anything already indexed on disk.
+	sorted = sorted[:0]
+	active := make(map[string]bool, len(feeds))
+	for name := range feeds {
+		sorted = append(sorted, name)
+		active[name] = true
+	}
+	for name := range status {
+		if !active[name] {
+			delete(status, name)
+		}
+	}
+	sort.Strings(sorted)
 
-	// Generate headlines HTML - filter to one per category (the latest from each)
-	// First, build a map of category -> latest post
+	var allContent []byte
+	for _, name := range sorted {
+		allContent = append(allContent, contentByFeed[name]...)
+	}
+	allNews = filterPostsForFeeds(dedupePosts(allNews), active)
+	allHeadlines = filterPostsForFeeds(dedupePosts(allHeadlines), active)
+
 	categoryLatest := make(map[string]*Post)
 	for _, post := range allHeadlines {
 		if existing, ok := categoryLatest[post.Category]; !ok || post.PostedAt.After(existing.PostedAt) {
 			categoryLatest[post.Category] = post
 		}
 	}
-
-	// Convert map to slice
 	var filteredHeadlines []*Post
 	for _, post := range categoryLatest {
 		filteredHeadlines = append(filteredHeadlines, post)
@@ -1348,32 +1387,55 @@ func parseFeed() {
 			break
 		}
 	}
-
-	// Sort filtered headlines by timestamp (newest first)
 	sort.Slice(filteredHeadlines, func(i, j int) bool {
 		return filteredHeadlines[i].PostedAt.After(filteredHeadlines[j].PostedAt)
 	})
-
 	headlineHtml := generateHeadlinesHTML(filteredHeadlines)
 	allContent = append([]byte(headlineHtml), allContent...)
-
-	// Save everything
 	head := []byte(app.Head("news", sorted))
-	mutex.Lock()
 	feed = allNews
 	headlinesHtml = headlineHtml
 	saveHtml(head, allContent)
 	data.SaveFile("headlines.html", headlinesHtml)
 	data.SaveJSON("feed.json", feed)
-	mutex.Unlock()
-
-	// Publish the new snapshot to the go-micro store + broker; Headlines serves
-	// it from a mirror (see internal/snapshot, docs/GO_MICRO_ARCHITECTURE.md).
 	cardSnap.Publish(headlineHtml)
+	mutex.Unlock()
+}
 
-	// Wait an hour and go again
-	time.Sleep(time.Hour)
-	go parseFeed()
+func filterPostsForFeeds(posts []*Post, active map[string]bool) []*Post {
+	filtered := posts[:0]
+	for _, post := range posts {
+		if active[post.Category] {
+			filtered = append(filtered, post)
+		}
+	}
+	return filtered
+}
+
+var runFeedParse = parseFeedOnce
+
+func feedRefreshLoop() {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		runFeedParse()
+		select {
+		case <-ticker.C:
+		case <-refreshFeed:
+		}
+	drain:
+		for {
+			select {
+			case <-refreshFeed:
+			default:
+				break drain
+			}
+		}
+	}
+}
+
+func parseFeed() {
+	feedRefreshLoop()
 }
 
 func Load() {
@@ -1478,15 +1540,15 @@ func Load() {
 		newsBodyHtml = html
 	}
 
-	// load the feeds
-	loadFeed()
+	applyTopics(topics.Snapshot(), topics.Change{})
+	unsubscribeTopics = topics.Subscribe(applyTopics)
 
 	// Read plane: start the snapshot channel, then warm the mirror with the
 	// disk-primed headlines so renders are served from the go-micro data plane.
 	cardSnap = snapshot.New("news")
 	cardSnap.Publish(headlinesHtml)
 
-	go parseFeed()
+	go feedRefreshLoop()
 }
 
 func Headlines() string {

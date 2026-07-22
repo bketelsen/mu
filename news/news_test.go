@@ -4,12 +4,83 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/mmcdole/gofeed"
 	"mu/internal/data"
+	"mu/topics"
 )
+
+func TestFeedURLs(t *testing.T) {
+	snapshot := []topics.Topic{
+		{Name: "Tech", FeedURL: "https://example.com/tech"},
+		{Name: "World", FeedURL: "https://example.com/world"},
+	}
+
+	got := feedURLs(snapshot)
+	for _, topic := range snapshot {
+		if got[topic.Name] != topic.FeedURL {
+			t.Errorf("feedURLs(%q) = %q, want %q", topic.Name, got[topic.Name], topic.FeedURL)
+		}
+	}
+}
+
+func TestNewsRelevantTopicChanges(t *testing.T) {
+	topic := topics.Topic{Name: "Tech", FeedURL: "https://example.com/feed", Prompt: "prompt"}
+	if newsRelevant(topics.Change{PromptChanged: []topics.Topic{topic}}) {
+		t.Fatal("prompt change refreshes news")
+	}
+	for _, change := range []topics.Change{
+		{Added: []topics.Topic{topic}},
+		{Deleted: []topics.Topic{topic}},
+		{FeedChanged: []topics.Topic{topic}},
+	} {
+		if !newsRelevant(change) {
+			t.Fatalf("change should refresh: %#v", change)
+		}
+	}
+}
+
+func TestFeedRefreshCoordinator(t *testing.T) {
+	original := runFeedParse
+	defer func() { runFeedParse = original }()
+
+	var active, maximum atomic.Int32
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	runFeedParse = func() {
+		current := active.Add(1)
+		for {
+			seen := maximum.Load()
+			if current <= seen || maximum.CompareAndSwap(seen, current) {
+				break
+			}
+		}
+		started <- struct{}{}
+		<-release
+		active.Add(-1)
+	}
+
+	go feedRefreshLoop()
+	<-started
+	requestFeedRefresh()
+	requestFeedRefresh()
+	requestFeedRefresh()
+	release <- struct{}{}
+	<-started
+	release <- struct{}{}
+
+	select {
+	case <-started:
+		t.Fatal("duplicate refresh requests were not coalesced")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if maximum.Load() != 1 {
+		t.Fatalf("maximum concurrent parses = %d, want 1", maximum.Load())
+	}
+}
 
 func TestContentParsers_StripHNComments(t *testing.T) {
 	tests := []struct {
