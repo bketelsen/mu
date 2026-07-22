@@ -130,8 +130,6 @@ func WalletPage(userID string) string {
 	sb.WriteString(fmt.Sprintf(`<tr><td>Agent (premium)</td><td>%dp</td></tr>`, CostAgentQueryPremium))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Weather forecast</td><td>%dp</td></tr>`, CostWeatherForecast))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Weather + pollen</td><td>%dp</td></tr>`, CostWeatherForecast+CostWeatherPollen))
-	sb.WriteString(fmt.Sprintf(`<tr><td>Places search</td><td>%dp</td></tr>`, CostPlacesSearch))
-	sb.WriteString(fmt.Sprintf(`<tr><td>Places nearby</td><td>%dp</td></tr>`, CostPlacesNearby))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Send mail</td><td>%dp</td></tr>`, CostMailSend))
 	sb.WriteString(fmt.Sprintf(`<tr><td>External email</td><td>%dp</td></tr>`, CostExternalEmail))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Web search</td><td>%dp</td></tr>`, CostWebSearch))
@@ -319,8 +317,6 @@ func PublicWalletPage() string {
 	sb.WriteString(fmt.Sprintf(`<tr><td>Blog post</td><td>%dp</td></tr>`, CostBlogCreate))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Blog comment</td><td>%dp</td></tr>`, CostBlogComment))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Chat query</td><td>%dp</td></tr>`, CostChatQuery))
-	sb.WriteString(fmt.Sprintf(`<tr><td>Places search</td><td>%dp</td></tr>`, CostPlacesSearch))
-	sb.WriteString(fmt.Sprintf(`<tr><td>Places nearby</td><td>%dp</td></tr>`, CostPlacesNearby))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Send mail</td><td>%dp</td></tr>`, CostMailSend))
 	sb.WriteString(fmt.Sprintf(`<tr><td>External email</td><td>%dp</td></tr>`, CostExternalEmail))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Web search</td><td>%dp</td></tr>`, CostWebSearch))
@@ -579,8 +575,6 @@ func getPricingData() []pricingItem {
 		{OpAgentQueryPremium, "Agent (premium)", CostAgentQueryPremium, "credits"},
 		{OpWeatherForecast, "Weather forecast", CostWeatherForecast, "credits"},
 		{OpWeatherPollen, "Weather pollen", CostWeatherPollen, "credits"},
-		{OpPlacesSearch, "Places search", CostPlacesSearch, "credits"},
-		{OpPlacesNearby, "Places nearby", CostPlacesNearby, "credits"},
 		{OpMailSend, "Send mail", CostMailSend, "credits"},
 		{OpExternalEmail, "External email", CostExternalEmail, "credits"},
 		{OpWebSearch, "Web search", CostWebSearch, "credits"},

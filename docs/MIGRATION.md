@@ -53,7 +53,7 @@ agent cards (micro/go-micro#3342 — task lifecycle already shipped upstream).
 - ✅ `internal/service` runtime core (registry/client/broker/store, Register, Call, loopback proxy bypass).
 - ✅ AI core: `internal/ai.Ask` and `AskStream` both run through go-micro `ai`
   (Atlas/Anthropic/local), history + per-caller token caps preserved.
-- ✅ Services: weather, news, GitHub, video, blog, search, places, recall, apps, and mail.
+- ✅ Services: weather, news, GitHub, video, blog, search, recall, apps, and mail.
 - ✅ Native go-micro agent is the **default** for `agent.Query` (AGENT_NATIVE=off opts out), full tool coverage.
 - ✅ `/mcp` served by go-micro's `gateway/mcp` (manual resolver of mu's tools; metering/auth preserved).
 - ✅ `/version` + `/status` for deploy verification.
@@ -157,9 +157,6 @@ or improve test coverage; never break `main`.
 7. ◑ **[SAFE]** Register the remaining agent-facing domains as go-micro services.
    - ✅ **mail**: `mail.Server.Search` (rune-safe formatting) registered via the service registry; added to the native agent's services so it can search mail directly
      (account id injected via the WrapTool middleware). Round-trip test added.
-   - TODO: places and chat lack clean AI-first text accessors (places search is
-     HTTP-handler-based; chat is HTTP). Each needs a small text accessor written before a service wrapper —
-     lower value (overlap with existing tools), do when convenient.
 8. ✅ **Streaming usage**: go-micro v6.3.4 (#3304) surfaces token usage on
    streams (atlascloud/openai request `stream_options.include_usage` and return
    the final usage chunk). `streamViaMicro` now records it — closes the

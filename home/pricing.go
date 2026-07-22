@@ -22,7 +22,6 @@ func PricingHandler(w http.ResponseWriter, r *http.Request) {
 		{"AI agent", wallet.CostAgentQuery},
 		{"Chat", wallet.CostChatQuery},
 		{"Web search", wallet.CostWebSearch},
-		{"Places search", wallet.CostPlacesSearch},
 		{"External email", wallet.CostExternalEmail},
 	} {
 		b.WriteString(fmt.Sprintf(`<tr><td>%s</td><td>%d</td></tr>`, cost.name, cost.amount))

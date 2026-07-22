@@ -181,8 +181,6 @@ var guestAllowedTools = map[string]bool{
 	"apps_read":        true,
 	"search":           true,
 	"stream":           true,
-	"places_search":    true,
-	"places_nearby":    true,
 }
 
 func isGuestAllowedTool(name string) bool {

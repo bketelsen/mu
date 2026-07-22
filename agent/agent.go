@@ -677,8 +677,6 @@ func ToolsDropdownHTML() string {
 <div style="padding:3px 12px;">Web Fetch</div>
 <div style="padding:3px 12px;">🎬 Video Search</div>
 <div style="padding:3px 12px;">🌤 Weather</div>
-<div style="padding:3px 12px;">📍 Places Search</div>
-<div style="padding:3px 12px;">📍 Places Nearby</div>
 <div style="padding:3px 12px;">🔎 Search</div>
 <div style="padding:3px 12px;">📝 Blog</div>
 <div style="padding:3px 12px;">💰 Wallet</div>
@@ -709,8 +707,6 @@ const agentToolsDesc = `Available tools (use exact name):
 - search: Search all Mu content (args: {"q":"search term"})
 - web_search: Search the web for current information (args: {"q":"search term"})
 - web_fetch: Fetch a web page and get its cleaned readable content (args: {"url":"https://example.com/page"})
-- places_search: Search for places (args: {"q":"search name","near":"location"})
-- places_nearby: Find places near a location (args: {"address":"location","radius":number})
 - apps_search: Search apps directory (args: {"q":"search term","tag":"productivity"})
 - apps_read: Read details of a specific app (args: {"slug":"app-slug"})
 - apps_build: build a small app (a tracker, checklist, or counter) from a description (args: {"prompt":"an expense tracker"})
@@ -732,8 +728,6 @@ const guestToolsDesc = `Available tools (use exact name):
 - video: Get the latest videos from curated channels (no args)
 - video_search: Search YouTube for videos (args: {"query":"search term"})
 - weather_forecast: Get weather forecast (args: {"lat":number,"lon":number})
-- places_search: Search for places (args: {"q":"search name","near":"location"})
-- places_nearby: Find places near a location (args: {"address":"location","radius":number})
 - search: Search all Mu content (args: {"q":"search term"})
 - web_search: Search the web (args: {"q":"search term"})
 - web_fetch: Fetch a web page (args: {"url":"https://example.com"})
@@ -1423,10 +1417,6 @@ func toolLabel(tool string) string {
 		return "🎬 Searching videos"
 	case "weather_forecast":
 		return "🌤 Getting weather forecast"
-	case "places_search":
-		return "📍 Searching places"
-	case "places_nearby":
-		return "📍 Finding nearby places"
 	case "search":
 		return "Searching Mu"
 	case "blog_list":
@@ -1481,8 +1471,6 @@ func renderResultCard(toolName, result string, args map[string]any) string {
 		return renderNewsCard(result)
 	case "video_search":
 		return renderVideoCard(result)
-	case "places_search", "places_nearby":
-		return renderPlacesCard(result, args)
 	case "apps_search":
 		return renderAppsCard(result)
 	case "apps_run":
@@ -1676,83 +1664,6 @@ type videoItem struct {
 	Channel   string `json:"channel"`
 }
 
-func renderPlacesCard(result string, args map[string]any) string {
-	var data struct {
-		Results []placeItem `json:"results"`
-	}
-	if err := json.Unmarshal([]byte(result), &data); err != nil {
-		return ""
-	}
-	if len(data.Results) == 0 {
-		return ""
-	}
-	items := data.Results
-	if len(items) > 5 {
-		items = items[:5]
-	}
-
-	// Build a deterministic Google Maps search URL from the tool args so the
-	// link opens the exact same query without any additional server-side cost.
-	mapURL := placesMapURL(args, data.Results)
-
-	var b strings.Builder
-	b.WriteString(`<div class="card"><h4>📍 Places</h4>`)
-	for _, p := range items {
-		b.WriteString(`<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;">`)
-		b.WriteString(`<div style="font-weight:600;">` + htmlEsc(p.Name) + `</div>`)
-		if p.Category != "" || p.Address != "" {
-			meta := p.Category
-			if p.Address != "" {
-				if meta != "" {
-					meta += " · "
-				}
-				meta += p.Address
-			}
-			b.WriteString(`<div style="font-size:12px;color:#888;">` + htmlEsc(meta) + `</div>`)
-		}
-		b.WriteString(`</div>`)
-	}
-	b.WriteString(`<a href="` + htmlEsc(mapURL) + `" target="_blank" rel="noopener noreferrer" class="link" style="display:inline-block;margin-top:8px;">Open in Google Maps ↗</a></div>`)
-	return b.String()
-}
-
-// placesMapURL builds a deterministic Google Maps search URL for the places
-// results.  It prefers using the query/near tool args when available, falling
-// back to a coordinate-based search centred on the first place result.
-func placesMapURL(args map[string]any, items []placeItem) string {
-	q := ""
-	near := ""
-	if args != nil {
-		if v, ok := args["q"]; ok {
-			q = fmt.Sprintf("%v", v)
-		}
-		if v, ok := args["near"]; ok {
-			near = fmt.Sprintf("%v", v)
-		}
-		if near == "" {
-			if v, ok := args["address"]; ok {
-				near = fmt.Sprintf("%v", v)
-			}
-		}
-	}
-
-	if q != "" && near != "" {
-		return "https://www.google.com/maps/search/?api=1&query=" + url.QueryEscape(q+" "+near)
-	}
-	if q != "" {
-		return "https://www.google.com/maps/search/?api=1&query=" + url.QueryEscape(q)
-	}
-
-	// Fall back: centre on the first result with known coordinates.
-	for _, p := range items {
-		if p.Lat != 0 || p.Lon != 0 {
-			return fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%.6f,%.6f", p.Lat, p.Lon)
-		}
-	}
-
-	return "/places"
-}
-
 // formatToolResult converts a raw tool result into a human-readable text
 // summary suitable for inclusion in the AI synthesis RAG context.
 func formatToolResult(toolName, result string, args map[string]any) string {
@@ -1769,8 +1680,6 @@ func formatToolResult(toolName, result string, args map[string]any) string {
 		return withCurrentDateContext(result)
 	case "web_fetch":
 		return formatWebFetchResult(result)
-	case "places_search", "places_nearby":
-		return formatPlacesResult(result, args)
 	case "wallet_balance":
 		return formatWalletBalanceResult(result)
 	case "wallet_topup":
@@ -2110,67 +2019,6 @@ func stripHTMLTags(s string) string {
 		out = out[:2000] + "…"
 	}
 	return out
-}
-
-// formatPlacesResult converts a raw JSON places result into a human-readable
-// text summary suitable for inclusion in the AI synthesis RAG context.
-func formatPlacesResult(result string, args map[string]any) string {
-	var data struct {
-		Results []placeItem `json:"results"`
-		Count   int         `json:"count"`
-	}
-	if err := json.Unmarshal([]byte(result), &data); err != nil {
-		return result
-	}
-	if len(data.Results) == 0 {
-		return "No places found."
-	}
-
-	q := ""
-	near := ""
-	if args != nil {
-		if v, ok := args["q"]; ok {
-			q = fmt.Sprintf("%v", v)
-		}
-		if v, ok := args["near"]; ok {
-			near = fmt.Sprintf("%v", v)
-		}
-		if near == "" {
-			if v, ok := args["address"]; ok {
-				near = fmt.Sprintf("%v", v)
-			}
-		}
-	}
-
-	var sb strings.Builder
-	header := fmt.Sprintf("Found %d place(s)", len(data.Results))
-	if q != "" && near != "" {
-		header += fmt.Sprintf(" matching %q near %s", q, near)
-	} else if q != "" {
-		header += fmt.Sprintf(" matching %q", q)
-	} else if near != "" {
-		header += fmt.Sprintf(" near %s", near)
-	}
-	sb.WriteString(header + ":\n")
-	for i, p := range data.Results {
-		line := fmt.Sprintf("%d. %s", i+1, p.Name)
-		if p.Category != "" {
-			line += " (" + p.Category + ")"
-		}
-		if p.Address != "" {
-			line += " — " + p.Address
-		}
-		sb.WriteString(line + "\n")
-	}
-	return sb.String()
-}
-
-type placeItem struct {
-	Name     string  `json:"name"`
-	Category string  `json:"category"`
-	Address  string  `json:"address"`
-	Lat      float64 `json:"lat"`
-	Lon      float64 `json:"lon"`
 }
 
 // formatWalletBalanceResult converts a raw JSON wallet balance result into

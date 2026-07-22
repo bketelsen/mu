@@ -2,6 +2,8 @@ package home
 
 import (
 	"encoding/json"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -40,5 +42,14 @@ func TestCardConfigExcludesRemovedCards(t *testing.T) {
 		if card.ID == "social" || card.Type == "social" || card.Link == "/social" {
 			t.Fatalf("removed Social card remains configured: %#v", card)
 		}
+	}
+}
+
+func TestPricingExcludesRetiredLocationDomain(t *testing.T) {
+	req := httptest.NewRequest("GET", "/pricing", nil)
+	recorder := httptest.NewRecorder()
+	PricingHandler(recorder, req)
+	if strings.Contains(strings.ToLower(recorder.Body.String()), "<td>"+"pla"+"ces") {
+		t.Fatalf("pricing retains retired location domain: %s", recorder.Body.String())
 	}
 }

@@ -115,10 +115,6 @@ func keywordRoute(prompt string) []string {
 		{keyword: "email", ids: []string{"mail"}},
 		{keyword: "inbox", ids: []string{"mail"}},
 		{keyword: "unread", ids: []string{"mail"}},
-		{keyword: "coworking", ids: []string{"places"}},
-		{keyword: "nearby", ids: []string{"places"}},
-		{keyword: "restaurant", ids: []string{"places"}},
-		{keyword: "cafe", ids: []string{"places"}},
 		{keyword: "blog", ids: []string{"blog"}},
 		{keyword: "post", ids: []string{"blog"}},
 	}

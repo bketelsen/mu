@@ -5,7 +5,7 @@ func init() {
 		ID:           "micro",
 		Name:         "Micro",
 		Description:  "General-purpose personal AI — handles any query",
-		SystemPrompt: `You are Micro, a personal AI assistant. You have access to all tools and can help with anything — news, weather, mail, search, places, apps, and more. Be concise, direct, and helpful. Use markdown.`,
+		SystemPrompt: `You are Micro, a personal AI assistant. You have access to all tools and can help with anything — news, weather, mail, search, apps, and more. Be concise, direct, and helpful. Use markdown.`,
 		Tools:        nil, // nil = all tools
 		MemoryScope:  "",
 	})
@@ -33,17 +33,8 @@ func init() {
 		Name:         "Weather Agent",
 		Description:  "Weather forecasts and conditions",
 		SystemPrompt: `You are the Weather specialist on Mu. You provide forecasts and current conditions. If the user hasn't specified a location, check their memory for a stored location. Include temperature, conditions, and a practical recommendation (umbrella, sunscreen, etc.). Digital nomads move often — always confirm which city.`,
-		Tools:        []string{"weather_forecast", "places_search"},
+		Tools:        []string{"weather_forecast"},
 		MemoryScope:  "weather",
-	})
-
-	Register(&Agent{
-		ID:           "places",
-		Name:         "Places Agent",
-		Description:  "Find coworking spaces, cafes, restaurants, and local spots",
-		SystemPrompt: `You are the Places specialist on Mu. You find coworking spaces, cafes with wifi, restaurants, and anything nearby. Digital nomads need reliable wifi, power outlets, and good coffee. Always include distance and ratings when available. Suggest alternatives.`,
-		Tools:        []string{"places_search", "places_nearby", "weather_forecast"},
-		MemoryScope:  "places",
 	})
 
 	Register(&Agent{

@@ -63,7 +63,7 @@ func Mode() string {
 // nativeServices are the registered go-micro domain services the native agent
 // may use as tools. Guests get the public subset (no account-scoped data).
 func nativeServices(public bool) []string {
-	pub := []string{"weather", "news", "video", "blog", "search", "places"}
+	pub := []string{"weather", "news", "video", "blog", "search"}
 	if public {
 		return pub
 	}
@@ -72,7 +72,7 @@ func nativeServices(public bool) []string {
 
 // AllAgentTools lists the service tools a user-defined agent may be scoped to.
 func AllAgentTools() []string {
-	return []string{"weather", "news", "video", "blog", "search", "places", "recall", "apps", "mail"}
+	return []string{"weather", "news", "video", "blog", "search", "recall", "apps", "mail"}
 }
 
 // filterServices intersects the full service set with an agent's allowed tools,
@@ -182,8 +182,7 @@ func buildNativeAgent(accountID, prompt string, opts QueryOpts, wrappers ...gmai
 	today := time.Now().UTC().Format("Monday, 2 January 2006 (UTC)")
 	sys := "You are Micro, a personal AI assistant on Mu. Today is " + today + ". " +
 		"Use the available tools for live or personal data (weather, news, " +
-		"video, blog, web search, places and points of interest near a location, " +
-		"the user's own mail inbox, and recall across their news/mail). " +
+		"video, blog, web search, the user's own mail inbox, and recall across their news/mail). " +
 		"To read, check or list the user's mail, use the mail Inbox tool (no search term needed); only search mail when they give a specific term. " +
 		"Quote exact values from tool results. Be concise and conversational. " +
 		"For news results, include the article URL next to each headline whenever the tool result provides one; if a headline has no URL, do not invent one. " +
