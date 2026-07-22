@@ -17,7 +17,6 @@ import (
 	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/userdb"
-	"mu/wallet"
 )
 
 const (
@@ -128,9 +127,8 @@ func getDaily() Daily {
 	return daily
 }
 
-// Generate creates an image for a user, charging the image-generation credit
-// cost to their wallet, and stores it in their gallery. Returns the image URL.
-// Charging lives here so every path (web form, MCP/REST tool) bills once.
+// Generate creates an image for a user, stores it in their gallery, and returns
+// the image URL.
 func Generate(owner, prompt string) (string, error) {
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
@@ -139,22 +137,8 @@ func Generate(owner, prompt string) (string, error) {
 	if owner == "" {
 		return "", fmt.Errorf("sign in to generate images")
 	}
-	// Affordability check before spending time on the model.
-	canProceed, _, cost, err := wallet.CheckQuota(owner, wallet.OpImageGenerate)
-	if err != nil {
-		return "", err
-	}
-	if !canProceed {
-		return "", fmt.Errorf("this costs %d credits — top up at /wallet", cost)
-	}
-
 	url, err := ai.GenerateImage(prompt)
 	if err != nil {
-		return "", err
-	}
-
-	// Only charge once we actually have an image.
-	if err := wallet.ConsumeQuota(owner, wallet.OpImageGenerate); err != nil {
 		return "", err
 	}
 
@@ -287,7 +271,7 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 
 	url, err := Generate(acc.ID, req.Prompt)
 	if err != nil {
-		w.WriteHeader(http.StatusPaymentRequired)
+		w.WriteHeader(http.StatusInternalServerError)
 		app.RespondJSON(w, map[string]string{"error": err.Error()})
 		return
 	}
@@ -317,7 +301,6 @@ func handleHTML(w http.ResponseWriter, r *http.Request) {
 	if acc != nil {
 		caller = acc.ID
 	}
-	price := wallet.CostImageGenerate
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 
 	var b strings.Builder
@@ -358,7 +341,7 @@ func handleHTML(w http.ResponseWriter, r *http.Request) {
 	// Generate panel.
 	b.WriteString(`<div class="card">`)
 	b.WriteString(`<h3>Generate an image</h3>`)
-	b.WriteString(fmt.Sprintf(`<p class="card-desc">Describe an image and Mu creates it. %d credits per image.</p>`, price))
+	b.WriteString(`<p class="card-desc">Describe an image and Mu creates it.</p>`)
 	if acc == nil {
 		b.WriteString(`<p><a href="/login">Sign in</a> to generate images.</p>`)
 	} else {

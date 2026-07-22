@@ -18,7 +18,6 @@ import (
 	"mu/internal/data"
 	"mu/internal/event"
 	"mu/internal/flag"
-	"mu/wallet"
 )
 
 //go:embed *.json
@@ -1290,7 +1289,7 @@ func guestChatAuthNotice() string {
 // handlePostChat handles POST /chat - send a chat message
 func handlePostChat(w http.ResponseWriter, r *http.Request) {
 	// Require authentication to send messages
-	sess, _, err := auth.RequireSession(r)
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		app.Unauthorized(w, r)
 		return
@@ -1351,27 +1350,6 @@ func handlePostChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := fmt.Sprintf("%v", form["prompt"])
-
-	// Check quota before LLM query
-	canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, wallet.OpChatQuery)
-	if !canProceed {
-		// Return quota exceeded response
-		if app.SendsJSON(r) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(402) // Payment Required
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":   "quota_exceeded",
-				"message": "Daily chat limit reached. Please top up credits at /wallet",
-				"cost":    cost,
-			})
-			return
-		}
-		// HTML response
-		content := wallet.QuotaExceededPage(wallet.OpChatQuery, cost)
-		html := app.RenderHTMLForRequest("Quota Exceeded", "Daily limit reached", content, r)
-		w.Write([]byte(html))
-		return
-	}
 
 	// Get topic for enhanced RAG
 	topic := ""
@@ -1476,9 +1454,6 @@ func handlePostChat(w http.ResponseWriter, r *http.Request) {
 	if len(resp) == 0 {
 		return
 	}
-
-	// Consume quota after successful LLM response
-	wallet.ConsumeQuota(sess.Account, wallet.OpChatQuery)
 
 	// save the response
 	html := app.Render([]byte(resp))

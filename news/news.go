@@ -28,8 +28,6 @@ import (
 	"mu/internal/event"
 	"mu/internal/service"
 	"mu/internal/snapshot"
-
-	"mu/wallet"
 )
 
 // cardSnap is the go-micro read-plane channel for the news card (store +
@@ -1743,7 +1741,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 // handleAPISearch handles POST /news with JSON body for search
 func handleAPISearch(w http.ResponseWriter, r *http.Request) {
-	sess, _, err := auth.RequireSession(r)
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		app.Unauthorized(w, r)
 		return
@@ -1763,31 +1761,14 @@ func handleAPISearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check quota before search
-	canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, wallet.OpNewsSearch)
-	if !canProceed {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(402) // Payment Required
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error":   "quota_exceeded",
-			"message": "Daily search limit reached. Please top up credits at /wallet",
-			"cost":    cost,
-		})
-		return
-	}
-
 	payload := newsSearchPayload(query, 20)
-
-	// Consume quota after successful search
-	wallet.ConsumeQuota(sess.Account, wallet.OpNewsSearch)
 
 	app.RespondJSON(w, payload)
 }
 
 // SearchToolText returns model-ready JSON for news_search tool calls. It uses
 // the same indexed-plus-live-feed result selection as the authenticated /news
-// API search, but performs no quota mutation itself; callers that expose it over
-// public protocols remain responsible for auth/quota gates.
+// API search.
 func SearchToolText(query string) (string, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -2673,26 +2654,13 @@ func formatSearchResult(entry *data.IndexEntry) string {
 }
 
 func handleSearch(w http.ResponseWriter, r *http.Request, query string) {
-	// Check quota before search
-	sess, _, err := auth.RequireSession(r)
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		app.Unauthorized(w, r)
 		return
 	}
 
-	canProceed, _, cost, err := wallet.CheckQuota(sess.Account, wallet.OpNewsSearch)
-	if !canProceed {
-		// Show quota exceeded page
-		content := wallet.QuotaExceededPage(wallet.OpNewsSearch, cost)
-		html := app.RenderHTMLForRequest("Quota Exceeded", "Daily limit reached", content, r)
-		w.Write([]byte(html))
-		return
-	}
-
 	results := data.Search(query, 20, data.WithType("news"), data.WithKeywordOnly())
-
-	// Consume quota after successful search
-	wallet.ConsumeQuota(sess.Account, wallet.OpNewsSearch)
 
 	var searchResults []byte
 	searchResults = append(searchResults, []byte(`<form id="news-search" class="search-bar" action="/news" method="GET">

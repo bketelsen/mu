@@ -1,7 +1,6 @@
 package weather
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,7 +8,6 @@ import (
 	"mu/internal/app"
 	"mu/internal/auth"
 	"mu/internal/service"
-	"mu/wallet"
 )
 
 // Load initialises the weather package and registers its go-micro service.
@@ -113,7 +111,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 // handleJSON handles JSON API requests for weather data.
 func handleJSON(w http.ResponseWriter, r *http.Request) {
-	_, acc, err := auth.RequireSession(r)
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		app.Unauthorized(w, r)
 		return
@@ -143,13 +141,6 @@ func handleJSON(w http.ResponseWriter, r *http.Request) {
 
 	includePollen := r.URL.Query().Get("pollen") == "1"
 
-	// Check credits
-	canProceed, _, cost, _ := wallet.CheckQuota(acc.ID, wallet.OpWeatherForecast)
-	if !canProceed {
-		app.RespondError(w, http.StatusPaymentRequired, "Insufficient credits. Top up your wallet to continue.")
-		return
-	}
-
 	// Fetch weather
 	forecast, err := FetchWeather(lat, lon)
 	if err != nil {
@@ -157,26 +148,15 @@ func handleJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Deduct credits
-	if cost > 0 {
-		wallet.DeductCredits(acc.ID, cost, wallet.OpWeatherForecast, nil)
-	}
-
 	result := map[string]interface{}{
 		"forecast": forecast,
 	}
 
-	// Fetch pollen if requested and quota allows
+	// Fetch pollen when requested.
 	if includePollen {
-		canPollenProceed, _, pollenCost, _ := wallet.CheckQuota(acc.ID, wallet.OpWeatherPollen)
-		if canPollenProceed {
-			pollen, pollenErr := FetchPollen(lat, lon)
-			if pollenErr == nil {
-				result["pollen"] = pollen
-				if pollenCost > 0 {
-					wallet.DeductCredits(acc.ID, pollenCost, wallet.OpWeatherPollen, nil)
-				}
-			}
+		pollen, pollenErr := FetchPollen(lat, lon)
+		if pollenErr == nil {
+			result["pollen"] = pollen
 		}
 	}
 
@@ -202,14 +182,13 @@ func renderWeatherPage(r *http.Request) string {
 
 	if !isAuthed {
 		sb.WriteString(`<div class="card">
-  <p class="card-desc">Weather forecasts are available through Mu's agent for guests, while saved location forecasts, pollen, and credit-backed refreshes require an account.</p>
+  <p class="card-desc">Weather forecasts are available through Mu's agent for guests, while saved location forecasts and pollen require an account.</p>
   <p>Try asking the agent: <a href="/agent?q=Weather%20in%20San%20Francisco">Weather in San Francisco</a>.</p>
   <p class="card-meta">Want the full weather page with location search and pollen? <a href="/login">Log in</a> to continue.</p>
 </div>`)
 		return sb.String()
 	}
 
-	// Cost info
 	sb.WriteString(`<p class="card-desc">Get the local weather forecast for your area. `)
 
 	// Weather page with location search
@@ -227,7 +206,7 @@ func renderWeatherPage(r *http.Request) string {
   <div class="weather-options">
     <label style="gap:6px;cursor:pointer;">
       <input type="checkbox" id="toggle-pollen" onchange="weatherTogglePollen()" style="display: inline; width: auto;">
-      <span>Include pollen forecast (+` + fmt.Sprintf("%dp", wallet.CostWeatherPollen) + `)</span>
+      <span>Include pollen forecast</span>
     </label>
   </div>
 
@@ -312,9 +291,6 @@ func renderWeatherPage(r *http.Request) string {
       .catch(function(err) {
         showLoading(false);
         var msg = (err && err.error) ? err.error : 'Weather is unavailable right now. Please try again later.';
-        if (msg.indexOf('Insufficient credits') !== -1) {
-          msg += ' <a href="/wallet/topup">Top up your wallet</a>.';
-        }
         showError(msg);
       });
   }

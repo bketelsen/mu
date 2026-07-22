@@ -16,7 +16,6 @@ import (
 	"mu/internal/app"
 	"mu/internal/auth"
 	"mu/internal/service"
-	"mu/wallet"
 )
 
 var mutex sync.RWMutex
@@ -387,27 +386,13 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Require auth for search (charged operation)
-	_, acc, err := auth.RequireSession(r)
+	// Require auth for search.
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		if app.WantsJSON(r) {
 			app.Unauthorized(w, r)
 		} else {
 			app.RedirectToLogin(w, r)
-		}
-		return
-	}
-
-	// Check quota
-	canProceed, _, cost, _ := wallet.CheckQuota(acc.ID, wallet.OpPlacesSearch)
-	if !canProceed {
-		if app.WantsJSON(r) {
-			app.RespondError(w, http.StatusPaymentRequired, "Insufficient credits. Top up your wallet to continue.")
-		} else {
-			app.Respond(w, r, app.Response{
-				Title: "Places",
-				HTML:  `<p class="text-error">Insufficient credits. <a href="/wallet/topup">Top up your wallet</a> to search places.</p>` + renderPlacesPage(r),
-			})
 		}
 		return
 	}
@@ -468,11 +453,6 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 	sortBy := formValue("sort")
 	sortPlaces(results, sortBy)
 
-	// Deduct credits
-	if cost > 0 {
-		wallet.DeductCredits(acc.ID, cost, wallet.OpPlacesSearch, map[string]interface{}{"query": query})
-	}
-
 	if app.WantsJSON(r) {
 		app.RespondJSON(w, map[string]interface{}{
 			"results": results,
@@ -506,27 +486,13 @@ func handleNearby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Require auth for nearby search (charged operation)
-	_, acc, err := auth.RequireSession(r)
+	// Require auth for nearby search.
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		if app.WantsJSON(r) {
 			app.Unauthorized(w, r)
 		} else {
 			app.RedirectToLogin(w, r)
-		}
-		return
-	}
-
-	// Check quota
-	canProceed, _, cost, _ := wallet.CheckQuota(acc.ID, wallet.OpPlacesNearby)
-	if !canProceed {
-		if app.WantsJSON(r) {
-			app.RespondError(w, http.StatusPaymentRequired, "Insufficient credits. Top up your wallet to continue.")
-		} else {
-			app.Respond(w, r, app.Response{
-				Title: "Places",
-				HTML:  `<p class="text-error">Insufficient credits. <a href="/wallet/topup">Top up your wallet</a> to search nearby places.</p>` + renderPlacesPage(r),
-			})
 		}
 		return
 	}
@@ -584,13 +550,6 @@ func handleNearby(w http.ResponseWriter, r *http.Request) {
 	// Apply sort order
 	sortBy := formValue("sort")
 	sortPlaces(results, sortBy)
-
-	// Deduct credits
-	if cost > 0 {
-		wallet.DeductCredits(acc.ID, cost, wallet.OpPlacesNearby, map[string]interface{}{
-			"lat": lat, "lon": lon, "radius": radius,
-		})
-	}
 
 	if app.WantsJSON(r) {
 		app.RespondJSON(w, map[string]interface{}{

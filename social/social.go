@@ -21,7 +21,6 @@ import (
 	"mu/internal/service"
 	"mu/internal/snapshot"
 	"mu/news"
-	"mu/wallet"
 )
 
 // cardSnap is the go-micro read-plane channel for the social card (store +
@@ -777,23 +776,11 @@ func truncate(s string, n int) string {
 }
 
 func handleAPISearch(w http.ResponseWriter, r *http.Request, query string) {
-	sess, _, err := auth.RequireSession(r)
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		app.Unauthorized(w, r)
 		return
 	}
-
-	canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, wallet.OpSocialSearch)
-	if !canProceed {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error":          "insufficient credits",
-			"credits_needed": cost,
-		})
-		return
-	}
-
-	wallet.ConsumeQuota(sess.Account, wallet.OpSocialSearch)
 
 	results := data.Search(query, 50)
 	var socialResults []map[string]interface{}
@@ -819,18 +806,6 @@ func handleSearch(w http.ResponseWriter, r *http.Request, query string) {
 		app.Unauthorized(w, r)
 		return
 	}
-
-	canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, wallet.OpSocialSearch)
-	if !canProceed {
-		content := wallet.QuotaExceededPage(wallet.OpSocialSearch, cost)
-		app.Respond(w, r, app.Response{
-			Title: "Social - Search",
-			HTML:  content,
-		})
-		return
-	}
-
-	wallet.ConsumeQuota(sess.Account, wallet.OpSocialSearch)
 
 	results := data.Search(query, 50)
 	var sb strings.Builder
