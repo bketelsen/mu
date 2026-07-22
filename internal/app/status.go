@@ -165,13 +165,6 @@ func buildStatus() StatusResponse {
 		Status: youtubeConfigured,
 	})
 
-	// Check Google Places API
-	googleConfigured := settings.IsSet("GOOGLE_API_KEY")
-	services = append(services, StatusCheck{
-		Name:   "Google Places API",
-		Status: googleConfigured,
-	})
-
 	// Check Payments (Stripe + x402)
 	stripeConfigured := os.Getenv("STRIPE_SECRET_KEY") != "" && os.Getenv("STRIPE_PUBLISHABLE_KEY") != ""
 	x402Configured := os.Getenv("X402_PAY_TO") != ""

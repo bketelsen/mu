@@ -16,7 +16,6 @@ var STATIC_CACHE = [
   '/video.png',
   '/wallet.png',
   '/agent.svg',
-  '/places.svg',
   '/weather.png',
   '/account.png',
   '/logout.png',

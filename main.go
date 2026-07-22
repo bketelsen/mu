@@ -38,6 +38,7 @@ import (
 	"mu/internal/cli"
 	"mu/internal/data"
 	"mu/internal/memory"
+	"mu/internal/migration"
 	"mu/internal/service"
 	"mu/internal/settings"
 	"mu/internal/setup"
@@ -45,7 +46,6 @@ import (
 	"mu/mail"
 	"mu/news"
 	"mu/news/digest"
-	"mu/places"
 	"mu/recall"
 	"mu/search"
 	"mu/social"
@@ -139,6 +139,10 @@ func main() {
 		app.Log("auth", "single-owner migration failed: %v", err)
 		os.Exit(1)
 	}
+	if err := migration.RemovePlaces(); err != nil {
+		app.Log("migration", "retired service migration failed: %v", err)
+		os.Exit(1)
+	}
 
 	// log the resolved AI provider up front so misconfiguration (missing
 	// token/key in this environment) is visible immediately, not as
@@ -169,9 +173,6 @@ func main() {
 
 	// load the mail (also configures SMTP and DKIM)
 	mail.Load()
-
-	// load places
-	places.Load()
 
 	// load weather
 	weather.Load()
@@ -950,7 +951,7 @@ func main() {
 	// Register agent MCP tool (also exposed as POST /agent/run on the REST page).
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "agent",
-		Description: "Ask the AI agent a question. The agent can search GitHub, news, web, video, weather, places, and more to answer your question.",
+		Description: "Ask the AI agent a question. The agent can search GitHub, news, web, video, weather, and more to answer your question.",
 		Method:      "POST",
 		Path:        "/agent/run",
 		WalletOp:    "agent_query",
@@ -1160,10 +1161,6 @@ func main() {
 	// Stream (console) routes
 	http.HandleFunc("/stream", stream.Handler)
 	http.HandleFunc("/stream/fragment", stream.FragmentHandler)
-
-	// serve places page
-	http.HandleFunc("/places", places.Handler)
-	http.HandleFunc("/places/", places.Handler)
 
 	// serve weather page
 	http.HandleFunc("/weather", weather.Handler)
