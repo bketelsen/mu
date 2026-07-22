@@ -16,7 +16,6 @@
     video:function(){return get('/video')},
     blog:{list:function(){return get('/blog')},read:function(id){return get('/blog/post?id='+id)},create:function(o){return post('/blog',o)}},
     social:function(){return get('/social')},
-    places:{search:function(o){return post('/places/search',o)},nearby:function(o){return post('/places/nearby',o)}},
     chat:function(prompt){return post('/chat',{prompt:prompt})},
     search:function(q){return get('/search?q='+encodeURIComponent(q))},
     apps:{list:function(){return get('/apps')},read:function(s){return get('/apps/'+s)}},
