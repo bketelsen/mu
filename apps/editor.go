@@ -118,10 +118,6 @@ func editPageHTML(a *App) string {
         <label for="appTags" style="font-size:12px;color:#666;display:block;margin-bottom:2px;">Tags</label>
         <input type="text" id="appTags" placeholder="e.g. productivity" style="width:100%%;box-sizing:border-box;padding:8px 12px;border:1px solid #e0e0e0;border-radius:6px;font-family:inherit;font-size:14px;">
       </div>
-      <div style="width:130px;">
-        <label for="appPrice" style="font-size:12px;color:#666;display:block;margin-bottom:2px;">Price (credits)</label>
-        <input type="number" id="appPrice" placeholder="0 = free" style="width:100%%;box-sizing:border-box;padding:8px 12px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;" min="0" max="1000" title="Credits charged per use (0 = free)">
-      </div>
       <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;padding:8px 0;"><input type="checkbox" id="appPublic" style="width:auto;margin:0"> Public</label>
     </div>
     <div style="display:flex;gap:8px;align-items:end;">
@@ -150,7 +146,6 @@ document.getElementById('appSlugInput').value = editSlug;
 document.getElementById('appDesc').value = %s;
 document.getElementById('appTags').value = %s;
 document.getElementById('appPublic').checked = %s;
-document.getElementById('appPrice').value = %d;
 showPreview();
 
 codeEl.addEventListener('keydown', function(e) {
@@ -201,7 +196,7 @@ function saveApp() {
   fetch('/apps/' + editSlug, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name, icon: appIcon, description: desc, tags: tags, html: html, public: document.getElementById('appPublic').checked, price: parseInt(document.getElementById('appPrice').value)||0 })
+    body: JSON.stringify({ name: name, icon: appIcon, description: desc, tags: tags, html: html, public: document.getElementById('appPublic').checked })
   })
   .then(function(r) {
     if (!r.ok) {
@@ -238,5 +233,5 @@ function deleteApp() {
   .then(function(r) { if (r.ok) window.location.href = '/apps'; else throw new Error('Delete failed'); })
   .catch(function(e) { document.getElementById('statusMsg').textContent = e.message; });
 }
-</script>`, htmlpkg.EscapeString(a.Slug), savedAt, versionLink, escapedIcon, escapedSlug, escapedCode, escapedName, escapedDesc, escapedTags, fmt.Sprintf("%v", a.Public), a.Price)
+</script>`, htmlpkg.EscapeString(a.Slug), savedAt, versionLink, escapedIcon, escapedSlug, escapedCode, escapedName, escapedDesc, escapedTags, fmt.Sprintf("%v", a.Public))
 }

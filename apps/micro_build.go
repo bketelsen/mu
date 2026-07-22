@@ -96,9 +96,6 @@ func handleMicroGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Credits for generation are charged by the wallet middleware
-	// (walletOpForPath maps /apps/generate -> app_build).
-
 	description := strings.TrimSpace(r.FormValue("description"))
 	if description == "" {
 		app.Error(w, r, http.StatusBadRequest, "Describe what you want the app to do")

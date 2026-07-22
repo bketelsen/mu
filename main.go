@@ -779,12 +779,11 @@ func main() {
 			{Name: "description", Type: "string", Description: "Short description of what the app does", Required: true},
 			{Name: "tags", Type: "string", Description: "Comma-separated tags (optional)", Required: false},
 			{Name: "html", Type: "string", Description: "The app's HTML content (can include inline CSS and JavaScript, max 256KB)", Required: true},
-			{Name: "price", Type: "number", Description: "Credits charged per use (0 = free, max 1000)", Required: false},
 		},
 	})
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "apps_edit",
-		Description: "Edit an existing app you own — update its name, description, tags, icon, HTML code, or price",
+		Description: "Edit an existing app you own — update its name, description, tags, icon, or HTML code",
 		Params: []api.ToolParam{
 			{Name: "slug", Type: "string", Description: "The app's URL slug (e.g. pomodoro-timer)", Required: true},
 			{Name: "name", Type: "string", Description: "New app name", Required: false},
@@ -792,7 +791,6 @@ func main() {
 			{Name: "tags", Type: "string", Description: "New comma-separated tags", Required: false},
 			{Name: "html", Type: "string", Description: "New HTML content (max 256KB)", Required: false},
 			{Name: "icon", Type: "string", Description: "New SVG icon", Required: false},
-			{Name: "price", Type: "number", Description: "Credits charged per use (0 = free, max 1000)", Required: false},
 		},
 	}, func(args map[string]any, accountID string) (string, error) {
 		slug, _ := args["slug"].(string)
@@ -804,13 +802,9 @@ func main() {
 		tags, _ := args["tags"].(string)
 		html, _ := args["html"].(string)
 		icon, _ := args["icon"].(string)
-		price := -1 // -1 means "not set"
-		if p, ok := args["price"].(float64); ok {
-			price = int(p)
-		}
 		// Ownership is bound to the authenticated caller — a user can only edit
 		// their own app, never one named by slug alone.
-		a, err := apps.UpdateAppOwned(accountID, slug, name, description, tags, html, icon, price)
+		a, err := apps.UpdateAppOwned(accountID, slug, name, description, tags, html, icon)
 		if err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err.Error()), err
 		}
