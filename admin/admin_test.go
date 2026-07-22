@@ -38,7 +38,7 @@ func TestAdminDashboardContainsOnlyOperationalLinks(t *testing.T) {
 	body := rr.Body.String()
 	for _, want := range []string{
 		"/admin/console", "/admin/env", "/admin/server", "/admin/log", "/admin/diagnostics",
-		"/admin/email", "/admin/api", "/admin/usage", "/admin/delete", "/admin/blocklist", "/admin/spam",
+		"/admin/email", "/admin/api", "/admin/usage", "/admin/delete", "/admin/blocklist", "/admin/spam", "/admin/topics",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("dashboard missing %s", want)
