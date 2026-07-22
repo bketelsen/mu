@@ -22,7 +22,6 @@ import (
 type Model struct {
 	ID       string
 	Name     string
-	WalletOp string
 	Provider string // ai provider constant, empty = default
 	Model    string // ai model override, empty = provider default
 }
@@ -34,13 +33,11 @@ var Models = []Model{
 	{
 		ID:       "standard",
 		Name:     "Fast",
-		WalletOp: "agent_query",
 		Provider: ai.ProviderDefault,
 	},
 	{
 		ID:       "premium",
 		Name:     "Best",
-		WalletOp: "agent_query_premium",
 		Provider: ai.ProviderAnthropic,
 	},
 }
@@ -56,15 +53,6 @@ func (m Model) resolveModel() string {
 	return m.Model
 }
 
-// QuotaCheck is set by main.go to wire in the wallet quota check without an
-// import cycle. Signature matches api.QuotaCheck.
-var QuotaCheck func(r *http.Request, op string) (bool, int, error)
-
-// ChargeQuota is set by main.go to deduct credits from the acting user's wallet
-// once an agent query is admitted. Charging the user who runs the agent (not any
-// app owner) is deliberate. Admins and self-hosted instances are unaffected.
-var ChargeQuota func(r *http.Request, op string)
-
 // Load initialises the agent package (no-op for now; reserved for future use).
 func Load() {}
 
@@ -77,7 +65,7 @@ type QueryMessage struct {
 // QueryOpts controls what context is included in agent queries.
 type QueryOpts struct {
 	History []QueryMessage
-	Public  bool     // if true, skip private context (mail, wallet, etc.)
+	Public  bool     // if true, skip private context
 	System  string   // optional custom system prompt (user-defined agent)
 	Tools   []string // optional tool allow-list (user-defined agent); empty = all
 }
@@ -679,8 +667,6 @@ func ToolsDropdownHTML() string {
 <div style="padding:3px 12px;">🌤 Weather</div>
 <div style="padding:3px 12px;">🔎 Search</div>
 <div style="padding:3px 12px;">📝 Blog</div>
-<div style="padding:3px 12px;">💰 Wallet</div>
-<div style="padding:3px 12px;">💳 Topup</div>
 <div style="padding:3px 12px;">📱 Apps Search</div>
 <div style="padding:3px 12px;">📱 Apps Read</div>
 <div style="padding:3px 12px;">🔨 Apps Build</div>
@@ -712,9 +698,6 @@ const agentToolsDesc = `Available tools (use exact name):
 - apps_build: build a small app (a tracker, checklist, or counter) from a description (args: {"prompt":"an expense tracker"})
 - apps_edit: Edit an existing app (args: {"slug":"app-slug","html":"<new html>","name":"New Name"})
 - apps_run: Run JavaScript code and return the result (args: {"code":"return 2+2"})
-- wallet_balance: Check your wallet credit balance (no args)
-- wallet: Get your Base wallet address and USDC balance (no args). This wallet pays for metered MCP tools via x402.
-- pay: Call a metered tool on an MCP server and pay from your Base wallet via x402 (args: {"tool":"news_search","server":"self","arguments":{"query":"ai"}})
 - stream: Read the public event stream (no args)`
 
 const guestToolsDesc = `Available tools (use exact name):
@@ -773,23 +756,6 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		if m.ID == req.Model {
 			model = m
 			break
-		}
-	}
-
-	// Check wallet quota (authenticated users only), then charge up-front: the
-	// agent is our most expensive op, so it's metered like web_fetch and chat.
-	if !isGuest && QuotaCheck != nil {
-		canProceed, _, err := QuotaCheck(r, model.WalletOp)
-		if !canProceed {
-			msg := "Insufficient credits for agent query. Top up at /wallet."
-			if err != nil {
-				msg = err.Error()
-			}
-			http.Error(w, `{"error":"`+msg+`"}`, http.StatusPaymentRequired)
-			return
-		}
-		if ChargeQuota != nil {
-			ChargeQuota(r, model.WalletOp)
 		}
 	}
 
@@ -1194,11 +1160,6 @@ func shortcutToolCalls(prompt string) []shortcutToolCall {
 		"what's in the news?":                   {{Tool: "news_headlines", Args: map[string]any{}}},
 		"find me the latest tech videos":        {{Tool: "video_search", Args: map[string]any{"query": "tech"}}},
 		"search the web for the latest ai news": {{Tool: "web_search", Args: map[string]any{"q": "latest AI news"}}},
-		// Wallet
-		"my wallet":      {{Tool: "wallet", Args: map[string]any{}}},
-		"wallet":         {{Tool: "wallet", Args: map[string]any{}}},
-		"wallet balance": {{Tool: "wallet", Args: map[string]any{}}},
-		"wallet address": {{Tool: "wallet", Args: map[string]any{}}},
 	}
 	lower := strings.ToLower(strings.TrimSpace(prompt))
 	if tc, ok := aliases[lower]; ok {
@@ -1421,10 +1382,6 @@ func toolLabel(tool string) string {
 		return "Searching Mu"
 	case "blog_list":
 		return "📝 Reading blog posts"
-	case "wallet_balance":
-		return "💳 Checking wallet balance"
-	case "wallet_topup":
-		return "💳 Getting topup options"
 	case "apps_search":
 		return "📱 Searching apps"
 	case "apps_read":
@@ -1680,10 +1637,6 @@ func formatToolResult(toolName, result string, args map[string]any) string {
 		return withCurrentDateContext(result)
 	case "web_fetch":
 		return formatWebFetchResult(result)
-	case "wallet_balance":
-		return formatWalletBalanceResult(result)
-	case "wallet_topup":
-		return formatWalletTopupResult(result)
 	case "apps_search":
 		return formatAppsSearchResult(result)
 	case "apps_read":
@@ -2019,50 +1972,6 @@ func stripHTMLTags(s string) string {
 		out = out[:2000] + "…"
 	}
 	return out
-}
-
-// formatWalletBalanceResult converts a raw JSON wallet balance result into
-// human-readable text for the AI synthesis RAG context.
-func formatWalletBalanceResult(result string) string {
-	var data struct {
-		Balance int `json:"balance"`
-	}
-	if err := json.Unmarshal([]byte(result), &data); err != nil {
-		return result
-	}
-	pounds := data.Balance / 100
-	pence := data.Balance % 100
-	return fmt.Sprintf("Wallet balance: %d credits (£%d.%02d). Top up at /wallet/topup.\n", data.Balance, pounds, pence)
-}
-
-// formatWalletTopupResult converts a raw JSON wallet topup methods result into
-// human-readable text for the AI synthesis RAG context.
-func formatWalletTopupResult(result string) string {
-	var data struct {
-		Methods []struct {
-			Type  string `json:"type"`
-			Tiers []struct {
-				Amount  int    `json:"amount"`
-				Credits int    `json:"credits"`
-				Label   string `json:"label"`
-			} `json:"tiers"`
-		} `json:"methods"`
-	}
-	if err := json.Unmarshal([]byte(result), &data); err != nil {
-		return result
-	}
-	if len(data.Methods) == 0 {
-		return "No topup methods available. Visit /wallet/topup to add credits."
-	}
-	var sb strings.Builder
-	sb.WriteString("Wallet topup options (visit /wallet/topup to add credits):\n")
-	for _, m := range data.Methods {
-		sb.WriteString(fmt.Sprintf("%s payment:\n", m.Type))
-		for _, t := range m.Tiers {
-			sb.WriteString(fmt.Sprintf("- %s: %d credits\n", t.Label, t.Credits))
-		}
-	}
-	return sb.String()
 }
 
 // formatAppsSearchResult converts a raw JSON apps search result into

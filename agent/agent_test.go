@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -268,69 +269,14 @@ func TestFormatToolResult_Dispatch(t *testing.T) {
 	}
 }
 
-func TestFormatWalletBalanceResult_WithBalance(t *testing.T) {
-	result := `{"balance":1550}`
-	got := formatWalletBalanceResult(result)
-	if !strings.Contains(got, "1550 credits") {
-		t.Errorf("expected credits in output, got %q", got)
+func TestModelsHaveNoPaymentMetadata(t *testing.T) {
+	if _, ok := reflect.TypeFor[Model]().FieldByName("WalletOp"); ok {
+		t.Fatal("Model retains WalletOp payment metadata")
 	}
-	if !strings.Contains(got, "£15.50") {
-		t.Errorf("expected formatted pounds in output, got %q", got)
-	}
-	if !strings.Contains(got, "/wallet/topup") {
-		t.Errorf("expected topup link in output, got %q", got)
-	}
-}
-
-func TestFormatWalletBalanceResult_ZeroBalance(t *testing.T) {
-	result := `{"balance":0}`
-	got := formatWalletBalanceResult(result)
-	if !strings.Contains(got, "0 credits") {
-		t.Errorf("expected zero credits in output, got %q", got)
-	}
-	if !strings.Contains(got, "£0.00") {
-		t.Errorf("expected £0.00 in output, got %q", got)
-	}
-}
-
-func TestFormatWalletBalanceResult_InvalidJSON(t *testing.T) {
-	result := `not json`
-	got := formatWalletBalanceResult(result)
-	if got != result {
-		t.Errorf("expected original result as fallback, got %q", got)
-	}
-}
-
-func TestFormatWalletTopupResult_WithMethods(t *testing.T) {
-	result := `{"methods":[{"type":"card","tiers":[{"amount":1000,"credits":1000,"label":"£10"},{"amount":5000,"credits":5000,"label":"£50"}]}]}`
-	got := formatWalletTopupResult(result)
-	if !strings.Contains(got, "/wallet/topup") {
-		t.Errorf("expected topup URL in output, got %q", got)
-	}
-	if !strings.Contains(got, "card payment") && !strings.Contains(got, "card") {
-		t.Errorf("expected card payment label in output, got %q", got)
-	}
-	if !strings.Contains(got, "£10") {
-		t.Errorf("expected tier label in output, got %q", got)
-	}
-	if !strings.Contains(got, "1000 credits") {
-		t.Errorf("expected credits in output, got %q", got)
-	}
-}
-
-func TestFormatWalletTopupResult_NoMethods(t *testing.T) {
-	result := `{"methods":[]}`
-	got := formatWalletTopupResult(result)
-	if !strings.Contains(got, "/wallet/topup") {
-		t.Errorf("expected topup URL in no-methods output, got %q", got)
-	}
-}
-
-func TestFormatWalletTopupResult_InvalidJSON(t *testing.T) {
-	result := `not json`
-	got := formatWalletTopupResult(result)
-	if got != result {
-		t.Errorf("expected original result as fallback, got %q", got)
+	for _, model := range Models {
+		if model.ID == "" || model.Name == "" {
+			t.Fatalf("model has incomplete metadata: %#v", model)
+		}
 	}
 }
 
@@ -405,20 +351,6 @@ func TestRenderToolCallRef_Query(t *testing.T) {
 	got := renderToolCallRef("web_search", args, "Weather forecast for London\n")
 	if !strings.Contains(got, "weather in London") {
 		t.Errorf("expected query in label, got %q", got)
-	}
-}
-
-func TestFormatToolResult_WalletDispatch(t *testing.T) {
-	balanceResult := `{"balance":500}`
-	got := formatToolResult("wallet_balance", balanceResult, nil)
-	if !strings.Contains(got, "500 credits") {
-		t.Errorf("expected wallet_balance formatter to be called, got %q", got)
-	}
-
-	topupResult := `{"methods":[{"type":"card","tiers":[{"amount":1000,"credits":1000,"label":"£10"}]}]}`
-	got = formatToolResult("wallet_topup", topupResult, nil)
-	if !strings.Contains(got, "topup") {
-		t.Errorf("expected wallet_topup formatter to be called, got %q", got)
 	}
 }
 

@@ -48,39 +48,13 @@ repository, issue, and pull-request service. Grant metadata, issues, and pull
 request read access only to repositories Mu should expose. It is separate from
 `COPILOT_GITHUB_TOKEN`.
 
-## Credits and outbound x402
-
-```bash
-export STRIPE_SECRET_KEY="..."
-export STRIPE_PUBLISHABLE_KEY="..."
-export STRIPE_WEBHOOK_SECRET="..."
-export X402_PAY_TO="0xYourOwnerWallet"
-export X402_FACILITATOR_URL="https://api.cdp.coinbase.com/platform/v2/x402"
-export X402_NETWORK="eip155:8453"
-export X402_ASSETS="USDC,EURC"
-export CDP_API_KEY_ID="..."
-export CDP_API_KEY_SECRET="..."
-```
-
-Stripe tops up the owner's credit balance. x402 configuration enables owner
-initiated payments to remote services. It does not expose an incoming payment
-route, and payment headers never replace authentication. CDP settlement uses an
-Ed25519 Secret API Key; set `CDP_API_KEY_ID` and `CDP_API_KEY_SECRET` when the
-configured CDP facilitator requires them.
-
 ## Costs and storage
 
 `NOTES` controls the background owner-note loop. It is enabled by default; set
 it to `off`, `false`, `0`, or `no` to disable it.
 
-The following variables override integer credit costs: `CREDIT_COST_NEWS`,
-`CREDIT_COST_VIDEO`, `CREDIT_COST_CHAT`, `CREDIT_COST_BLOG_CREATE`,
-`CREDIT_COST_MAIL`, `CREDIT_COST_EMAIL`, `CREDIT_COST_WEATHER`,
-`CREDIT_COST_WEATHER_POLLEN`, `CREDIT_COST_SEARCH`, `CREDIT_COST_FETCH`,
-`CREDIT_COST_DB_WRITE`, `CREDIT_COST_AGENT`, `CREDIT_COST_AGENT_PREMIUM`,
-`CREDIT_COST_CONTENT_POST`,
-`CREDIT_COST_BLOG_COMMENT`, `CREDIT_COST_IMAGE`, `CREDIT_COST_APP_BUILD`, and
-`CREDIT_COST_APP_EDIT`.
+Legacy payment-related environment variables are no longer read by Mu and may
+be removed manually.
 
 `MU_USE_SQLITE=1` enables the SQLite search index. Back up the complete
 `~/.mu` data directory before upgrades or migration.

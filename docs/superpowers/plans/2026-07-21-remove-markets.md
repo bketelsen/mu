@@ -11,9 +11,8 @@
 ## Global Constraints
 
 - Do not add redirects, deprecation handlers, compatibility tools, or replacement market workflows.
-- Preserve ordinary finance and market language when it belongs to news, web search, payments, or editorial content.
+- Preserve ordinary finance and market language when it belongs to news, web search, or editorial content.
 - Preserve stale `markets` strings in persisted `Account.HomeCards` data; unknown card IDs are ignored naturally.
-- Do not remove wallet cryptocurrency payment support or x402 documentation.
 - The final repository must contain no `markets/` package or market-specific image asset.
 - Use `go test ./... -short` and `go build ./...` as the completion gates.
 
@@ -511,7 +510,7 @@ Current context (recent news, search results, or articles fetched now):
 
 Remove Markets/live-price claims from A2A and internal agent descriptions, landing and pricing pages, blog generation facts, notes, and seed posts. Delete the `Market answers without the detour` note from `blog/notes.json`. Replace typed SDK examples with existing helpers such as `mu.weather`, `mu.news`, and `mu.video`; replace live-market agent examples with current-news or place-search examples.
 
-Do not remove `chat/prompts.json` Crypto/Finance editorial prompts, news finance classifications, blog opinion-memory market subject matter, or wallet/x402 cryptocurrency references.
+Do not remove `chat/prompts.json` Crypto/Finance editorial prompts, news finance classifications, or blog opinion-memory market subject matter.
 
 - [ ] **Step 5: Run composition and copy tests**
 
@@ -568,7 +567,7 @@ Across the listed files:
 - replace BTC/live-price examples with supported news, weather, places, or search examples;
 - update composition diagrams and trees so `home`, digest, and opinion no longer import Markets;
 - reframe snapshot architecture examples around an extant service such as News;
-- preserve generic financial-news discussion and wallet/x402 cryptocurrency payment documentation.
+- preserve generic financial-news discussion.
 
 Do not edit `docs/superpowers/specs/2026-07-21-remove-markets-design.md`; it is the historical contract for this removal.
 
@@ -604,7 +603,7 @@ Run:
 rg -n -i '\bmarkets?\b|\bcrypto(currency)?\b|\bbitcoin\b|\bethereum\b|\bfutures\b|\bcommodit(y|ies)\b' . --glob '!docs/superpowers/specs/2026-07-21-remove-markets-design.md' --glob '!docs/superpowers/plans/2026-07-21-remove-markets.md'
 ```
 
-Expected: remaining matches are limited to generic financial news/editorial language, news fixtures/classification, marketplace terminology, or wallet/x402 cryptocurrency payments. Remove any match that advertises, routes to, fetches, caches, or formats Mu-provided live prices.
+Expected: remaining matches are limited to generic financial news/editorial language, news fixtures/classification, or marketplace terminology. Remove any match that advertises, routes to, fetches, caches, or formats Mu-provided live prices.
 
 - [ ] **Step 5: Run full verification**
 

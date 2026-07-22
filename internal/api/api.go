@@ -550,55 +550,16 @@ func init() {
 		},
 	})
 
-	// Wallet endpoint
-	Endpoints = append(Endpoints, &Endpoint{
-		Name:        "Wallet Balance",
-		Path:        "/wallet?balance=1",
-		Method:      "GET",
-		Description: "Get wallet credit balance",
-		Response: []*Value{
-			{
-				Type: "JSON",
-				Params: []*Param{
-					{
-						Name:        "balance",
-						Value:       "number",
-						Description: "Current credit balance (1 credit = 1p)",
-					},
-				},
-			},
-		},
-	})
-
-	Endpoints = append(Endpoints, &Endpoint{
-		Name:        "Wallet Topup",
-		Path:        "/wallet/topup",
-		Method:      "GET",
-		Description: "Get available wallet topup payment methods. Returns card (Stripe) preset tiers with amount, credits, and label. Requires authentication.",
-		Response: []*Value{
-			{
-				Type: "JSON",
-				Params: []*Param{
-					{
-						Name:        "methods",
-						Value:       "array",
-						Description: "Array of payment method objects. Each has a type (card) and tiers with amount, credits, and label.",
-					},
-				},
-			},
-		},
-	})
-
 	// Weather endpoints
 	Endpoints = append(Endpoints, &Endpoint{
 		Name:        "Weather Forecast",
 		Path:        "/weather",
 		Method:      "GET",
-		Description: "Get the weather forecast for a location by latitude and longitude. Costs 1 credit.",
+		Description: "Get the weather forecast for a location by latitude and longitude.",
 		Params: []*Param{
 			{Name: "lat", Value: "number", Description: "Latitude of the location"},
 			{Name: "lon", Value: "number", Description: "Longitude of the location"},
-			{Name: "pollen", Value: "string", Description: "Set to 1 to include pollen forecast (+1 credit)"},
+			{Name: "pollen", Value: "string", Description: "Set to 1 to include pollen forecast"},
 		},
 		Response: []*Value{
 			{
@@ -616,7 +577,7 @@ func init() {
 		Name:        "Web Search",
 		Path:        "/web",
 		Method:      "GET",
-		Description: "Search the web using Brave Search. Requires authentication. Costs credits per query.",
+		Description: "Search the web using Brave Search. Requires authentication.",
 		Params: []*Param{
 			{Name: "q", Value: "string", Description: "Search query"},
 		},
@@ -636,7 +597,7 @@ func init() {
 		Name:        "Agent Query",
 		Path:        "/agent",
 		Method:      "POST",
-		Description: "Query the AI agent. The agent plans and executes tool calls (GitHub, news, weather, and more) then synthesizes a response. Requires authentication. Costs credits per query. Returns a Server-Sent Events stream.",
+		Description: "Query the AI agent. The agent plans and executes tool calls (GitHub, news, weather, and more) then synthesizes a response. Requires authentication. Returns a Server-Sent Events stream.",
 		Params: []*Param{
 			{Name: "prompt", Value: "string", Description: "The question or request for the agent"},
 			{Name: "model", Value: "string", Description: "Model tier: standard (default) or premium"},
@@ -658,7 +619,7 @@ func init() {
 		Name:        "MCP Server",
 		Path:        "/mcp",
 		Method:      "POST",
-		Description: "Owner-authenticated Model Context Protocol server for AI tool integration. Tools include GitHub, chat, news, blog, video, mail, search, wallet, and weather. Metered tools use the owner's wallet credits. x402 is available only for owner-initiated outbound calls to remote services.",
+		Description: "Owner-authenticated Model Context Protocol server for AI tool integration. Tools include GitHub, chat, news, blog, video, mail, search, and weather.",
 		Params: []*Param{
 			{
 				Name:        "jsonrpc",

@@ -8,7 +8,7 @@ A personal home server. News, mail, search, weather, video — the everyday inte
 - **Services** — each domain (news, mail, weather, blog, video, search) is a package under the top level
 - **Agents** — `agent/micro/` contains specialised micro-agents per domain, routed by keyword + LLM
 - **Channels** — Discord (`client/discord/`), Telegram (`client/telegram/`), WhatsApp (`client/whatsapp/`)
-- **Protocols** — owner-authenticated MCP server at `/mcp`, A2A at `/a2a`, outbound x402 payments
+- **Protocols** — owner-authenticated MCP server at `/mcp` and A2A at `/a2a`
 - **AI** — `internal/ai/` supports Anthropic Claude, Atlas Cloud (DeepSeek), and local models (Ollama)
 - **Config** — `internal/settings/` for live-reloadable settings, owner admin UI at `/admin/env`
 
@@ -31,7 +31,6 @@ A personal home server. News, mail, search, weather, video — the everyday inte
 | `client/discord/` | Discord bot with slash commands, embeds, briefings |
 | `client/telegram/` | Telegram bot with commands and groups |
 | `client/whatsapp/` | WhatsApp Business API integration |
-| `wallet/` | Credit system, Stripe, x402 |
 | `search/` | Brave web search, readability reader |
 | `docs/` | Embedded documentation served at /docs |
 
@@ -45,10 +44,9 @@ go vet ./...            # vet
 
 ## Conventions
 
-- No external dependencies for crypto (secp256k1, RLP, ECDSA implemented in pure Go in `wallet/evm.go`)
 - Settings via `internal/settings/` — reads env vars first, falls back to stored values
 - Background loops use goroutines started in `Load()` or `main.go`
 - Agent tools registered in `internal/api/mcp.go` (static) and `main.go` (dynamic with handlers)
 - First-run setup creates the only owner. Client integrations resolve only linked-owner direct messages and must never provision accounts.
-- Every web, API, CLI, MCP, and A2A surface is owner-authenticated after setup. Incoming x402 payment never bypasses authentication; x402 is outbound owner spending only.
+- Every web, API, CLI, MCP, and A2A surface is owner-authenticated after setup.
 - The main branch is `main`

@@ -47,16 +47,6 @@ var settingGroups = []settingGroup{
 		"SMTP_USER",
 		"SMTP_PASS",
 	}},
-	{"Payments", []string{
-		"STRIPE_SECRET_KEY",
-		"STRIPE_PUBLISHABLE_KEY",
-		"STRIPE_WEBHOOK_SECRET",
-		"X402_PAY_TO",
-	}},
-	{"Trading", []string{
-		"TRADE_RPC_URL",
-		"TRADE_CHAIN",
-	}},
 	{"Discord", []string{
 		"DISCORD_BOT_TOKEN",
 	}},

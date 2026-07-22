@@ -2,6 +2,7 @@ package news
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mmcdole/gofeed"
+	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/snapshot"
 	"mu/topics"
@@ -211,6 +213,46 @@ func TestContentParsers_StripHNComments(t *testing.T) {
 				t.Errorf("Expected %q to contain or equal %q", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestOwnerNewsSearchIsNotPaymentGated(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := ownerNewsRequest(t, "/news")
+	req.Method = http.MethodPost
+	req.Body = io.NopCloser(strings.NewReader(`{"query":"AI"}`))
+	handleAPISearch(rec, req)
+	assertNoNewsPaymentGate(t, rec)
+}
+
+func ownerNewsRequest(t *testing.T, target string) *http.Request {
+	t.Helper()
+	owner, err := auth.Owner()
+	if err != nil {
+		owner = &auth.Account{ID: "newsowner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}
+		if err := auth.Create(owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sess, err := auth.CreateSession(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: sess.Token})
+	return req
+}
+
+func assertNoNewsPaymentGate(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if recorder.Code == http.StatusPaymentRequired {
+		t.Fatalf("request was payment-gated: %s", recorder.Body.String())
+	}
+	body := strings.ToLower(recorder.Body.String())
+	for _, forbidden := range []string{"insufficient credits", "top up", "/wallet"} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("response contains removed payment copy %q: %s", forbidden, recorder.Body.String())
+		}
 	}
 }
 

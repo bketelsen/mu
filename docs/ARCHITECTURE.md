@@ -24,15 +24,12 @@ and WhatsApp direct messages also resolve to the owner.
 | `internal/data` | Owner-scoped file persistence, indexing, and events |
 | `agent/` | Owner agent planning and tool execution |
 | `home/`, `chat/`, `github/`, `mail/`, `news/`, `search/` | Private owner services |
-| `wallet/` | Owner credits, card top-ups, and outbound x402 client |
 
 Each building block has `Load()` and an HTTP handler registered from `main.go`.
 Agent tools are registered in `internal/api/mcp.go` and `main.go`; account-scoped
 tools bind the owner on the server rather than accepting an identity argument.
 
-## Migration and payments
+## Migration
 
 Legacy migration backs up the full data directory, retains the oldest admin as
-owner, or resets an admin-less instance. x402 is an outbound client capability
-for owner-initiated calls to remote services. Mu does not accept x402 payment as
-an authentication bypass.
+owner, or resets an admin-less instance.

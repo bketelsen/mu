@@ -15,7 +15,6 @@ import (
 
 	"mu/internal/app"
 	"mu/internal/auth"
-	"mu/wallet"
 )
 
 // nitterInstance is the Nitter instance used to fetch Twitter/X content.
@@ -78,7 +77,7 @@ func FetchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Require authentication
-	sess, _, err := auth.RequireSession(r)
+	_, _, err = auth.RequireSession(r)
 	if err != nil {
 		if app.WantsJSON(r) {
 			app.RespondError(w, http.StatusUnauthorized, "authentication required")
@@ -88,25 +87,8 @@ func FetchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check quota
-	canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, wallet.OpWebFetch)
-	if !canProceed {
-		if app.WantsJSON(r) {
-			app.RespondError(w, http.StatusPaymentRequired, fmt.Sprintf("web fetch requires %d credits", cost))
-			return
-		}
-		content := inputForm + wallet.QuotaExceededPage(wallet.OpWebFetch, cost)
-		w.Write([]byte(app.RenderHTMLForRequest("Fetch", "Web Fetch", content, r)))
-		return
-	}
-
 	// Fetch the page
 	title, body, fetchErr := FetchAndExtract(rawURL)
-
-	// Only charge on success
-	if fetchErr == nil {
-		wallet.ConsumeQuota(sess.Account, wallet.OpWebFetch)
-	}
 
 	// JSON response for API/MCP callers
 	if app.WantsJSON(r) {

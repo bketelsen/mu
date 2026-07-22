@@ -53,7 +53,6 @@ import (
 	"mu/topics"
 	"mu/user"
 	"mu/video"
-	"mu/wallet"
 	"mu/weather"
 )
 
@@ -63,6 +62,15 @@ var AddressFlag = flag.String("address", ":8080", "Address for server")
 
 var backupData = func() (string, error) { return data.Backup(time.Now()) }
 var runOwnerMigration = auth.MigrateSingleOwner
+var runWalletPaymentsMigration = data.RemoveWalletPayments
+
+func requiresWritePermission(r *http.Request) bool {
+	return r.Method == http.MethodPost && (r.URL.Path == "/user/status" ||
+		(r.URL.Path == "/blog" && r.URL.Query().Get("id") == "") ||
+		(strings.HasPrefix(r.URL.Path, "/blog/post/") && strings.HasSuffix(r.URL.Path, "/comment")) ||
+		r.URL.Path == "/apps/new" || r.URL.Path == "/apps/generate" || r.URL.Path == "/stream")
+}
+
 var loadTopics = topics.Load
 
 func loadTopicConfiguration() error {
@@ -90,8 +98,6 @@ func registerAccountCleanup() {
 	auth.RegisterAccountDeleteHook("stream", stream.ClearByAuthor)
 	auth.RegisterAccountDeleteHook("user", user.ClearStatusHistory)
 	auth.RegisterAccountDeleteHook("mail", mail.DeleteInbox)
-	auth.RegisterAccountDeleteHook("wallet", wallet.DeleteWallet)
-	auth.RegisterAccountDeleteHook("basewallet", wallet.DeleteBaseWallet)
 	auth.RegisterAccountDeleteHook("micro", micro.DeleteUserAgents)
 	auth.RegisterAccountDeleteHook("discord", discord.DeleteLinks)
 	auth.RegisterAccountDeleteHook("telegram", telegram.DeleteLinks)
@@ -109,6 +115,10 @@ func migrateSingleOwner() error {
 		app.Log("auth", "single-owner migration complete owner=%s deleted=%d reset=%v backup=%s", result.OwnerID, result.Deleted, result.Reset, result.BackupPath)
 	}
 	return nil
+}
+
+func migrateWalletPayments() error {
+	return runWalletPaymentsMigration()
 }
 
 // migrateRemoveSocial removes persisted social data after a backup. The index
@@ -190,6 +200,10 @@ func main() {
 		fmt.Println("--serve not set")
 		return
 	}
+	if err := migrateWalletPayments(); err != nil {
+		app.Log("migration", "wallet payment removal failed: %v", err)
+		os.Exit(1)
+	}
 
 	// api page is now dynamic (rendered in api.APIPageHandler)
 
@@ -250,9 +264,8 @@ func main() {
 	// load weather
 	weather.Load()
 
-	// load images and wallet
+	// load images
 	images.Load()
-	wallet.Load()
 	app.DiscordLinkCodeFunc = discord.GenerateLinkCode
 	discord.Load()
 	telegram.Load()
@@ -291,11 +304,6 @@ func main() {
 		// Unread mail count.
 		if unread := mail.GetUnreadCount(accountID); unread > 0 {
 			parts = append(parts, fmt.Sprintf("- %d unread email(s)", unread))
-		}
-		// Wallet balance.
-		bal := wallet.GetBalance(accountID)
-		if bal > 0 {
-			parts = append(parts, fmt.Sprintf("- Wallet: %d credits", bal))
 		}
 		// Persistent memory — things the user has told you to remember.
 		if mem := memory.ForContext(accountID); mem != "" {
@@ -424,37 +432,6 @@ func main() {
 	// system account (low cadence; disable with NOTES=off).
 	blog.StartNotes()
 
-	// Wire MCP quota checking using wallet credit system
-	api.QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		sess, err := auth.GetSession(r)
-		if err != nil {
-			return false, 0, fmt.Errorf("authentication required")
-		}
-		canProceed, _, cost, err := wallet.CheckQuota(sess.Account, op)
-		return canProceed, cost, err
-	}
-
-	// Wire agent quota checking (same wallet credit system)
-	agent.QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		sess, err := auth.GetSession(r)
-		if err != nil {
-			return false, 0, fmt.Errorf("authentication required")
-		}
-		canProceed, _, cost, err := wallet.CheckQuota(sess.Account, op)
-		return canProceed, cost, err
-	}
-
-	apps.QuotaCheck = agent.QuotaCheck
-
-	// Deduct credits from the acting user for a metered call (SDK or the agent).
-	chargeUser := func(r *http.Request, op string) {
-		if sess, err := auth.GetSession(r); err == nil {
-			_ = wallet.ConsumeQuota(sess.Account, op)
-		}
-	}
-	apps.ChargeQuota = chargeUser
-	agent.ChargeQuota = chargeUser
-
 	// Inline visual cards now come from the capability registry (core), which
 	// each service self-registers into from its Load(). No central wiring here.
 
@@ -495,7 +472,6 @@ func main() {
 	api.RegisterTool(api.Tool{
 		Name:        "web_search",
 		Description: "Search the web for current information and news",
-		WalletOp:    "web_search",
 		Params: []api.ToolParam{
 			{Name: "q", Type: "string", Description: "Search query", Required: true},
 		},
@@ -516,7 +492,6 @@ func main() {
 		Description: "Fetch a web page and return its cleaned readable content (strips ads, popups, navigation)",
 		Method:      "GET",
 		Path:        "/web/fetch",
-		WalletOp:    "web_fetch",
 		Params: []api.ToolParam{
 			{Name: "url", Type: "string", Description: "The URL to fetch", Required: true},
 		},
@@ -615,7 +590,6 @@ func main() {
 		Description: "Store a record in your database (a named collection). Private by default; set public=true to share it. Pass an id to update a record you own.",
 		Method:      "POST",
 		Path:        "/db",
-		WalletOp:    "db_write",
 		Params: []api.ToolParam{
 			{Name: "collection", Type: "string", Description: "Collection name (e.g. notes, tasks)", Required: true},
 			{Name: "data", Type: "object", Description: "The record's fields as a JSON object", Required: true},
@@ -698,13 +672,10 @@ func main() {
 		return `{"status":"ok"}`, nil
 	})
 
-	// image_generate — text-to-image via Atlas Cloud (metered, per-user).
-	// Charging happens inside images.Generate so every path bills exactly once;
-	// WalletOp here gates affordability and advertises the per-call price.
+	// image_generate — text-to-image via Atlas Cloud.
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "image_generate",
 		Description: "Generate an image from a text prompt. Returns a URL to the generated image.",
-		WalletOp:    "image_generate",
 		Params: []api.ToolParam{
 			{Name: "prompt", Type: "string", Description: "Describe the image to generate", Required: true},
 		},
@@ -765,7 +736,6 @@ func main() {
 	api.RegisterTool(api.Tool{
 		Name:        "weather_forecast",
 		Description: "Get the weather forecast for a location (current conditions plus the next few days).",
-		WalletOp:    "weather_forecast",
 		Params: []api.ToolParam{
 			{Name: "lat", Type: "number", Description: "Latitude of the location", Required: true},
 			{Name: "lon", Type: "number", Description: "Longitude of the location", Required: true},
@@ -866,12 +836,11 @@ func main() {
 			{Name: "description", Type: "string", Description: "Short description of what the app does", Required: true},
 			{Name: "tags", Type: "string", Description: "Comma-separated tags (optional)", Required: false},
 			{Name: "html", Type: "string", Description: "The app's HTML content (can include inline CSS and JavaScript, max 256KB)", Required: true},
-			{Name: "price", Type: "number", Description: "Credits charged per use (0 = free, max 1000)", Required: false},
 		},
 	})
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "apps_edit",
-		Description: "Edit an existing app you own — update its name, description, tags, icon, HTML code, or price",
+		Description: "Edit an existing app you own — update its name, description, tags, icon, or HTML code",
 		Params: []api.ToolParam{
 			{Name: "slug", Type: "string", Description: "The app's URL slug (e.g. pomodoro-timer)", Required: true},
 			{Name: "name", Type: "string", Description: "New app name", Required: false},
@@ -879,7 +848,6 @@ func main() {
 			{Name: "tags", Type: "string", Description: "New comma-separated tags", Required: false},
 			{Name: "html", Type: "string", Description: "New HTML content (max 256KB)", Required: false},
 			{Name: "icon", Type: "string", Description: "New SVG icon", Required: false},
-			{Name: "price", Type: "number", Description: "Credits charged per use (0 = free, max 1000)", Required: false},
 		},
 	}, func(args map[string]any, accountID string) (string, error) {
 		slug, _ := args["slug"].(string)
@@ -891,13 +859,9 @@ func main() {
 		tags, _ := args["tags"].(string)
 		html, _ := args["html"].(string)
 		icon, _ := args["icon"].(string)
-		price := -1 // -1 means "not set"
-		if p, ok := args["price"].(float64); ok {
-			price = int(p)
-		}
 		// Ownership is bound to the authenticated caller — a user can only edit
 		// their own app, never one named by slug alone.
-		a, err := apps.UpdateAppOwned(accountID, slug, name, description, tags, html, icon, price)
+		a, err := apps.UpdateAppOwned(accountID, slug, name, description, tags, html, icon)
 		if err != nil {
 			return fmt.Sprintf(`{"error":"%s"}`, err.Error()), err
 		}
@@ -907,7 +871,6 @@ func main() {
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "apps_build",
 		Description: "Build a small app from a natural language description, save it, and return the app details with URL. Apps are one of: a tracker (a list you add entries to, optionally totalling a number), a checklist, or a counter.",
-		WalletOp:    "app_build",
 		Params: []api.ToolParam{
 			{Name: "prompt", Type: "string", Description: "Description of the app to build (e.g. 'an expense tracker', 'a packing checklist', 'a water intake counter')", Required: true},
 		},
@@ -962,7 +925,6 @@ func main() {
 	api.RegisterTool(api.Tool{
 		Name:        "apps_run",
 		Description: "Run JavaScript code in a sandboxed environment and return the result. Use for calculations, data processing, or any computation the user needs.",
-		WalletOp:    "agent_query",
 		Params: []api.ToolParam{
 			{Name: "code", Type: "string", Description: "JavaScript code to execute. The code runs as a function body — use 'return' to output a value. Has access to mu.ai(), mu.web.fetch(), mu.db and mu.store for platform features.", Required: true},
 		},
@@ -1002,7 +964,6 @@ func main() {
 		Description: "Ask the AI agent a question. The agent can search GitHub, news, web, video, weather, and more to answer your question.",
 		Method:      "POST",
 		Path:        "/agent/run",
-		WalletOp:    "agent_query",
 		Params: []api.ToolParam{
 			{Name: "prompt", Type: "string", Description: "Your question or request", Required: true},
 		},
@@ -1016,51 +977,6 @@ func main() {
 			return fmt.Sprintf(`{"error":"%s"}`, err.Error()), err
 		}
 		return answer, nil
-	})
-
-	// Wallet: the user's x402 Base wallet — address + USDC balance.
-	api.RegisterToolWithAuth(api.Tool{
-		Name:        "wallet",
-		Description: "Get your Base wallet address and USDC balance. This wallet pays for metered MCP tools via x402.",
-	}, func(args map[string]any, accountID string) (string, error) {
-		bw, err := wallet.GetOrCreateWallet(accountID)
-		if err != nil {
-			return "", err
-		}
-		usdc, _ := wallet.USDCBalance(bw.Address)
-		b, _ := json.Marshal(map[string]any{"address": bw.Address, "network": "base", "usdc": usdc})
-		return string(b), nil
-	})
-
-	// Pay: call a tool on an MCP server (this one or another in the registry)
-	// and settle it from the user's Base wallet via x402.
-	api.RegisterToolWithAuth(api.Tool{
-		Name:        "pay",
-		Description: "Call a metered tool on an MCP server and pay for it from your Base wallet via x402. Works on this server and any other server in the registry.",
-		Params: []api.ToolParam{
-			{Name: "tool", Type: "string", Description: "Name of the tool to call", Required: true},
-			{Name: "server", Type: "string", Description: "Server name from the registry, or a base URL (default: self)", Required: false},
-			{Name: "arguments", Type: "object", Description: "Arguments to pass to the tool", Required: false},
-		},
-	}, func(args map[string]any, accountID string) (string, error) {
-		toolName, _ := args["tool"].(string)
-		if toolName == "" {
-			return "", fmt.Errorf("tool is required")
-		}
-		// Only servers in the operator-configured registry can be paid. We do
-		// NOT let the model supply an arbitrary URL — otherwise a prompt-injected
-		// agent could point payments at an attacker's address.
-		server, _ := args["server"].(string)
-		baseURL := wallet.ServerURL(server)
-		if baseURL == "" {
-			return "", fmt.Errorf("unknown server %q — only servers in the registry can be paid", server)
-		}
-		toolArgs, _ := args["arguments"].(map[string]any)
-		bw, err := wallet.GetOrCreateWallet(accountID)
-		if err != nil {
-			return "", err
-		}
-		return wallet.PayAndCallMCP(context.Background(), accountID, baseURL, toolName, toolArgs, bw)
 	})
 
 	// serve video
@@ -1134,10 +1050,6 @@ func main() {
 	http.HandleFunc("/admin/diagnostics", admin.DiagnosticsHandler)
 	http.HandleFunc("/admin/topics", admin.TopicsHandler)
 
-	// wallet - credits and payments
-	http.HandleFunc("/wallet", wallet.Handler)
-	http.HandleFunc("/wallet/", wallet.Handler) // Handle sub-routes like /wallet/topup
-
 	// serve whatsapp webhook
 	http.HandleFunc("/whatsapp/webhook", whatsapp.Handler)
 
@@ -1175,12 +1087,11 @@ func main() {
 	// sees the product rather than a separate marketing page.
 	http.HandleFunc("/home", home.Handler)
 	http.HandleFunc("/about", home.Landing) // the "what is Mu" pitch, no longer the front door
-	http.HandleFunc("/pricing", home.PricingHandler)
 
 	// first-run setup wizard (open only until an admin exists)
 	http.HandleFunc("/setup", setup.Handler)
 
-	// The API face for agents: MCP + REST, pay-per-call over x402.
+	// The API face for agents: MCP + REST.
 	http.HandleFunc("/agents", agents.Handler)
 	// Redirect the old path so existing links keep working.
 	http.HandleFunc("/developers", func(w http.ResponseWriter, r *http.Request) {
@@ -1330,8 +1241,6 @@ func main() {
 				isBearerAuth := r.Header.Get("Authorization") != "" || r.Header.Get("X-Micro-Token") != ""
 				// Skip CSRF for MCP endpoint (uses its own auth)
 				isMCP := r.URL.Path == "/mcp"
-				// Skip CSRF for Stripe webhooks
-				isWebhook := r.URL.Path == "/wallet/stripe/webhook"
 				// Skip CSRF for login and other unauthenticated auth endpoints.
 				isAuth := r.URL.Path == "/login" ||
 					strings.HasPrefix(r.URL.Path, "/passkey/") ||
@@ -1339,18 +1248,13 @@ func main() {
 				// Skip CSRF for SMTP/ActivityPub inbound
 				isInbound := strings.HasSuffix(r.URL.Path, "/inbox")
 
-				if !isBearerAuth && !isMCP && !isWebhook && !isAuth && !isInbound && !auth.ValidCSRF(r) {
+				if !isBearerAuth && !isMCP && !isAuth && !isInbound && !auth.ValidCSRF(r) {
 					http.Error(w, `{"error":"invalid CSRF token"}`, http.StatusForbidden)
 					return
 				}
 			}
 
-			// ── Centralised write gate ──────────────────────────────
-			// Every content-creating POST is charged, rate-limited,
-			// and moderated from ONE place. Individual handlers do
-			// NOT call CheckQuota/ConsumeQuota — the middleware does
-			// it so nothing can be forgotten.
-			if op := chargedWriteOp(r); op != "" {
+			if requiresWritePermission(r) {
 				sess, err := auth.GetSession(r)
 				if err != nil {
 					http.Error(w, "authentication required", http.StatusUnauthorized)
@@ -1364,21 +1268,6 @@ func main() {
 					http.Error(w, err.Error(), http.StatusTooManyRequests)
 					return
 				}
-				canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, op)
-				if !canProceed {
-					http.Error(w, fmt.Sprintf("This costs %d credit(s). Top up at /wallet", cost), http.StatusPaymentRequired)
-					return
-				}
-				// Charge up-front. The handler runs only if the
-				// user can afford it. Failed handler calls (panics,
-				// 5xx) are rare enough that the lost credit is
-				// acceptable — and it's the only way to guarantee
-				// we never forget to charge.
-				if err := wallet.ConsumeQuota(sess.Account, op); err != nil {
-					http.Error(w, err.Error(), http.StatusPaymentRequired)
-					return
-				}
-				app.Log("wallet", "Charged %s %d credit(s) for %s %s", sess.Account, wallet.GetOperationCost(op), r.Method, r.URL.Path)
 			}
 
 			http.DefaultServeMux.ServeHTTP(w, r)
@@ -1495,36 +1384,6 @@ func updatesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	json.NewEncoder(w).Encode(result)
-}
-
-// chargedWriteOp maps a request method + path to the wallet operation
-// that should be charged. Returns "" for routes that don't cost credits
-// (reads, auth, payments, MCP — MCP has its own QuotaCheck). This is
-// the SINGLE source of truth for what costs money on the web/API side.
-func chargedWriteOp(r *http.Request) string {
-	if r.Method != "POST" {
-		return ""
-	}
-	path := r.URL.Path
-	switch {
-	// Status updates
-	case path == "/user/status":
-		return wallet.OpContentPost
-	// Blog — only CREATE is charged (no id param). Updates are free.
-	case path == "/blog" && r.URL.Query().Get("id") == "":
-		return wallet.OpBlogCreate
-	case strings.HasPrefix(path, "/blog/post/") && strings.HasSuffix(path, "/comment"):
-		return wallet.OpBlogComment
-	// Apps
-	case path == "/apps/new":
-		return wallet.OpContentPost
-	case path == "/apps/generate":
-		return wallet.OpAppBuild
-	// Stream (console)
-	case path == "/stream":
-		return wallet.OpContentPost
-	}
-	return ""
 }
 
 // serveListener returns the TCP listener to serve on. When the process is

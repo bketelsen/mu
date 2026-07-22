@@ -13,6 +13,9 @@ var forbiddenSingleOwnerCopy = []string{
 	"micro.mu", "pay per-request", "first 10 calls", "public event feed",
 	"without an account", "no account needed", "no login to call",
 	"pay per call with x402", "x-payment header instead of authenticating",
+	"/wallet", "wallet_topup", "wallet_balance", "STRIPE_SECRET_KEY",
+	"X402_PAY_TO", "credits meter", "card top-ups",
+	"outbound x402", "paid apps",
 }
 
 func TestDocument_Structure(t *testing.T) {
@@ -111,7 +114,7 @@ func TestEmbeddedDocumentsDescribeSingleOwnerRuntime(t *testing.T) {
 		}
 		lower := strings.ToLower(string(content))
 		for _, forbidden := range forbiddenSingleOwnerCopy {
-			if strings.Contains(lower, forbidden) {
+			if strings.Contains(lower, strings.ToLower(forbidden)) {
 				t.Errorf("%s contains stale product claim %q", path, forbidden)
 			}
 		}

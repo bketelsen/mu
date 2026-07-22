@@ -358,114 +358,21 @@ func TestToolInputSchemaRequired(t *testing.T) {
 	}
 }
 
-func TestMCPHandler_QuotaCheckBlocks(t *testing.T) {
-	// Set up QuotaCheck to reject
-	origQuotaCheck := QuotaCheck
-	QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		return false, 3, nil
-	}
-	defer func() { QuotaCheck = origQuotaCheck }()
-
-	body := `{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"chat","arguments":{"prompt":"hello"}}}`
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader(body))
-	w := httptest.NewRecorder()
-
-	MCPHandler(w, req)
-
-	var resp jsonrpcResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Error == nil {
-		t.Fatal("Expected error when quota check fails")
-	}
-	if resp.Error.Code != -32000 {
-		t.Errorf("Expected quota error code -32000, got %d", resp.Error.Code)
-	}
-	if !strings.Contains(resp.Error.Message, "credits") {
-		t.Errorf("Expected credits-related error message, got: %s", resp.Error.Message)
+func TestMCPToolsExcludeWalletAndTopup(t *testing.T) {
+	for _, tool := range tools {
+		switch tool.Name {
+		case "wallet", "wallet_balance", "wallet_topup", "pay":
+			t.Fatalf("removed payment tool is still registered: %s", tool.Name)
+		}
 	}
 }
 
-func TestMCPHandler_QuotaCheckAllows(t *testing.T) {
-	// Set up QuotaCheck to allow
-	origQuotaCheck := QuotaCheck
-	QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		return true, 3, nil
-	}
-	defer func() { QuotaCheck = origQuotaCheck }()
-
-	// Register a test handler
-	http.HandleFunc("/test-quota-pass", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"ok":true}`))
-	})
-	origTools := make([]Tool, len(tools))
-	copy(origTools, tools)
-	tools = append(tools, Tool{
-		Name:     "test_quota_pass",
-		Method:   "GET",
-		Path:     "/test-quota-pass",
-		WalletOp: "chat_query",
-	})
-	defer func() { tools = origTools }()
-
-	body := `{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"test_quota_pass","arguments":{}}}`
-	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
-	w := httptest.NewRecorder()
-
-	MCPHandler(w, req)
-
-	var resp jsonrpcResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Error != nil {
-		t.Fatalf("Unexpected error: %s", resp.Error.Message)
-	}
-}
-
-func TestMCPHandler_IncludedToolsSkipQuotaCheck(t *testing.T) {
-	// Set up QuotaCheck that should NOT be called for free tools
-	origQuotaCheck := QuotaCheck
-	quotaCalled := false
-	QuotaCheck = func(r *http.Request, op string) (bool, int, error) {
-		quotaCalled = true
-		return false, 0, nil // Would block if called
-	}
-	defer func() { QuotaCheck = origQuotaCheck }()
-
-	// Register a free test handler
-	http.HandleFunc("/test-free-tool", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"free":true}`))
-	})
-	origTools := make([]Tool, len(tools))
-	copy(origTools, tools)
-	tools = append(tools, Tool{
-		Name:   "test_free",
-		Method: "GET",
-		Path:   "/test-free-tool",
-		// No WalletOp = free
-	})
-	defer func() { tools = origTools }()
-
-	body := `{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"test_free","arguments":{}}}`
-	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
-	w := httptest.NewRecorder()
-
-	MCPHandler(w, req)
-
-	if quotaCalled {
-		t.Error("QuotaCheck should not be called for free tools (no WalletOp)")
-	}
-
-	var resp jsonrpcResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Error != nil {
-		t.Fatalf("Unexpected error: %s", resp.Error.Message)
+func TestMCPToolDescriptionsContainNoPaymentGating(t *testing.T) {
+	got := strings.ToLower(ToolDescriptions())
+	for _, forbidden := range []string{"credits", "top up", "x402", "wallet balance"} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("tool descriptions still contain %q", forbidden)
+		}
 	}
 }
 
@@ -603,34 +510,6 @@ func TestMCPHandler_AuthHandlerRequiresSession(t *testing.T) {
 	text, _ := first["text"].(string)
 	if !strings.Contains(strings.ToLower(text), "authentication required") {
 		t.Errorf("Expected authentication-required message, got: %s", text)
-	}
-}
-
-func TestMCPHandler_MeteredToolsHaveWalletOp(t *testing.T) {
-	// Verify that metered tools have WalletOp set
-	expected := map[string]string{
-		"chat":         "chat_query",
-		"news_search":  "news_search",
-		"video_search": "video_search",
-		"mail_send":    "external_email",
-		"stream_post":  "content_post",
-	}
-	for _, tool := range tools {
-		if expectedOp, ok := expected[tool.Name]; ok {
-			if tool.WalletOp != expectedOp {
-				t.Errorf("Tool %q: expected WalletOp %q, got %q", tool.Name, expectedOp, tool.WalletOp)
-			}
-		}
-	}
-
-	// Verify free tools don't have WalletOp
-	freeTtools := []string{"news", "blog_list", "blog_read", "video_list", "search"}
-	for _, tool := range tools {
-		for _, free := range freeTtools {
-			if tool.Name == free && tool.WalletOp != "" {
-				t.Errorf("Free tool %q should not have WalletOp, got %q", tool.Name, tool.WalletOp)
-			}
-		}
 	}
 }
 

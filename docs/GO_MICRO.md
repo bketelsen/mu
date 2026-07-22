@@ -35,7 +35,7 @@ agent := micro.NewAgent("assistant",
 |---|---|
 | `internal/ai` (Anthropic/Atlas/Ollama, `ai.Ask`) | `ai` package — **Atlas is a first-class provider** (`ai.New("atlascloud", …)`), + Anthropic/OpenAI/Gemini/Groq/Mistral/Together |
 | `internal/api/mcp.go` tool registry (`RegisterTool`, `Tool{}`) | methods auto-become MCP/agent tools from doc-comments; `gateway/mcp` |
-| `/mcp`, `/a2a`, x402 (`wallet`) | `gateway/mcp`, `gateway/a2a`, built-in **x402 payments** |
+| `/mcp`, `/a2a` | `gateway/mcp`, `gateway/a2a` |
 | `agent/` + `agent/micro/` (router, executor, orchestrator) | `agent` package + built-in **Plan & Delegate**, guardrails (MaxSteps, LoopLimit, ApproveTool), tool middleware |
 | `internal/memory` (scoped namespaces) | `agent` `Memory` (store-backed or in-memory) |
 | `internal/settings` live config | `config` |
@@ -103,8 +103,8 @@ deploy. The thing you run is the mu fleet.
    `go.mod`.
 3. **Stand a go-micro agent** over the converted services and route one channel
    (e.g. the web assistant) through it; compare with `agent/micro`.
-4. **Expand service by service**, retiring `internal/ai`, `internal/api`,
-   `agent/micro`, and the x402 plumbing as the framework subsumes them.
+4. **Expand service by service**, retiring `internal/ai`, `internal/api`, and
+   `agent/micro` as the framework subsumes them.
 5. **Distribute only if/when scale demands it** — flip in-process services to
    separate processes via the registry; no code change to the handlers.
 

@@ -95,7 +95,7 @@ you know your allowance can absorb it.
   Cloud. When the server
   returns the image inline (base64) Mu stores it and serves it from
   `/images/file/`.
-- Everything non-AI (search, YouTube, mail, payments) uses its own keys as
+- Everything non-AI (search, YouTube, mail) uses its own keys as
   before; see [Environment Variables](/docs/environment).
 
 ## Notes and caveats

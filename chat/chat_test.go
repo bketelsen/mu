@@ -3,13 +3,23 @@ package chat
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	"mu/internal/auth"
 
 	"mu/internal/data"
+	"mu/internal/testutil"
 	topicstore "mu/topics"
 )
+
+func TestMain(m *testing.M) {
+	testutil.RunWithTempHome(m)
+}
 
 func TestTopicConfigSnapshotCopiesAndReplacesTopics(t *testing.T) {
 	applyTopicSnapshot([]topicstore.Topic{
@@ -213,6 +223,45 @@ func TestHandlePatternMatchIgnoresUnsupportedPrompts(t *testing.T) {
 				t.Fatalf("handlePatternMatch(%q) = %q, want empty string", content, got)
 			}
 		})
+	}
+}
+
+func TestOwnerChatRequestIsNotPaymentGated(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := ownerChatRequest(t, http.MethodPost, "/chat", strings.NewReader(`{"prompt":"hello"}`))
+	req.Header.Set("Content-Type", "application/json")
+	handlePostChat(rec, req)
+	assertNoChatPaymentGate(t, rec)
+}
+
+func ownerChatRequest(t *testing.T, method, target string, body *strings.Reader) *http.Request {
+	t.Helper()
+	owner, err := auth.Owner()
+	if err != nil {
+		owner = &auth.Account{ID: "chatowner", Name: "Owner", Secret: "owner-pass", Created: time.Now()}
+		if err := auth.Create(owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sess, err := auth.CreateSession(owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(method, target, body)
+	req.AddCookie(&http.Cookie{Name: "session", Value: sess.Token})
+	return req
+}
+
+func assertNoChatPaymentGate(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if recorder.Code == http.StatusPaymentRequired {
+		t.Fatalf("request was payment-gated: %s", recorder.Body.String())
+	}
+	body := strings.ToLower(recorder.Body.String())
+	for _, forbidden := range []string{"insufficient credits", "top up", "/wallet"} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("response contains removed payment copy %q: %s", forbidden, recorder.Body.String())
+		}
 	}
 }
 

@@ -14,7 +14,6 @@ var STATIC_CACHE = [
   '/post.png',
   '/news.png',
   '/video.png',
-  '/wallet.png',
   '/agent.svg',
   '/weather.png',
   '/account.png',
@@ -662,7 +661,6 @@ function setSession() {
     console.log('Success:', sess);
     // Nav elements (sidebar)
     var navMail = document.getElementById("nav-mail");
-    var navWallet = document.getElementById("nav-wallet");
     var navAccount = document.getElementById("nav-account");
     var navLogout = document.getElementById("nav-logout");
     var navLogin = document.getElementById("nav-login");
@@ -679,18 +677,6 @@ function setSession() {
         navUsername.textContent = 'Signed in as @' + sess.account;
         navUsername.style.display = 'block';
       }
-      // Show the wallet link and badge its credit balance for logged-in users.
-      var headWallet = document.getElementById("head-wallet");
-      if (headWallet) headWallet.style.display = 'inline-block';
-      fetch('/wallet?balance=1', {headers:{'Accept':'application/json'}})
-        .then(res => res.json())
-        .then(data => {
-          var hb = document.getElementById("head-wallet-badge");
-          if (hb && typeof data.balance === 'number') {
-            hb.textContent = data.balance > 9999 ? '9999+' : data.balance;
-          }
-        })
-        .catch(() => {});
       // Fetch unread mail count for badge
       var headMail = document.getElementById("head-mail");
       var headMailBadge = document.getElementById("head-mail-badge");
@@ -711,9 +697,8 @@ function setSession() {
       }
     } else {
       isAuthenticated = false;
-      // Redirect mail/wallet to login when not authenticated
+      // Redirect mail to login when not authenticated
       if (navMail) navMail.href = '/login?redirect=' + encodeURIComponent('/mail');
-      if (navWallet) navWallet.href = '/login?redirect=' + encodeURIComponent('/wallet');
       // Hide authenticated nav items, show login
       if (navAccount) navAccount.style.display = 'none';
       if (navLogout) navLogout.style.display = 'none';
@@ -733,13 +718,11 @@ function setSession() {
     console.error('Error:', error);
     isAuthenticated = false;
     var navMail = document.getElementById("nav-mail");
-    var navWallet = document.getElementById("nav-wallet");
     var navAccount = document.getElementById("nav-account");
     var navLogout = document.getElementById("nav-logout");
     var navLogin = document.getElementById("nav-login");
-    // Redirect mail/wallet to login when not authenticated
+    // Redirect mail to login when not authenticated
     if (navMail) navMail.href = '/login?redirect=' + encodeURIComponent('/mail');
-    if (navWallet) navWallet.href = '/login?redirect=' + encodeURIComponent('/wallet');
     if (navAccount) navAccount.style.display = 'none';
     if (navLogout) navLogout.style.display = 'none';
     if (navLogin) {

@@ -17,15 +17,12 @@ func Handler(w http.ResponseWriter, r *http.Request) {
   <a class="pcard" href="/token"><h3>Personal Access Token</h3><p>Create a token after owner login.</p></a>
 </div>
 
-<div class="px402"><h2>Payments</h2><p>Metered work uses owner credits. x402 is available only when the owner agent makes an outbound call to a configured remote service; incoming payments never grant access.</p></div>
-
 <div style="margin-top:26px"><a class="pcta" href="/login">Owner login</a></div>
 
 <style>
 .pcards{display:flex;flex-wrap:wrap;gap:14px;max-width:760px;justify-content:center}
 .pcard{flex:1 1 220px;min-width:220px;max-width:240px;border:1px solid #e5e5e5;border-radius:10px;padding:16px 18px;text-decoration:none;color:inherit;background:#fff;text-align:left}
-.pcard h3{margin:0 0 6px;font-size:1em}.pcard p,.px402 p{margin:0;font-size:14px;color:#666;line-height:1.5}.pcard code{background:#f4f4f5;border-radius:4px;padding:1px 5px;font-size:.9em}
-.px402{max-width:620px;margin:44px auto 0;text-align:left;border-top:1px solid #eee;padding-top:28px}.px402 h2{font-size:1.15em;margin:0 0 12px}
+.pcard h3{margin:0 0 6px;font-size:1em}.pcard p{margin:0;font-size:14px;color:#666;line-height:1.5}.pcard code{background:#f4f4f5;border-radius:4px;padding:1px 5px;font-size:.9em}
 .pcta{display:inline-block;background:#111;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:700;font-size:15px}
 </style>`
 

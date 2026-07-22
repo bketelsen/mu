@@ -20,8 +20,6 @@ import (
 	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/service"
-
-	"mu/wallet"
 )
 
 var mutex sync.RWMutex
@@ -303,7 +301,6 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// All users can access mail for internal DMs
-	// External email costs credits (checked at send time)
 
 	// Handle POST - send message or delete
 	if r.Method == "POST" {
@@ -348,13 +345,6 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if IsExternalEmail(to) {
-				if !acc.Admin {
-					canProceed, _, cost, err := wallet.CheckQuota(acc.ID, wallet.OpExternalEmail)
-					if err != nil || !canProceed {
-						app.RespondError(w, http.StatusPaymentRequired, fmt.Sprintf("external email requires %d credits", cost))
-						return
-					}
-				}
 				fromEmail := GetEmailForUser(acc.ID, GetConfiguredDomain())
 				htmlBody := convertPlainTextToHTML(body)
 				messageID, err := SendExternalEmail(acc.Name, fromEmail, to, subject, body, htmlBody, replyTo)
@@ -362,19 +352,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 					app.RespondError(w, http.StatusInternalServerError, "failed to send email: "+err.Error())
 					return
 				}
-				if !acc.Admin {
-					wallet.ConsumeQuota(acc.ID, wallet.OpExternalEmail) //nolint:errcheck
-				}
 				SendMessage(acc.Name, acc.ID, to, to, subject, body, replyTo, messageID) //nolint:errcheck
 			} else {
-				// Internal mail costs credits
-				if !acc.Admin {
-					canProceed, _, cost, _ := wallet.CheckQuota(acc.ID, wallet.OpMailSend)
-					if !canProceed {
-						app.RespondError(w, http.StatusPaymentRequired, fmt.Sprintf("sending mail requires %d credits", cost))
-						return
-					}
-				}
 				toAcc, err := auth.GetAccount(to)
 				if err != nil {
 					app.RespondError(w, http.StatusNotFound, "recipient not found")
@@ -383,9 +362,6 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				if err := SendMessage(acc.Name, acc.ID, toAcc.Name, toAcc.ID, subject, body, replyTo, ""); err != nil {
 					app.RespondError(w, http.StatusInternalServerError, "failed to send message")
 					return
-				}
-				if !acc.Admin {
-					wallet.ConsumeQuota(acc.ID, wallet.OpMailSend) //nolint:errcheck
 				}
 			}
 			app.RespondJSON(w, map[string]bool{"success": true})
@@ -468,18 +444,6 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 		// Check if recipient is external (has @domain)
 		if IsExternalEmail(to) {
-			// External email costs credits (unless admin)
-			if !acc.Admin {
-				canProceed, useFree, cost, err := wallet.CheckQuota(acc.ID, wallet.OpExternalEmail)
-				if err != nil || !canProceed {
-					http.Error(w, fmt.Sprintf("External email requires %d credits. Top up at /wallet", cost), http.StatusPaymentRequired)
-					return
-				}
-				// Consume quota after successful send (deferred below)
-				_ = useFree
-				_ = cost
-			}
-
 			// External email - send via SMTP with multipart/alternative (plain text + HTML)
 			fromEmail := GetEmailForUser(acc.ID, GetConfiguredDomain())
 			displayName := acc.Name
@@ -495,26 +459,12 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Consume quota for external email (after successful send)
-			if !acc.Admin {
-				if err := wallet.ConsumeQuota(acc.ID, wallet.OpExternalEmail); err != nil {
-					app.Log("mail", "Warning: Failed to consume quota for external email: %v", err)
-				}
-			}
-
 			// Store plain text in sent messages - render to HTML only at display time
 			if err := SendMessage(acc.Name, acc.ID, to, to, subject, bodyPlain, replyTo, messageID); err != nil {
 				app.Log("mail", "Warning: Failed to store sent message: %v", err)
 			}
 		} else {
 			// Internal message - store plain text, render at display time
-			if !acc.Admin {
-				canProceed, _, cost, _ := wallet.CheckQuota(acc.ID, wallet.OpMailSend)
-				if !canProceed {
-					http.Error(w, fmt.Sprintf("Sending mail requires %d credits. Top up at /wallet", cost), http.StatusPaymentRequired)
-					return
-				}
-			}
 			toAcc, err := auth.GetAccount(to)
 			if err != nil {
 				http.Error(w, "Recipient not found", http.StatusNotFound)
@@ -525,9 +475,6 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			if err := SendMessage(acc.Name, acc.ID, toAcc.Name, toAcc.ID, subject, bodyPlain, replyTo, ""); err != nil {
 				http.Error(w, "Failed to send message", http.StatusInternalServerError)
 				return
-			}
-			if !acc.Admin {
-				wallet.ConsumeQuota(acc.ID, wallet.OpMailSend) //nolint:errcheck
 			}
 		}
 

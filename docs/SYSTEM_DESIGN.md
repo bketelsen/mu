@@ -22,10 +22,7 @@ Logged-out runtime pages direct the operator to owner login, or to setup only on
 a fresh server. Linked messaging channels process owner direct messages. Data,
 apps, blog entries, and mail remain private to the owner.
 
-## Money and migration
+## Migration
 
-Credits meter configured expensive work and card payments top up the owner
-wallet. The agent may make outbound x402 payments to a remote service under
-spend limits. Inbound payment headers do not bypass authentication. Legacy
-migration takes a full backup and selects the oldest admin as owner, resetting
-instances that have no admin.
+Legacy migration takes a full backup and selects the oldest admin as owner,
+resetting instances that have no admin.

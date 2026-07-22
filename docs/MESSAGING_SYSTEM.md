@@ -17,8 +17,7 @@ export MAIL_SELECTOR="default"
 
 Publish MX, SPF, DKIM, and optional DMARC DNS records for the configured domain.
 The SMTP server accepts mail only for the owner mailbox and is not an open relay.
-Sending external mail requires owner authentication and consumes configured
-credits.
+Sending external mail requires owner authentication.
 
 ## Channels
 

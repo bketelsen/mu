@@ -110,17 +110,10 @@ type Tool struct {
 	Method      string                                       `json:"method,omitempty"`
 	Path        string                                       `json:"path,omitempty"`
 	Params      []ToolParam                                  `json:"params,omitempty"`
-	WalletOp    string                                       `json:"walletOp,omitempty"` // Wallet operation for credit gating (empty = included)
-	Handle      func(map[string]any) (string, error)         `json:"-"`                  // Optional direct handler (bypasses HTTP dispatch)
-	HandleAuth  func(map[string]any, string) (string, error) `json:"-"`                  // Like Handle but receives the account ID
-	Card        func() string                                `json:"-"`                  // Optional visual card body, rendered from live data
+	Handle      func(map[string]any) (string, error)         `json:"-"` // Optional direct handler (bypasses HTTP dispatch)
+	HandleAuth  func(map[string]any, string) (string, error) `json:"-"` // Like Handle but receives the account ID
+	Card        func() string                                `json:"-"` // Optional visual card body, rendered from live data
 }
-
-// QuotaCheck is called before executing a metered tool.
-// It receives the HTTP request (for auth) and the wallet operation string.
-// Returns (canProceed, creditCost, error).
-// Set by main.go to wire in auth + wallet packages without import cycles.
-var QuotaCheck func(r *http.Request, op string) (bool, int, error)
 
 // ToolGuard is called before executing any tool — used for tool-specific
 // pre-checks. Returning an error blocks
@@ -242,7 +235,6 @@ var tools = []Tool{
 		Description: "Chat with AI assistant",
 		Method:      "POST",
 		Path:        "/chat",
-		WalletOp:    "chat_query",
 		Params: []ToolParam{
 			{Name: "prompt", Type: "string", Description: "The message to send to the AI", Required: true},
 		},
@@ -258,7 +250,6 @@ var tools = []Tool{
 		Description: "Search for news articles",
 		Method:      "POST",
 		Path:        "/news",
-		WalletOp:    "news_search",
 		Params: []ToolParam{
 			{Name: "query", Type: "string", Description: "News search query", Required: true},
 		},
@@ -280,7 +271,6 @@ var tools = []Tool{
 		Description: "Create a new blog post",
 		Method:      "POST",
 		Path:        "/blog/post",
-		WalletOp:    "blog_create",
 		Params: []ToolParam{
 			{Name: "title", Type: "string", Description: "Post title", Required: false},
 			{Name: "content", Type: "string", Description: "Post content (minimum 50 characters)", Required: true},
@@ -311,7 +301,6 @@ var tools = []Tool{
 		Description: "Search for videos",
 		Method:      "POST",
 		Path:        "/video",
-		WalletOp:    "video_search",
 		Params: []ToolParam{
 			{Name: "query", Type: "string", Description: "Video search query", Required: true},
 		},
@@ -327,7 +316,6 @@ var tools = []Tool{
 		Description: "Send a mail message",
 		Method:      "POST",
 		Path:        "/mail",
-		WalletOp:    "external_email",
 		Params: []ToolParam{
 			{Name: "to", Type: "string", Description: "Recipient username or email", Required: true},
 			{Name: "subject", Type: "string", Description: "Message subject", Required: true},
@@ -343,21 +331,6 @@ var tools = []Tool{
 			{Name: "q", Type: "string", Description: "Search query", Required: true},
 		},
 	},
-	{
-		Name:        "wallet_balance",
-		Description: "Get wallet credit balance",
-		Method:      "GET",
-		Path:        "/wallet",
-		Params: []ToolParam{
-			{Name: "balance", Type: "string", Description: "Set to 1 to get balance", Required: false},
-		},
-	},
-	{
-		Name:        "wallet_topup",
-		Description: "Get available wallet topup payment methods with crypto deposit address and card payment tiers",
-		Method:      "GET",
-		Path:        "/wallet/topup",
-	},
 	// Stream (console)
 	{
 		Name:        "stream",
@@ -367,10 +340,9 @@ var tools = []Tool{
 	},
 	{
 		Name:        "stream_post",
-		Description: "Post a message to the stream. Mention @micro to get an AI response. Costs 1 credit.",
+		Description: "Post a message to the stream. Mention @micro to get an AI response.",
 		Method:      "POST",
 		Path:        "/stream",
-		WalletOp:    "content_post",
 		Params: []ToolParam{
 			{Name: "content", Type: "string", Description: "Message text (max 1024 chars). Use @micro to invoke the AI agent.", Required: true},
 		},
@@ -432,8 +404,7 @@ func ExecuteToolAs(accountID, name string, args map[string]any) (string, bool, e
 }
 
 // ExecuteTool calls a registered MCP tool with the given name and arguments,
-// forwarding authentication from r. It does NOT check wallet quota — the caller
-// is responsible for quota management.
+// forwarding authentication from r.
 // Returns the tool output text, whether the response is an error, and any Go error.
 func ExecuteTool(r *http.Request, name string, args map[string]any) (string, bool, error) {
 	var tool *Tool

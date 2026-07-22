@@ -17,7 +17,6 @@ import (
 	"mu/internal/data"
 	"mu/internal/service"
 	"mu/internal/settings"
-	"mu/wallet"
 )
 
 // Load initializes the search building block.
@@ -276,8 +275,8 @@ func WebHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Require authentication to charge for the search
-	sess, _, err := auth.RequireSession(r)
+	// Require authentication for search.
+	_, _, err := auth.RequireSession(r)
 	if err != nil {
 		if app.WantsJSON(r) {
 			app.RespondError(w, http.StatusUnauthorized, "authentication required")
@@ -287,24 +286,7 @@ func WebHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check quota (5p per search)
-	canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, wallet.OpWebSearch)
-	if !canProceed {
-		if app.WantsJSON(r) {
-			app.RespondError(w, http.StatusPaymentRequired, fmt.Sprintf("web search requires %d credits", cost))
-			return
-		}
-		content := searchBar + wallet.QuotaExceededPage(wallet.OpWebSearch, cost)
-		w.Write([]byte(app.RenderHTMLForRequest("Search", "Search the web", content, r)))
-		return
-	}
-
 	braveResults, braveErr := SearchBraveCached(query, 10)
-
-	// Only consume quota on success to avoid charging for failed API calls
-	if braveErr == nil {
-		wallet.ConsumeQuota(sess.Account, wallet.OpWebSearch)
-	}
 
 	// JSON response for API/MCP callers
 	if app.WantsJSON(r) {

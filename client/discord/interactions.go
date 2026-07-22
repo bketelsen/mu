@@ -9,7 +9,6 @@ import (
 
 	"mu/agent"
 	"mu/internal/app"
-	"mu/wallet"
 )
 
 type interaction struct {
@@ -126,21 +125,6 @@ func handleInteraction(raw json.RawMessage) {
 	case "search":
 		q := inter.getOption("query")
 		prompt = "search for " + q
-	case "balance":
-		bw, err := wallet.GetOrCreateWallet(accountID)
-		if err != nil {
-			editResponse(inter.Token, "Wallet error: "+err.Error())
-			return
-		}
-		usdc, _ := wallet.USDCBalance(bw.Address)
-		embed := Embed{
-			Title:  "Your Base Wallet",
-			Color:  ColorGreen,
-			Fields: []EmbedField{{Name: "USDC", Value: "$" + usdc, Inline: true}},
-			Footer: &EmbedFooter{Text: bw.Address},
-		}
-		editResponseEmbed(inter.Token, embed)
-		return
 	case "usage":
 		u := GetUserUsage(accountID)
 		embed := Embed{

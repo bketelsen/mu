@@ -9,7 +9,6 @@ import (
 
 	"mu/internal/app"
 	"mu/internal/auth"
-	"mu/wallet"
 )
 
 // ReadHandler serves /read — a clean reader view for any web page.
@@ -41,7 +40,7 @@ func ReadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Require authentication
-	sess, _, err := auth.RequireSession(r)
+	_, _, err = auth.RequireSession(r)
 	if err != nil {
 		if app.WantsJSON(r) {
 			app.RespondError(w, http.StatusUnauthorized, "authentication required")
@@ -51,24 +50,8 @@ func ReadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check quota (same as web_fetch)
-	canProceed, _, cost, _ := wallet.CheckQuota(sess.Account, wallet.OpWebFetch)
-	if !canProceed {
-		if app.WantsJSON(r) {
-			app.RespondError(w, http.StatusPaymentRequired, fmt.Sprintf("reading pages requires %d credits", cost))
-			return
-		}
-		content := wallet.QuotaExceededPage(wallet.OpWebFetch, cost)
-		w.Write([]byte(app.RenderHTMLForRequest("Read", "Read Page", content, r)))
-		return
-	}
-
 	// Fetch and extract — use HTML-preserving extraction with proxied links
 	title, body, fetchErr := FetchAndExtractHTMLProxied(rawURL)
-
-	if fetchErr == nil {
-		wallet.ConsumeQuota(sess.Account, wallet.OpWebFetch)
-	}
 
 	// JSON response for API callers
 	if app.WantsJSON(r) {

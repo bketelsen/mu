@@ -127,7 +127,6 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 		guestQueryRecord(ip)
 	}
 
-	// Check quota (authenticated users only)
 	model := Models[0]
 	for _, m := range Models {
 		if m.ID == req.Model {
@@ -135,22 +134,6 @@ func RunHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	if !isGuest && QuotaCheck != nil {
-		canProceed, _, err := QuotaCheck(r, model.WalletOp)
-		if !canProceed {
-			w.WriteHeader(402)
-			msg := "Insufficient credits"
-			if err != nil {
-				msg = err.Error()
-			}
-			app.RespondJSON(w, RunResponse{Error: msg})
-			return
-		}
-		if ChargeQuota != nil {
-			ChargeQuota(r, model.WalletOp)
-		}
-	}
-
 	// Step 1: Plan
 	userCtx := ""
 	if !isGuest && UserContextFunc != nil {

@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"mu/internal/data"
-	"mu/wallet"
 )
 
 const (
@@ -26,9 +25,6 @@ func RemovePlaces() error {
 		return fmt.Errorf("load places removal marker: %w", err)
 	}
 
-	if err := wallet.DeleteTransactionsByOperation("places_search", "places_nearby"); err != nil {
-		return fmt.Errorf("delete places wallet history: %w", err)
-	}
 	if err := data.DeleteFile("places_saved.json"); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("delete saved places searches: %w", err)
 	}

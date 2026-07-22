@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"reflect"
@@ -11,7 +12,6 @@ import (
 
 	"mu/internal/auth"
 	"mu/internal/data"
-	"mu/wallet"
 )
 
 func TestLoadTopicConfigurationReturnsError(t *testing.T) {
@@ -151,34 +151,6 @@ func TestVersionInfoDoesNotExposeServiceTopology(t *testing.T) {
 	}
 }
 
-func TestChargedWriteOp(t *testing.T) {
-	tests := []struct {
-		name   string
-		method string
-		path   string
-		want   string
-	}{
-		{name: "status post", method: "POST", path: "/user/status", want: wallet.OpContentPost},
-		{name: "removed social route", method: "POST", path: "/social", want: ""},
-		{name: "new blog post", method: "POST", path: "/blog", want: wallet.OpBlogCreate},
-		{name: "blog update free", method: "POST", path: "/blog?id=post-1", want: ""},
-		{name: "blog comment", method: "POST", path: "/blog/post/post-1/comment", want: wallet.OpBlogComment},
-		{name: "new app", method: "POST", path: "/apps/new", want: wallet.OpContentPost},
-		{name: "app generation", method: "POST", path: "/apps/generate", want: wallet.OpAppBuild},
-		{name: "stream post", method: "POST", path: "/stream", want: wallet.OpContentPost},
-		{name: "uncharged post", method: "POST", path: "/mail", want: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest(tt.method, tt.path, nil)
-			if got := chargedWriteOp(r); got != tt.want {
-				t.Fatalf("chargedWriteOp(%s %s) = %q, want %q", tt.method, tt.path, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestArgFloat(t *testing.T) {
 	tests := []struct {
 		name string
@@ -198,6 +170,16 @@ func TestArgFloat(t *testing.T) {
 				t.Fatalf("argFloat(%v) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMigrateWalletPaymentsPropagatesFailure(t *testing.T) {
+	original := runWalletPaymentsMigration
+	defer func() { runWalletPaymentsMigration = original }()
+	want := errors.New("cannot delete seed")
+	runWalletPaymentsMigration = func() error { return want }
+	if err := migrateWalletPayments(); !errors.Is(err, want) {
+		t.Fatalf("error = %v, want %v", err, want)
 	}
 }
 
@@ -499,4 +481,36 @@ func setRemoveSocialMigrationSeams(t *testing.T, backup func() (string, error), 
 		removeSocialHomeCard, removeSocialPrefs = oldRemoveCard, oldRemovePrefs
 		loadRemoveSocialMarker, saveRemoveSocialMarker = oldLoadMarker, oldSaveMarker
 	})
+}
+
+func TestRequiresWritePermission(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		want   bool
+	}{
+		{name: "user status", method: http.MethodPost, path: "/user/status", want: true},
+		{name: "removed social post", method: http.MethodPost, path: "/social", want: false},
+		{name: "removed social thread", method: http.MethodPost, path: "/social/thread", want: false},
+		{name: "blog create", method: http.MethodPost, path: "/blog", want: true},
+		{name: "blog comment", method: http.MethodPost, path: "/blog/post/post-id/comment", want: true},
+		{name: "new app", method: http.MethodPost, path: "/apps/new", want: true},
+		{name: "generate app", method: http.MethodPost, path: "/apps/generate", want: true},
+		{name: "stream post", method: http.MethodPost, path: "/stream", want: true},
+		{name: "blog update", method: http.MethodPost, path: "/blog?id=post-id", want: false},
+		{name: "status read", method: http.MethodGet, path: "/user/status", want: false},
+		{name: "social read", method: http.MethodGet, path: "/social", want: false},
+		{name: "unrelated post", method: http.MethodPost, path: "/news", want: false},
+		{name: "comment-like path", method: http.MethodPost, path: "/blog/post/post-id/comments", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(tt.method, tt.path, nil)
+			if got := requiresWritePermission(r); got != tt.want {
+				t.Fatalf("requiresWritePermission(%s %s) = %v, want %v", tt.method, tt.path, got, tt.want)
+			}
+		})
+	}
 }

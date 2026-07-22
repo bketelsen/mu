@@ -165,24 +165,6 @@ func buildStatus() StatusResponse {
 		Status: youtubeConfigured,
 	})
 
-	// Check Payments (Stripe + x402)
-	stripeConfigured := os.Getenv("STRIPE_SECRET_KEY") != "" && os.Getenv("STRIPE_PUBLISHABLE_KEY") != ""
-	x402Configured := os.Getenv("X402_PAY_TO") != ""
-	paymentsConfigured := stripeConfigured || x402Configured
-	quotaMode := "Unlimited (self-hosted)"
-	if stripeConfigured && x402Configured {
-		quotaMode = "Card + crypto (x402)"
-	} else if stripeConfigured {
-		quotaMode = "Card (Stripe)"
-	} else if x402Configured {
-		quotaMode = "Crypto (x402)"
-	}
-	services = append(services, StatusCheck{
-		Name:    "Payments",
-		Status:  paymentsConfigured,
-		Details: quotaMode,
-	})
-
 	// Check Daily Digest
 	if DigestStatusFunc != nil {
 		ok, details := DigestStatusFunc()

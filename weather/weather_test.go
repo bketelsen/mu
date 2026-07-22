@@ -165,7 +165,7 @@ func TestRenderWeatherPageGuestShowsAgentPathAndLoginScope(t *testing.T) {
 	for _, want := range []string{
 		"Weather forecasts are available through Mu's agent for guests",
 		`href="/agent?q=Weather%20in%20San%20Francisco"`,
-		"saved location forecasts, pollen, and credit-backed refreshes require an account",
+		"saved location forecasts and pollen require an account",
 		`href="/login"`,
 	} {
 		if !strings.Contains(got, want) {

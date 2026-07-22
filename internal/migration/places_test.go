@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"mu/internal/data"
-	"mu/wallet"
 )
 
 func writeRemovalFixture(t *testing.T, key string) {
@@ -31,14 +30,6 @@ func TestRemovePlacesDeletesDataAndHistory(t *testing.T) {
 	} {
 		writeRemovalFixture(t, key)
 	}
-	const owner = "places-removal-owner"
-	if err := wallet.AddCredits(owner, 10, "places_search", nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := wallet.AddCredits(owner, 5, wallet.OpTopup, nil); err != nil {
-		t.Fatal(err)
-	}
-
 	if err := RemovePlaces(); err != nil {
 		t.Fatal(err)
 	}
@@ -48,12 +39,6 @@ func TestRemovePlacesDeletesDataAndHistory(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(data.Dir(), key)); !os.IsNotExist(err) {
 			t.Fatalf("%s still exists: %v", key, err)
 		}
-	}
-	if got := wallet.GetTransactions(owner, 10); len(got) != 1 || got[0].Operation != wallet.OpTopup {
-		t.Fatalf("remaining transactions = %#v", got)
-	}
-	if got := wallet.GetBalance(owner); got != 15 {
-		t.Fatalf("balance = %d, want 15", got)
 	}
 	var marker map[string]int
 	if err := data.LoadJSON(placesRemovalMarker, &marker); err != nil {

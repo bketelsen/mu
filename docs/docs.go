@@ -33,7 +33,6 @@ var catalog = []Document{
 	// Features
 	{Slug: "apps", Filename: "APPS.md", Title: "Apps", Description: "Build and launch small web apps", Category: "Features"},
 	{Slug: "messaging", Filename: "MESSAGING_SYSTEM.md", Title: "Messaging", Description: "Email and messaging setup", Category: "Features"},
-	{Slug: "wallet", Filename: "WALLET_AND_CREDITS.md", Title: "Wallet & Credits", Description: "Credit system for usage", Category: "Features"},
 	{Slug: "discord", Filename: "DISCORD.md", Title: "Discord", Description: "Discord bot setup and usage", Category: "Features"},
 	{Slug: "telegram", Filename: "TELEGRAM.md", Title: "Telegram", Description: "Telegram bot setup and usage", Category: "Features"},
 
