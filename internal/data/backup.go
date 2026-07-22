@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -12,6 +13,9 @@ import (
 
 var syncFile = func(file *os.File) error { return file.Sync() }
 
+// ErrBackupAlreadyExists reports that a backup for the requested timestamp exists.
+var ErrBackupAlreadyExists = errors.New("backup already exists")
+
 // Backup atomically copies the data directory beside its source.
 func Backup(now time.Time) (backupPath string, err error) {
 	source := Dir()
@@ -19,7 +23,7 @@ func Backup(now time.Time) (backupPath string, err error) {
 	final := filepath.Join(filepath.Dir(source), name)
 	temp := final + ".tmp"
 	if _, err := os.Stat(final); err == nil {
-		return "", fmt.Errorf("backup already exists: %s", final)
+		return "", fmt.Errorf("%w: %s", ErrBackupAlreadyExists, final)
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}

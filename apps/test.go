@@ -106,11 +106,6 @@ var sdkPatterns = []struct {
 		api:  "video",
 		path: func(m []string) string { return "/video" },
 	},
-	{
-		re:   regexp.MustCompile(`mu\.social\s*\(\s*\)`),
-		api:  "social",
-		path: func(m []string) string { return "/social" },
-	},
 }
 
 func extractSDKCalls(html string) []sdkCall {

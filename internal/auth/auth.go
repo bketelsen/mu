@@ -90,6 +90,27 @@ func (a *Account) HomeCardActive(id string) bool {
 	return false
 }
 
+// RemoveHomeCard removes a retired card from every account preference.
+func RemoveHomeCard(id string) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+	for _, account := range accounts {
+		account.HomeCards = removeHomeCardID(account.HomeCards, id)
+		account.HomeCardsSeen = removeHomeCardID(account.HomeCardsSeen, id)
+	}
+	return data.SaveJSON("accounts.json", accounts)
+}
+
+func removeHomeCardID(cards []string, id string) []string {
+	filtered := cards[:0]
+	for _, card := range cards {
+		if card != id {
+			filtered = append(filtered, card)
+		}
+	}
+	return filtered
+}
+
 type Session struct {
 	ID      string    `json:"id"`
 	Type    string    `json:"type"`

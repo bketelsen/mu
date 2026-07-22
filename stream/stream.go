@@ -2,8 +2,8 @@
 // block publishes to it. Users interact with it via the console.
 // The agent responds in it. It is the operational surface of Mu.
 //
-// This is NOT status updates (profile feature) and NOT social
-// (threaded forum). It's a single append-only timeline of typed
+// This is NOT status updates (profile feature) or a threaded forum. It's a
+// single append-only timeline of typed
 // events that powers the home console.
 package stream
 

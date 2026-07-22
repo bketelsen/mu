@@ -43,6 +43,23 @@ func TestMarketsCapabilityIsNotRegistered(t *testing.T) {
 	}
 }
 
+func TestBlogAgentRegistrationAndRouting(t *testing.T) {
+	a := Get("blog")
+	if a == nil {
+		t.Fatal("blog agent is not registered")
+	}
+	wantTools := []string{"blog_list", "blog_read", "blog_create", "blog_update"}
+	if !reflect.DeepEqual(a.Tools, wantTools) {
+		t.Fatalf("Tools = %v, want %v", a.Tools, wantTools)
+	}
+
+	for _, prompt := range []string{"show recent blog posts", "help me write a post"} {
+		if got := keywordRoute(prompt); !reflect.DeepEqual(got, []string{"blog"}) {
+			t.Fatalf("keywordRoute(%q) = %v, want [blog]", prompt, got)
+		}
+	}
+}
+
 func TestKeywordRouteDoesNotSpecialCaseMarketQuestions(t *testing.T) {
 	if got := keywordRoute("what is the BTC price?"); len(got) != 0 {
 		t.Fatalf("keywordRoute() = %v, want generic routing", got)

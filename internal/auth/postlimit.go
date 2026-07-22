@@ -1,5 +1,5 @@
 // Per-account post rate limiting and email verification token storage.
-// Sits in the auth package so handlers in social/blog/apps can call into
+// Sits in the auth package so handlers in blog/apps can call into
 // a single place without import cycles.
 package auth
 

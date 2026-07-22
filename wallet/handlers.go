@@ -122,9 +122,7 @@ func WalletPage(userID string) string {
 	sb.WriteString(`<tr><td>News, blogs, videos</td><td>included</td></tr>`)
 	sb.WriteString(fmt.Sprintf(`<tr><td>News search</td><td>%dp</td></tr>`, CostNewsSearch))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Video search</td><td>%dp</td></tr>`, CostVideoSearch))
-	sb.WriteString(fmt.Sprintf(`<tr><td>Social search</td><td>%dp</td></tr>`, CostSocialSearch))
-	sb.WriteString(fmt.Sprintf(`<tr><td>Status update</td><td>%dp</td></tr>`, CostSocialPost))
-	sb.WriteString(fmt.Sprintf(`<tr><td>Reply</td><td>%dp</td></tr>`, CostSocialReply))
+	sb.WriteString(fmt.Sprintf(`<tr><td>Content post</td><td>%dp</td></tr>`, CostContentPost))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Blog post</td><td>%dp</td></tr>`, CostBlogCreate))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Blog comment</td><td>%dp</td></tr>`, CostBlogComment))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Chat query</td><td>%dp</td></tr>`, CostChatQuery))
@@ -315,8 +313,7 @@ func PublicWalletPage() string {
 	sb.WriteString(`<tr><td>News, blogs, videos</td><td>included</td></tr>`)
 	sb.WriteString(fmt.Sprintf(`<tr><td>News search</td><td>%dp</td></tr>`, CostNewsSearch))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Video search</td><td>%dp</td></tr>`, CostVideoSearch))
-	sb.WriteString(fmt.Sprintf(`<tr><td>Status update</td><td>%dp</td></tr>`, CostSocialPost))
-	sb.WriteString(fmt.Sprintf(`<tr><td>Reply</td><td>%dp</td></tr>`, CostSocialReply))
+	sb.WriteString(fmt.Sprintf(`<tr><td>Content post</td><td>%dp</td></tr>`, CostContentPost))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Blog post</td><td>%dp</td></tr>`, CostBlogCreate))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Blog comment</td><td>%dp</td></tr>`, CostBlogComment))
 	sb.WriteString(fmt.Sprintf(`<tr><td>Chat query</td><td>%dp</td></tr>`, CostChatQuery))
@@ -570,9 +567,7 @@ func getPricingData() []pricingItem {
 	return []pricingItem{
 		{OpNewsSearch, "News search", CostNewsSearch, "credits"},
 		{OpVideoSearch, "Video search", CostVideoSearch, "credits"},
-		{OpSocialSearch, "Social search", CostSocialSearch, "credits"},
-		{OpSocialPost, "Status update", CostSocialPost, "credits"},
-		{OpSocialReply, "Reply", CostSocialReply, "credits"},
+		{OpContentPost, "Content post", CostContentPost, "credits"},
 		{OpBlogCreate, "Blog post", CostBlogCreate, "credits"},
 		{OpBlogComment, "Blog comment", CostBlogComment, "credits"},
 		{OpChatQuery, "Chat query", CostChatQuery, "credits"},

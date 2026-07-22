@@ -38,12 +38,12 @@ func init() {
 	})
 
 	Register(&Agent{
-		ID:           "social",
-		Name:         "Social Agent",
-		Description:  "Social feed, blog posts, content creation",
-		SystemPrompt: `You are the Social specialist on Mu. You manage the social feed and blog. Help users write posts, find trending topics, and engage with the community. For blog posts, suggest titles and structure. Keep social posts concise and engaging.`,
-		Tools:        []string{"social", "social_search", "blog_list", "blog_read", "blog_create", "blog_update"},
-		MemoryScope:  "social",
+		ID:           "blog",
+		Name:         "Blog Agent",
+		Description:  "Blog posts and long-form content creation",
+		SystemPrompt: `You are the Blog specialist on Mu. Help users write, edit, and organise blog posts. Suggest clear titles and structure, match the requested voice, and keep recommendations practical.`,
+		Tools:        []string{"blog_list", "blog_read", "blog_create", "blog_update"},
+		MemoryScope:  "blog",
 	})
 
 	Register(&Agent{

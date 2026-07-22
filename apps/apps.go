@@ -1130,7 +1130,6 @@ func handleRun(w http.ResponseWriter, r *http.Request, slug string) {
       read:function(id){return get('/blog/post?id='+id)},
       create:function(o){return post('/blog',o)},
     },
-    social:function(){return get('/social')},
     chat:function(prompt){return post('/chat',{prompt:prompt})},
     search:function(q){return get('/search?q='+encodeURIComponent(q))},
     apps:{

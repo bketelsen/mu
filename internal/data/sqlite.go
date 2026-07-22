@@ -491,6 +491,29 @@ func GetByTypeSQLite(entryType string, limit int) ([]*IndexEntry, error) {
 	return results, nil
 }
 
+// DeleteIndexTypeSQLite transactionally removes every indexed entry with the
+// given type, removing FTS rows before their corresponding base rows.
+func DeleteIndexTypeSQLite(entryType string) error {
+	db, err := getDB()
+	if err != nil {
+		return err
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM index_fts WHERE rowid IN (SELECT rowid FROM index_entries WHERE type = ?)`, entryType); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM index_entries WHERE type = ?`, entryType); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // MigrateFromJSON migrates existing JSON data to SQLite
 func MigrateFromJSON() error {
 	db, err := getDB()

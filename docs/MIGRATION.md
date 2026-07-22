@@ -53,7 +53,7 @@ agent cards (micro/go-micro#3342 — task lifecycle already shipped upstream).
 - ✅ `internal/service` runtime core (registry/client/broker/store, Register, Call, loopback proxy bypass).
 - ✅ AI core: `internal/ai.Ask` and `AskStream` both run through go-micro `ai`
   (Atlas/Anthropic/local), history + per-caller token caps preserved.
-- ✅ Services: weather, news, GitHub, social, video, blog, search, recall, apps, and mail.
+- ✅ Services: weather, news, GitHub, video, blog, search, recall, apps, and mail.
 - ✅ Native go-micro agent is the **default** for `agent.Query` (AGENT_NATIVE=off opts out), full tool coverage.
 - ✅ `/mcp` served by go-micro's `gateway/mcp` (manual resolver of mu's tools; metering/auth preserved).
 - ✅ `/version` + `/status` for deploy verification.

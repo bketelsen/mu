@@ -363,7 +363,7 @@ func TestBackLink(t *testing.T) {
 	}
 }
 
-func TestCSSExcludesMarketCardStyles(t *testing.T) {
+func TestCSSExcludesRemovedCardStyles(t *testing.T) {
 	css, err := htmlFiles.ReadFile("html/mu.css")
 	if err != nil {
 		t.Fatal(err)
@@ -376,9 +376,10 @@ func TestCSSExcludesMarketCardStyles(t *testing.T) {
 		".card-change",
 		".card-up",
 		".card-down",
+		"#social",
 	} {
 		if strings.Contains(string(css), selector) {
-			t.Fatalf("removed Market card CSS remains: %s", selector)
+			t.Fatalf("removed card CSS remains: %s", selector)
 		}
 	}
 	domain := "pla" + "ces"

@@ -115,8 +115,8 @@ func keywordRoute(prompt string) []string {
 		{keyword: "email", ids: []string{"mail"}},
 		{keyword: "inbox", ids: []string{"mail"}},
 		{keyword: "unread", ids: []string{"mail"}},
-		{keyword: "blog", ids: []string{"social"}},
-		{keyword: "post", ids: []string{"social"}},
+		{keyword: "blog", ids: []string{"blog"}},
+		{keyword: "post", ids: []string{"blog"}},
 	}
 
 	for _, route := range routes {

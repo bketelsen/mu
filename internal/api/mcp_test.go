@@ -153,7 +153,7 @@ func TestMCPHandler_ToolsList(t *testing.T) {
 		t.Error("Expected at least one tool")
 	}
 
-	// Verify expected tools exist. Note: blog_list, video, social and
+	// Verify expected tools exist. Note: blog_list, video and
 	// weather_forecast are registered dynamically in main.go (AI-first handlers),
 	// so they are not part of this package's static tool list.
 	expectedTools := map[string]bool{
@@ -185,6 +185,14 @@ func TestMCPHandler_ToolsList(t *testing.T) {
 	for name, found := range expectedTools {
 		if !found {
 			t.Errorf("Expected tool %q not found in tools list", name)
+		}
+	}
+}
+
+func TestStaticToolsExcludeSocial(t *testing.T) {
+	for _, tool := range tools {
+		if tool.Name == "social" || tool.Name == "social_search" {
+			t.Fatalf("removed social tool remains registered: %#v", tool)
 		}
 	}
 }
@@ -605,6 +613,7 @@ func TestMCPHandler_MeteredToolsHaveWalletOp(t *testing.T) {
 		"news_search":  "news_search",
 		"video_search": "video_search",
 		"mail_send":    "external_email",
+		"stream_post":  "content_post",
 	}
 	for _, tool := range tools {
 		if expectedOp, ok := expected[tool.Name]; ok {

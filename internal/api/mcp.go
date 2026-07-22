@@ -263,7 +263,7 @@ var tools = []Tool{
 			{Name: "query", Type: "string", Description: "News search query", Required: true},
 		},
 	},
-	// blog_list, social, video, and weather_forecast are registered in
+	// blog_list, video, and weather_forecast are registered in
 	// main.go as AI-first tools (clean Go handlers returning model-ready text),
 	// not as page-backed entries here.
 	{
@@ -304,16 +304,6 @@ var tools = []Tool{
 		Path:        "/blog/post",
 		Params: []ToolParam{
 			{Name: "id", Type: "string", Description: "The blog post ID to delete", Required: true},
-		},
-	},
-	{
-		Name:        "social_search",
-		Description: "Search social media posts",
-		Method:      "POST",
-		Path:        "/social",
-		WalletOp:    "social_search",
-		Params: []ToolParam{
-			{Name: "query", Type: "string", Description: "Search query for social posts", Required: true},
 		},
 	},
 	{
@@ -380,7 +370,7 @@ var tools = []Tool{
 		Description: "Post a message to the stream. Mention @micro to get an AI response. Costs 1 credit.",
 		Method:      "POST",
 		Path:        "/stream",
-		WalletOp:    "social_post",
+		WalletOp:    "content_post",
 		Params: []ToolParam{
 			{Name: "content", Type: "string", Description: "Message text (max 1024 chars). Use @micro to invoke the AI agent.", Required: true},
 		},

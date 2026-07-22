@@ -61,6 +61,17 @@ func TestBackupCopiesDataBesideSourceAndPreservesMode(t *testing.T) {
 	}
 }
 
+func TestBackupReturnsSentinelWhenSameSecondBackupExists(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	now := time.Date(2026, 7, 21, 12, 30, 0, 0, time.UTC)
+	if _, err := Backup(now); err != nil {
+		t.Fatalf("initial Backup: %v", err)
+	}
+	if _, err := Backup(now); !errors.Is(err, ErrBackupAlreadyExists) {
+		t.Fatalf("same-second Backup error = %v, want ErrBackupAlreadyExists", err)
+	}
+}
+
 func TestBackupFailureLeavesNoPartialDirectory(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	if err := os.MkdirAll(Dir(), 0700); err != nil {

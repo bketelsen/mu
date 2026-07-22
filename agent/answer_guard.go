@@ -560,8 +560,6 @@ func readableToolName(name string) string {
 		return "video"
 	case "blog":
 		return "blog"
-	case "social":
-		return "social"
 	case "recall":
 		return "memory"
 	default:
