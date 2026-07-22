@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -152,7 +153,7 @@ func TestMCPHandler_ToolsList(t *testing.T) {
 		t.Error("Expected at least one tool")
 	}
 
-	// Verify expected tools exist. Note: blog_list, video, social and
+	// Verify expected tools exist. Note: blog_list, video and
 	// weather_forecast are registered dynamically in main.go (AI-first handlers),
 	// so they are not part of this package's static tool list.
 	expectedTools := map[string]bool{
@@ -168,6 +169,9 @@ func TestMCPHandler_ToolsList(t *testing.T) {
 		name, _ := tool["name"].(string)
 		if _, exists := expectedTools[name]; exists {
 			expectedTools[name] = true
+		}
+		if name == "pla"+"ces_search" || name == "pla"+"ces_nearby" {
+			t.Errorf("retired location tool remains in tools/list: %s", name)
 		}
 
 		// Verify tool has required fields
@@ -185,22 +189,31 @@ func TestMCPHandler_ToolsList(t *testing.T) {
 	}
 }
 
+func TestStaticToolsExcludeSocial(t *testing.T) {
+	for _, tool := range tools {
+		if tool.Name == "social" || tool.Name == "social_search" {
+			t.Fatalf("removed social tool remains registered: %#v", tool)
+		}
+	}
+}
+
 func TestMCPHandler_ToolsCallUnknown(t *testing.T) {
-	body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"unknown_tool","arguments":{}}}`
-	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
-	w := httptest.NewRecorder()
+	domain := "pla" + "ces"
+	for _, name := range []string{"unknown_tool", domain + "_search", domain + "_nearby"} {
+		t.Run(name, func(t *testing.T) {
+			body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":` + strconv.Quote(name) + `,"arguments":{}}}`
+			req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
+			w := httptest.NewRecorder()
+			MCPHandler(w, req)
 
-	MCPHandler(w, req)
-
-	var resp jsonrpcResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Error == nil {
-		t.Fatal("Expected error for unknown tool")
-	}
-	if !strings.Contains(resp.Error.Message, "unknown_tool") {
-		t.Errorf("Expected error to mention tool name, got: %s", resp.Error.Message)
+			var resp jsonrpcResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatal(err)
+			}
+			if resp.Error == nil || !strings.Contains(resp.Error.Message, name) {
+				t.Fatalf("unknown tool response for %q = %#v", name, resp)
+			}
+		})
 	}
 }
 

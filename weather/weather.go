@@ -189,7 +189,7 @@ func renderWeatherPage(r *http.Request) string {
 		return sb.String()
 	}
 
-	sb.WriteString(`<p class="card-desc">Get the local weather forecast for your area. `)
+	sb.WriteString(`<p class="card-desc">Get the local weather forecast for your area.</p>`)
 
 	// Weather page with location search
 	sb.WriteString(`
