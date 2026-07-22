@@ -10,7 +10,7 @@ import (
 
 // UsageRecord tracks a single external API call with its cost.
 type UsageRecord struct {
-	Service   string         `json:"service"` // e.g. "claude", "google_places", "brave", "fetch"
+	Service   string         `json:"service"` // e.g. "claude", "brave", "fetch"
 	Caller    string         `json:"caller"`  // which feature triggered this
 	CostCents float64        `json:"cost_cents"`
 	Details   map[string]any `json:"details,omitempty"` // service-specific (tokens, model, etc.)

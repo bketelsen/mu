@@ -87,7 +87,7 @@ func generateAgentSpec(brief string) (map[string]string, error) {
 	if !ai.Configured() {
 		return nil, errNoAI
 	}
-	sys := `You design AI agent personas for Mu, a personal assistant with tools for news, weather, mail, web search, places, video, and social. Given a brief, output ONLY minified JSON with exactly these keys:
+	sys := `You design AI agent personas for Mu, a personal assistant with tools for news, weather, mail, web search, video, and social. Given a brief, output ONLY minified JSON with exactly these keys:
 "name": a short label, <=40 chars, no emoji;
 "description": one line, <=120 chars;
 "prompt": a system prompt of 2-4 sentences in second person ("You are ...") defining the persona, tone, priorities, and which kinds of tools/data to lean on.

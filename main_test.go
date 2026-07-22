@@ -33,6 +33,45 @@ func TestIsServerMode(t *testing.T) {
 	}
 }
 
+func TestRetiredServiceRemovalRunsBeforeDataAndServices(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerMigration := strings.Index(string(source), "if err := migrateSingleOwner(); err != nil")
+	placesMigration := strings.Index(string(source), "if err := migration.RemovePlaces(); err != nil")
+	dataLoad := strings.Index(string(source), "data.Load()")
+	if ownerMigration < 0 || placesMigration < 0 || dataLoad < 0 || ownerMigration >= placesMigration || placesMigration >= dataLoad {
+		t.Fatalf("startup order is owner=%d retired=%d data=%d", ownerMigration, placesMigration, dataLoad)
+	}
+}
+
+func TestRetiredServiceMigrationLogIsGeneric(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(source), `app.Log("migration", "retired service migration failed: %v", err)`) {
+		t.Fatal("retired-service migration log is not generic")
+	}
+}
+
+func TestExecutableExcludesRetiredLocationRuntime(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, removed := range []string{
+		`"mu/pla` + `ces"`,
+		"pla" + "ces.Load()",
+		`http.HandleFunc("/pla` + `ces`,
+	} {
+		if strings.Contains(string(source), removed) {
+			t.Errorf("main.go retains retired location runtime wiring %q", removed)
+		}
+	}
+}
+
 func TestAdminRoutesExcludeLocalUserManagement(t *testing.T) {
 	source, err := os.ReadFile("main.go")
 	if err != nil {

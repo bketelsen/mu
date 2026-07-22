@@ -3,7 +3,7 @@
 A private, single-owner home server.
 
 Mu is one Go binary for private GitHub, news, mail, search, weather, video,
-places, apps, and an AI agent. Web, CLI, REST API, MCP, and A2A interfaces all
+apps, and an AI agent. Web, CLI, REST API, MCP, and A2A interfaces all
 operate on the same owner data.
 
 ## Owner setup
