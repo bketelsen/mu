@@ -33,6 +33,19 @@ func TestIsServerMode(t *testing.T) {
 	}
 }
 
+func TestPlacesRemovalRunsBeforeDataAndServices(t *testing.T) {
+	source, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerMigration := strings.Index(string(source), "if err := migrateSingleOwner(); err != nil")
+	placesMigration := strings.Index(string(source), "if err := migration.RemovePlaces(); err != nil")
+	dataLoad := strings.Index(string(source), "data.Load()")
+	if ownerMigration < 0 || placesMigration < 0 || dataLoad < 0 || ownerMigration >= placesMigration || placesMigration >= dataLoad {
+		t.Fatalf("startup order is owner=%d places=%d data=%d", ownerMigration, placesMigration, dataLoad)
+	}
+}
+
 func TestAdminRoutesExcludeLocalUserManagement(t *testing.T) {
 	source, err := os.ReadFile("main.go")
 	if err != nil {

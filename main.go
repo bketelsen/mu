@@ -38,6 +38,7 @@ import (
 	"mu/internal/cli"
 	"mu/internal/data"
 	"mu/internal/memory"
+	"mu/internal/migration"
 	"mu/internal/service"
 	"mu/internal/settings"
 	"mu/internal/setup"
@@ -137,6 +138,10 @@ func main() {
 	registerAccountCleanup()
 	if err := migrateSingleOwner(); err != nil {
 		app.Log("auth", "single-owner migration failed: %v", err)
+		os.Exit(1)
+	}
+	if err := migration.RemovePlaces(); err != nil {
+		app.Log("migration", "places removal failed: %v", err)
 		os.Exit(1)
 	}
 

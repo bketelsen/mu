@@ -283,6 +283,34 @@ func GetTransactions(userID string, limit int) []*Transaction {
 	return result
 }
 
+// DeleteTransactionsByOperation permanently removes matching history without
+// changing balances or quota usage. It is used by destructive data migrations.
+func DeleteTransactionsByOperation(operations ...string) error {
+	remove := make(map[string]struct{}, len(operations))
+	for _, operation := range operations {
+		remove[operation] = struct{}{}
+	}
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	filtered := make(map[string][]*Transaction, len(transactions))
+	for userID, history := range transactions {
+		kept := make([]*Transaction, 0, len(history))
+		for _, tx := range history {
+			if _, shouldRemove := remove[tx.Operation]; !shouldRemove {
+				kept = append(kept, tx)
+			}
+		}
+		filtered[userID] = kept
+	}
+	if err := data.SaveJSON("transactions.json", filtered); err != nil {
+		return err
+	}
+	transactions = filtered
+	return nil
+}
+
 // GetDailyUsage gets or creates daily usage record
 func GetDailyUsage(userID string) *DailyUsage {
 	today := time.Now().UTC().Format("2006-01-02")

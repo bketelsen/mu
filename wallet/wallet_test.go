@@ -10,7 +10,52 @@ import (
 	"time"
 
 	"mu/internal/auth"
+	"mu/internal/data"
 )
+
+func TestDeleteTransactionsByOperationPreservesAccounting(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	mutex.Lock()
+	oldWallets, oldTransactions, oldDailyUsage := wallets, transactions, dailyUsage
+	wallets = map[string]*Wallet{
+		"owner": {UserID: "owner", Balance: 42, Currency: "GBP"},
+	}
+	transactions = map[string][]*Transaction{
+		"owner": {
+			{ID: "search", UserID: "owner", Operation: "places_search", Amount: -5},
+			{ID: "keep", UserID: "owner", Operation: OpChatQuery, Amount: -7},
+			{ID: "nearby", UserID: "owner", Operation: "places_nearby", Amount: -4},
+		},
+	}
+	dailyUsage = map[string]*DailyUsage{
+		"owner:2026-07-21": {UserID: "owner", Date: "2026-07-21", Used: 9},
+	}
+	mutex.Unlock()
+	t.Cleanup(func() {
+		mutex.Lock()
+		wallets, transactions, dailyUsage = oldWallets, oldTransactions, oldDailyUsage
+		mutex.Unlock()
+	})
+
+	if err := DeleteTransactionsByOperation("places_search", "places_nearby"); err != nil {
+		t.Fatal(err)
+	}
+	got := GetTransactions("owner", 10)
+	if len(got) != 1 || got[0].ID != "keep" {
+		t.Fatalf("transactions after filter = %#v", got)
+	}
+	if wallets["owner"].Balance != 42 || dailyUsage["owner:2026-07-21"].Used != 9 {
+		t.Fatalf("accounting changed: wallet=%#v usage=%#v", wallets["owner"], dailyUsage["owner:2026-07-21"])
+	}
+	var stored map[string][]*Transaction
+	if err := data.LoadJSON("transactions.json", &stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored["owner"]) != 1 || stored["owner"][0].ID != "keep" {
+		t.Fatalf("stored transactions = %#v", stored)
+	}
+}
 
 func ownerSessionCookie(t *testing.T) *http.Cookie {
 	t.Helper()
