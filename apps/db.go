@@ -37,8 +37,6 @@ func dbDispatch(w http.ResponseWriter, r *http.Request, ns, caller string) {
 		Collection string                 `json:"collection"`
 		ID         string                 `json:"id"`
 		Data       map[string]interface{} `json:"data"`
-		Public     bool                   `json:"public"`
-		Scope      string                 `json:"scope"`
 		Where      map[string]interface{} `json:"where"`
 		Sort       string                 `json:"sort"`
 		Order      string                 `json:"order"`
@@ -51,16 +49,16 @@ func dbDispatch(w http.ResponseWriter, r *http.Request, ns, caller string) {
 
 	switch req.Op {
 	case "create":
-		rec, err := userdb.Create(ns, caller, req.Collection, req.Data, req.Public)
+		rec, err := userdb.Create(ns, caller, req.Collection, req.Data)
 		respondDB(w, map[string]interface{}{"record": rec}, err)
 	case "get":
 		rec, err := userdb.Get(ns, caller, req.Collection, req.ID)
 		respondDB(w, map[string]interface{}{"record": rec}, err)
 	case "list":
-		recs, err := userdb.List(ns, caller, req.Collection, req.Scope, req.Where, req.Sort, req.Order, req.Limit)
+		recs, err := userdb.List(ns, caller, req.Collection, req.Where, req.Sort, req.Order, req.Limit)
 		respondDB(w, map[string]interface{}{"records": recs}, err)
 	case "update":
-		rec, err := userdb.Update(ns, caller, req.Collection, req.ID, req.Data, req.Public)
+		rec, err := userdb.Update(ns, caller, req.Collection, req.ID, req.Data)
 		respondDB(w, map[string]interface{}{"record": rec}, err)
 	case "delete":
 		err := userdb.Delete(ns, caller, req.Collection, req.ID)
@@ -79,8 +77,6 @@ func respondDB(w http.ResponseWriter, payload interface{}, err error) {
 	switch {
 	case errors.Is(err, userdb.ErrAuth):
 		app.RespondError(w, http.StatusUnauthorized, err.Error())
-	case errors.Is(err, userdb.ErrForbidden):
-		app.RespondError(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, userdb.ErrNotFound):
 		app.RespondError(w, http.StatusNotFound, err.Error())
 	default:

@@ -1,10 +1,9 @@
-// Package userdb is the shared collections data layer behind mu.db. A record has
-// a server-set owner and a private/public flag; reads are owner-scoped and writes
-// are owner-checked. A namespace isolates one logical store — the app SDK uses
-// "apps/{slug}" so each app's data is separate, while the MCP/REST surface uses
-// "api" so a caller's records live alongside everyone's under owner scoping.
+// Package userdb is the collections data layer behind mu.db. Every record
+// belongs to the single owner; a namespace isolates one logical store — the app
+// SDK uses "apps/{slug}" so each app's data is separate, while the MCP/REST
+// surface uses "api".
 //
-// Security: the owner is always the authenticated caller, set by the calling
+// Security: the caller is always the authenticated owner, set by the calling
 // layer from the session — never taken from untrusted input. There is no query
 // language (records are JSON filtered in Go), so no injection surface, and keys
 // are confined by internal/data.
@@ -25,7 +24,7 @@ import (
 )
 
 const (
-	// MaxRecords caps records per owner per collection.
+	// MaxRecords caps records per collection.
 	MaxRecords = 2000
 	// MaxRecordSize caps a single record's JSON size.
 	MaxRecordSize = 64 * 1024
@@ -41,7 +40,6 @@ var (
 	ErrTooLarge      = errors.New("record exceeds 64KB limit")
 	ErrFull          = errors.New("you have too many records in this collection")
 	ErrNotFound      = errors.New("not found")
-	ErrForbidden     = errors.New("not your record")
 	ErrAuth          = errors.New("authentication required")
 )
 
@@ -52,11 +50,11 @@ var collectionRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 var mu sync.Mutex
 
 // Record is one stored item. Owner and timestamps are managed here; Data is the
-// caller's arbitrary JSON payload.
+// caller's arbitrary JSON payload. Owner is kept for on-disk compatibility and
+// always names the single owner for new records.
 type Record struct {
 	ID      string                 `json:"id"`
 	Owner   string                 `json:"owner"`
-	Public  bool                   `json:"public"`
 	Data    map[string]interface{} `json:"data"`
 	Created time.Time              `json:"created"`
 	Updated time.Time              `json:"updated"`
@@ -72,8 +70,8 @@ func key(ns, collection string) (string, error) {
 	return ns + "/db/" + collection + ".json", nil
 }
 
-// Create stores a new record owned by owner. owner must be non-empty.
-func Create(ns, owner, collection string, dataObj map[string]interface{}, public bool) (*Record, error) {
+// Create stores a new record. owner must be non-empty (the authenticated owner).
+func Create(ns, owner, collection string, dataObj map[string]interface{}) (*Record, error) {
 	if owner == "" {
 		return nil, ErrAuth
 	}
@@ -90,25 +88,21 @@ func Create(ns, owner, collection string, dataObj map[string]interface{}, public
 	mu.Lock()
 	defer mu.Unlock()
 	recs := load(k)
-	owned := 0
-	for i := range recs {
-		if recs[i].Owner == owner {
-			owned++
-		}
-	}
-	if owned >= MaxRecords {
+	if len(recs) >= MaxRecords {
 		return nil, ErrFull
 	}
 	now := time.Now()
-	rec := Record{ID: uuid.New().String(), Owner: owner, Public: public, Data: dataObj, Created: now, Updated: now}
+	rec := Record{ID: uuid.New().String(), Owner: owner, Data: dataObj, Created: now, Updated: now}
 	recs = append(recs, rec)
 	data.SaveJSON(k, recs)
 	return &rec, nil
 }
 
-// Get returns a record the caller may see (public, or owned). caller "" is a
-// guest and may only see public records.
+// Get returns a record by id. Requires an authenticated caller.
 func Get(ns, caller, collection, id string) (*Record, error) {
+	if caller == "" {
+		return nil, ErrAuth
+	}
 	k, err := key(ns, collection)
 	if err != nil {
 		return nil, err
@@ -118,20 +112,19 @@ func Get(ns, caller, collection, id string) (*Record, error) {
 	mu.Unlock()
 	for i := range recs {
 		if recs[i].ID == id {
-			if recs[i].Public || (caller != "" && recs[i].Owner == caller) {
-				r := recs[i]
-				return &r, nil
-			}
-			break
+			r := recs[i]
+			return &r, nil
 		}
 	}
 	return nil, ErrNotFound
 }
 
-// List returns records for scope "mine" (default), "public" or "all", with an
-// optional equality/operator filter, sort field and limit. A guest (caller "")
-// is forced to "public".
-func List(ns, caller, collection, scope string, where map[string]interface{}, sortField, order string, limit int) ([]Record, error) {
+// List returns records with an optional equality/operator filter, sort field
+// and limit. Requires an authenticated caller.
+func List(ns, caller, collection string, where map[string]interface{}, sortField, order string, limit int) ([]Record, error) {
+	if caller == "" {
+		return nil, ErrAuth
+	}
 	k, err := key(ns, collection)
 	if err != nil {
 		return nil, err
@@ -139,13 +132,7 @@ func List(ns, caller, collection, scope string, where map[string]interface{}, so
 	mu.Lock()
 	recs := load(k)
 	mu.Unlock()
-	if scope == "" {
-		scope = "mine"
-	}
-	if caller == "" {
-		scope = "public"
-	}
-	out := filter(recs, scope, caller, where)
+	out := filter(recs, where)
 	sortRecords(out, sortField, order)
 	if limit <= 0 || limit > MaxListLimit {
 		limit = MaxListLimit
@@ -156,8 +143,8 @@ func List(ns, caller, collection, scope string, where map[string]interface{}, so
 	return out, nil
 }
 
-// Update replaces a record's data (and public flag). Owner only.
-func Update(ns, caller, collection, id string, dataObj map[string]interface{}, public bool) (*Record, error) {
+// Update replaces a record's data. Requires an authenticated caller.
+func Update(ns, caller, collection, id string, dataObj map[string]interface{}) (*Record, error) {
 	if caller == "" {
 		return nil, ErrAuth
 	}
@@ -172,16 +159,12 @@ func Update(ns, caller, collection, id string, dataObj map[string]interface{}, p
 		if recs[i].ID != id {
 			continue
 		}
-		if recs[i].Owner != caller {
-			return nil, ErrForbidden
-		}
 		if len(dataObj) > 0 {
 			if b, _ := json.Marshal(dataObj); len(b) > MaxRecordSize {
 				return nil, ErrTooLarge
 			}
 			recs[i].Data = dataObj
 		}
-		recs[i].Public = public
 		recs[i].Updated = time.Now()
 		data.SaveJSON(k, recs)
 		r := recs[i]
@@ -190,7 +173,7 @@ func Update(ns, caller, collection, id string, dataObj map[string]interface{}, p
 	return nil, ErrNotFound
 }
 
-// Delete removes a record. Owner only.
+// Delete removes a record. Requires an authenticated caller.
 func Delete(ns, caller, collection, id string) error {
 	if caller == "" {
 		return ErrAuth
@@ -204,9 +187,6 @@ func Delete(ns, caller, collection, id string) error {
 	recs := load(k)
 	for i := range recs {
 		if recs[i].ID == id {
-			if recs[i].Owner != caller {
-				return ErrForbidden
-			}
 			recs = append(recs[:i], recs[i+1:]...)
 			data.SaveJSON(k, recs)
 			return nil
@@ -227,23 +207,9 @@ func load(k string) []Record {
 	return recs
 }
 
-func filter(recs []Record, scope, caller string, where map[string]interface{}) []Record {
+func filter(recs []Record, where map[string]interface{}) []Record {
 	out := make([]Record, 0, len(recs))
 	for _, rec := range recs {
-		switch scope {
-		case "public":
-			if !rec.Public {
-				continue
-			}
-		case "all":
-			if !rec.Public && rec.Owner != caller {
-				continue
-			}
-		default: // "mine"
-			if rec.Owner != caller {
-				continue
-			}
-		}
 		if !matchesWhere(rec, where) {
 			continue
 		}

@@ -1024,18 +1024,14 @@ func handleRun(w http.ResponseWriter, r *http.Request, slug string) {
       keys:function(){return sdk('store',{op:'keys'}).then(function(j){return j.result})},
     },
 
-    // Database (namespaced per app) — collections of records with an owner and a
-    // private/public flag. create/update/del act on the current user's records;
-    // list scopes to 'mine' (default), 'public', or 'all' (mine + public).
-    //   mu.db.create('notes', {title:'x', body:'y'})            // private to me
-    //   mu.db.create('notes', {title:'x'}, {public:true})       // shared publicly
-    //   mu.db.list('notes')                                     // my notes
-    //   mu.db.list('notes', {scope:'public', sort:'title', order:'asc'})
+    // Database (namespaced per app) — collections of JSON records.
+    //   mu.db.create('notes', {title:'x', body:'y'})
+    //   mu.db.list('notes', {sort:'title', order:'asc'})
     db:{
-      create:function(c,d,o){return sdk('db',{op:'create',collection:c,data:d,public:!!(o&&o.public)}).then(function(j){return j.record})},
+      create:function(c,d){return sdk('db',{op:'create',collection:c,data:d}).then(function(j){return j.record})},
       get:function(c,id){return sdk('db',{op:'get',collection:c,id:id}).then(function(j){return j.record})},
-      list:function(c,o){o=o||{};return sdk('db',{op:'list',collection:c,scope:o.scope||'mine',where:o.where||null,sort:o.sort||'',order:o.order||'desc',limit:o.limit||0}).then(function(j){return j.records||[]})},
-      update:function(c,id,d,o){var b={op:'update',collection:c,id:id,data:d,public:!!(o&&o.public)};return sdk('db',b).then(function(j){return j.record})},
+      list:function(c,o){o=o||{};return sdk('db',{op:'list',collection:c,where:o.where||null,sort:o.sort||'',order:o.order||'desc',limit:o.limit||0}).then(function(j){return j.records||[]})},
+      update:function(c,id,d){return sdk('db',{op:'update',collection:c,id:id,data:d}).then(function(j){return j.record})},
       del:function(c,id){return sdk('db',{op:'delete',collection:c,id:id})},
     },
 
