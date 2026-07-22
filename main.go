@@ -140,7 +140,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err := migration.RemovePlaces(); err != nil {
-		app.Log("migration", "places removal failed: %v", err)
+		app.Log("migration", "retired service migration failed: %v", err)
 		os.Exit(1)
 	}
 
