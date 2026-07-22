@@ -11,7 +11,6 @@ import (
 	"mu/internal/app"
 	"mu/internal/auth"
 	"mu/internal/data"
-	"mu/internal/flag"
 )
 
 // ConsoleHandler provides an admin console.
@@ -193,17 +192,6 @@ func runCommand(cmd string) string {
 			return "Error: " + err.Error()
 		}
 		return fmt.Sprintf("Deleted %s %s", arg(1), rest(2))
-
-	case "flags":
-		flagged := flag.GetAll()
-		if len(flagged) == 0 {
-			return "No flagged content."
-		}
-		var sb strings.Builder
-		for _, f := range flagged {
-			sb.WriteString(fmt.Sprintf("[%s] %s — %d flags, hidden: %v\n", f.ContentType, f.ContentID, f.FlagCount, f.Flagged))
-		}
-		return sb.String()
 
 	// --- System ---
 	case "stats":

@@ -51,7 +51,6 @@ import (
 	"mu/search"
 	"mu/stream"
 	"mu/topics"
-	"mu/user"
 	"mu/video"
 	"mu/weather"
 )
@@ -65,8 +64,7 @@ var runOwnerMigration = auth.MigrateSingleOwner
 var runWalletPaymentsMigration = data.RemoveWalletPayments
 
 func requiresWritePermission(r *http.Request) bool {
-	return r.Method == http.MethodPost && (r.URL.Path == "/user/status" ||
-		(r.URL.Path == "/blog" && r.URL.Query().Get("id") == "") ||
+	return r.Method == http.MethodPost && ((r.URL.Path == "/blog" && r.URL.Query().Get("id") == "") ||
 		(strings.HasPrefix(r.URL.Path, "/blog/post/") && strings.HasSuffix(r.URL.Path, "/comment")) ||
 		r.URL.Path == "/apps/new" || r.URL.Path == "/apps/generate" || r.URL.Path == "/stream")
 }
@@ -77,7 +75,7 @@ func loadTopicConfiguration() error {
 	return loadTopics()
 }
 
-const removeSocialMigrationVersion = 1
+const removeSocialMigrationVersion = 2
 
 var (
 	backupRemoveSocialData = func() (string, error) {
@@ -96,7 +94,6 @@ func registerAccountCleanup() {
 	auth.RegisterAccountDeleteHook("blog", blog.DeletePostsByAuthor)
 	auth.RegisterAccountDeleteHook("apps", apps.DeleteAppsByAuthor)
 	auth.RegisterAccountDeleteHook("stream", stream.ClearByAuthor)
-	auth.RegisterAccountDeleteHook("user", user.ClearStatusHistory)
 	auth.RegisterAccountDeleteHook("mail", mail.DeleteInbox)
 	auth.RegisterAccountDeleteHook("micro", micro.DeleteUserAgents)
 	auth.RegisterAccountDeleteHook("discord", discord.DeleteLinks)
@@ -143,13 +140,15 @@ func migrateRemoveSocial() error {
 	if err := deleteRemoveSocialIndexType("social"); err != nil {
 		return fmt.Errorf("delete social index: %w", err)
 	}
-	for _, key := range []string{"social.json", "social_posts.json"} {
+	for _, key := range []string{"social.json", "social_posts.json", "profiles.json", "flags.json"} {
 		if err := deleteRemoveSocialFile(key); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("delete %s: %w", key, err)
 		}
 	}
-	if err := removeSocialHomeCard("social"); err != nil {
-		return fmt.Errorf("remove social home card: %w", err)
+	for _, card := range []string{"social", "status"} {
+		if err := removeSocialHomeCard(card); err != nil {
+			return fmt.Errorf("remove %s home card: %w", card, err)
+		}
 	}
 	if err := removeSocialPrefs(); err != nil {
 		return fmt.Errorf("remove social preferences: %w", err)
@@ -241,9 +240,6 @@ func main() {
 	app.Load()
 	github.Load()
 	github.RegisterTools()
-
-	// load admin/flags
-	admin.Load()
 
 	// load the chat
 	chat.Load()
@@ -369,35 +365,8 @@ func main() {
 		}()
 	}
 
-	// Wire @micro mention handling in the status stream. When a user
-	// posts a status containing "@micro ...", run the agent against
-	// the sender's wallet and post the reply as a status from the
-	// system user. Runs async so the POST /user/status handler returns
-	// immediately. We never fire this for the system user itself.
-	user.AIReplyHook = func(askerID, prompt string) {
-		auth.RunForOwner(askerID, func(owner *auth.Account) {
-			answer, err := agent.Query(owner.ID, prompt)
-			if err != nil {
-				app.Log("status", "@micro agent error for %s: %v", owner.ID, err)
-				_ = user.PostSystemStatus("I couldn't answer that one — try again in a moment.")
-				return
-			}
-			answer = strings.TrimSpace(answer)
-			if answer == "" {
-				return
-			}
-			// Moderate the AI response before posting. Flagged output is dropped.
-			if !user.ModerateAIResponse(owner.ID, answer) {
-				app.Log("status", "AI response for %s blocked by moderation", owner.ID)
-				return
-			}
-			if err := user.PostSystemStatus(answer); err != nil {
-				app.Log("status", "failed to post @micro reply: %v", err)
-			}
-		})
-	}
-	// Wire stream @micro replies — same agent, posts into the stream
-	// instead of the status profile.
+	// Wire stream @micro replies — run the agent as the owner and post
+	// the answer into the stream.
 	stream.AIReplyHook = func(askerID, prompt string) {
 		auth.RunForOwner(askerID, func(owner *auth.Account) {
 			answer, err := agent.Query(owner.ID, prompt)
@@ -408,10 +377,6 @@ func main() {
 			}
 			answer = strings.TrimSpace(answer)
 			if answer == "" {
-				return
-			}
-			if !user.ModerateAIResponse(owner.ID, answer) {
-				app.Log("stream", "AI response for %s blocked by moderation", owner.ID)
 				return
 			}
 			stream.PostAgent(answer)
@@ -1012,9 +977,6 @@ func main() {
 	http.HandleFunc("/fetch", legacyRedirect("/fetch", "/web/fetch"))
 	http.HandleFunc("/read", legacyRedirect("/read", "/web/read"))
 
-	// flag content
-	http.HandleFunc("/admin/flag", admin.FlagHandler)
-
 	// admin dashboard
 	http.HandleFunc("/admin", admin.AdminHandler)
 
@@ -1111,9 +1073,6 @@ func main() {
 
 	http.HandleFunc("/images", images.Handler)
 	http.HandleFunc("/images/file/", images.FileHandler)
-
-	http.HandleFunc("/user/status", user.StatusHandler)
-	http.HandleFunc("/user/status/stream", user.StatusStreamHandler)
 
 	// Stream (console) routes
 	http.HandleFunc("/stream", stream.Handler)
@@ -1374,10 +1333,8 @@ func updatesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if since.IsZero() {
-		result["status"] = 0
 		result["stream"] = 0
 	} else {
-		result["status"] = user.StatusCountSince(since)
 		result["stream"] = stream.CountSince(since)
 	}
 

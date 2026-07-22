@@ -16,7 +16,6 @@ import (
 	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/event"
-	"mu/internal/flag"
 	topicstore "mu/topics"
 )
 
@@ -1014,9 +1013,6 @@ func Load() {
 		unsubscribeTopics = topicstore.Subscribe(applyTopicChange)
 	}
 
-	// Register LLM analyzer for content moderation
-	flag.SetAnalyzer(&llmAnalyzer{})
-
 	// Load existing summaries from disk
 	if b, err := data.LoadFile("chat_summaries.json"); err == nil {
 		if err := json.Unmarshal(b, &summaries); err != nil {
@@ -1573,18 +1569,6 @@ func handlePostChat(w http.ResponseWriter, r *http.Request) {
 	renderHTML = strings.Replace(renderHTML, `<div id="messages"></div>`, fmt.Sprintf(`<div id="messages">%s</div>`, messages), 1)
 
 	w.Write([]byte(renderHTML))
-}
-
-// llmAnalyzer implements the flag.LLMAnalyzer interface
-type llmAnalyzer struct{}
-
-func (a *llmAnalyzer) Analyze(promptText, question string) (string, error) {
-	prompt := &ai.Prompt{
-		System:   promptText,
-		Question: question,
-		Model:    ai.BackgroundModel(),
-	}
-	return askLLM(prompt)
 }
 
 // cleanupIdleRooms periodically removes idle chat rooms to prevent memory leaks

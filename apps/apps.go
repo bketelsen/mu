@@ -17,7 +17,6 @@ import (
 	"mu/internal/auth"
 	"mu/internal/data"
 	"mu/internal/event"
-	"mu/internal/flag"
 	"mu/internal/service"
 
 	"github.com/google/uuid"
@@ -620,17 +619,6 @@ func handleCreate(w http.ResponseWriter, r *http.Request) {
 	save()
 
 	app.Log("apps", "Created app %q by %s", name, acc.ID)
-
-	// Async content moderation checks the generated content without mutating its owner.
-	go func(authorID, appSlug, appName, appDesc, appHTML string) {
-		// Moderate name + description.
-		flag.CheckContent("app", appSlug, appName, appDesc)
-		// Moderate the HTML body — extract readable text + URLs.
-		body := extractAppText(appHTML)
-		if body != "" {
-			flag.CheckContent("app_content", appSlug, appName, body)
-		}
-	}(acc.ID, slug, name, description, html)
 
 	// Notify home dashboard to refresh
 	event.Publish(event.Event{Type: "apps_updated"})
@@ -1543,9 +1531,6 @@ func GetPublicApps() []*App {
 	var list []*App
 	for _, a := range apps {
 		if !a.Public {
-			continue
-		}
-		if flag.IsHidden("app", a.Slug) {
 			continue
 		}
 		list = append(list, a)
