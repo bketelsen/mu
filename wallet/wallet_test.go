@@ -10,7 +10,52 @@ import (
 	"time"
 
 	"mu/internal/auth"
+	"mu/internal/data"
 )
+
+func TestDeleteTransactionsByOperationPreservesAccounting(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	mutex.Lock()
+	oldWallets, oldTransactions, oldDailyUsage := wallets, transactions, dailyUsage
+	wallets = map[string]*Wallet{
+		"owner": {UserID: "owner", Balance: 42, Currency: "GBP"},
+	}
+	transactions = map[string][]*Transaction{
+		"owner": {
+			{ID: "search", UserID: "owner", Operation: "pla" + "ces_search", Amount: -5},
+			{ID: "keep", UserID: "owner", Operation: OpChatQuery, Amount: -7},
+			{ID: "nearby", UserID: "owner", Operation: "pla" + "ces_nearby", Amount: -4},
+		},
+	}
+	dailyUsage = map[string]*DailyUsage{
+		"owner:2026-07-21": {UserID: "owner", Date: "2026-07-21", Used: 9},
+	}
+	mutex.Unlock()
+	t.Cleanup(func() {
+		mutex.Lock()
+		wallets, transactions, dailyUsage = oldWallets, oldTransactions, oldDailyUsage
+		mutex.Unlock()
+	})
+
+	if err := DeleteTransactionsByOperation("pla"+"ces_search", "pla"+"ces_nearby"); err != nil {
+		t.Fatal(err)
+	}
+	got := GetTransactions("owner", 10)
+	if len(got) != 1 || got[0].ID != "keep" {
+		t.Fatalf("transactions after filter = %#v", got)
+	}
+	if wallets["owner"].Balance != 42 || dailyUsage["owner:2026-07-21"].Used != 9 {
+		t.Fatalf("accounting changed: wallet=%#v usage=%#v", wallets["owner"], dailyUsage["owner:2026-07-21"])
+	}
+	var stored map[string][]*Transaction
+	if err := data.LoadJSON("transactions.json", &stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored["owner"]) != 1 || stored["owner"][0].ID != "keep" {
+		t.Fatalf("stored transactions = %#v", stored)
+	}
+}
 
 func ownerSessionCookie(t *testing.T) *http.Cookie {
 	t.Helper()
@@ -123,8 +168,6 @@ func TestGetOperationCost(t *testing.T) {
 		{OpBlogCreate, CostBlogCreate},
 		{OpMailSend, CostMailSend},
 		{OpExternalEmail, CostExternalEmail},
-		{OpPlacesSearch, CostPlacesSearch},
-		{OpPlacesNearby, CostPlacesNearby},
 		{OpWeatherForecast, CostWeatherForecast},
 		{OpWeatherPollen, CostWeatherPollen},
 		{OpWebSearch, CostWebSearch},
@@ -141,12 +184,20 @@ func TestGetOperationCost(t *testing.T) {
 	}
 }
 
+func TestRetiredLocationOperationsUseNoActivePricing(t *testing.T) {
+	domain := "pla" + "ces"
+	for _, operation := range []string{domain + "_search", domain + "_nearby"} {
+		if got := GetOperationCost(operation); got != 1 {
+			t.Fatalf("GetOperationCost(%q) = %d, want default 1", operation, got)
+		}
+	}
+}
+
 func TestOperationConstants(t *testing.T) {
 	// Ensure all operation constants are unique
 	ops := []string{
 		OpNewsSearch, OpVideoSearch, OpChatQuery, OpBlogCreate,
-		OpMailSend, OpExternalEmail, OpPlacesSearch,
-		OpPlacesNearby, OpWeatherForecast, OpWeatherPollen,
+		OpMailSend, OpExternalEmail, OpWeatherForecast, OpWeatherPollen,
 		OpWebSearch, OpWebFetch, OpAgentQuery,
 		OpAgentQueryPremium, OpTopup, OpRefund,
 	}

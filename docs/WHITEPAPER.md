@@ -29,7 +29,7 @@ Every service surface is private after setup.
 ## Architecture
 
 Mu runs as one Go binary on Go Micro. In-process services provide news, search,
-mail, GitHub, weather, video, places, apps, and owner data. The agent composes
+mail, GitHub, weather, video, apps, and owner data. The agent composes
 those services through authenticated tools. JSON files provide persistence, with
 an optional SQLite search index; static assets and documentation are embedded.
 

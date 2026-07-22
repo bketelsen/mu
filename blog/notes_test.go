@@ -1,6 +1,9 @@
 package blog
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestNoteAngles guards the embedded notes.json: it must parse and carry at
 // least one non-empty angle. This catches a malformed or empty edit (e.g. from
@@ -14,6 +17,13 @@ func TestNoteAngles(t *testing.T) {
 		if name == "" || instruction == "" {
 			t.Errorf("angle with empty name or instruction: %q -> %q", name, instruction)
 		}
+	}
+}
+
+func TestOneQuestionManyServicesUsesSupportedSearch(t *testing.T) {
+	instruction := noteAngles()["One question, many services"]
+	if !strings.Contains(instruction, "weather plus news plus web search") {
+		t.Fatalf("unsupported service example: %q", instruction)
 	}
 }
 

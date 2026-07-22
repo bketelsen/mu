@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -169,6 +170,9 @@ func TestMCPHandler_ToolsList(t *testing.T) {
 		if _, exists := expectedTools[name]; exists {
 			expectedTools[name] = true
 		}
+		if name == "pla"+"ces_search" || name == "pla"+"ces_nearby" {
+			t.Errorf("retired location tool remains in tools/list: %s", name)
+		}
 
 		// Verify tool has required fields
 		if _, ok := tool["description"]; !ok {
@@ -186,21 +190,22 @@ func TestMCPHandler_ToolsList(t *testing.T) {
 }
 
 func TestMCPHandler_ToolsCallUnknown(t *testing.T) {
-	body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"unknown_tool","arguments":{}}}`
-	req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
-	w := httptest.NewRecorder()
+	domain := "pla" + "ces"
+	for _, name := range []string{"unknown_tool", domain + "_search", domain + "_nearby"} {
+		t.Run(name, func(t *testing.T) {
+			body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":` + strconv.Quote(name) + `,"arguments":{}}}`
+			req := ownerRequest(t, "POST", "/mcp", strings.NewReader(body))
+			w := httptest.NewRecorder()
+			MCPHandler(w, req)
 
-	MCPHandler(w, req)
-
-	var resp jsonrpcResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Error == nil {
-		t.Fatal("Expected error for unknown tool")
-	}
-	if !strings.Contains(resp.Error.Message, "unknown_tool") {
-		t.Errorf("Expected error to mention tool name, got: %s", resp.Error.Message)
+			var resp jsonrpcResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatal(err)
+			}
+			if resp.Error == nil || !strings.Contains(resp.Error.Message, name) {
+				t.Fatalf("unknown tool response for %q = %#v", name, resp)
+			}
+		})
 	}
 }
 

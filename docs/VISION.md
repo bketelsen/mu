@@ -1,8 +1,8 @@
 # Vision
 
 Mu is a private, single-owner home server for the everyday internet. One Go
-binary combines news, mail, search, GitHub, weather, video, places, apps, and
-an AI agent under the owner's control.
+binary combines news, mail, search, GitHub, weather, video, apps, and an AI
+agent under the owner's control.
 
 ## The problem
 

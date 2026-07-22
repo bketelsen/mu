@@ -1131,10 +1131,6 @@ func handleRun(w http.ResponseWriter, r *http.Request, slug string) {
       create:function(o){return post('/blog',o)},
     },
     social:function(){return get('/social')},
-    places:{
-      search:function(o){return post('/places/search',o)},
-      nearby:function(o){return post('/places/nearby',o)},
-    },
     chat:function(prompt){return post('/chat',{prompt:prompt})},
     search:function(q){return get('/search?q='+encodeURIComponent(q))},
     apps:{
