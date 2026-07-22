@@ -5,6 +5,33 @@ import (
 	"testing"
 )
 
+func TestBuiltInAgentsExcludeRetiredLocationDomain(t *testing.T) {
+	domain := "pla" + "ces"
+	if Get(domain) != nil {
+		t.Fatal("retired location specialist remains registered")
+	}
+	weather := Get("weather")
+	if weather == nil {
+		t.Fatal("weather specialist is missing")
+	}
+	for _, tool := range weather.Tools {
+		if tool == domain+"_search" || tool == domain+"_nearby" {
+			t.Fatalf("weather specialist retains retired location tool %q", tool)
+		}
+	}
+}
+
+func TestKeywordRouteNeverReturnsRetiredLocationDomain(t *testing.T) {
+	domain := "pla" + "ces"
+	for _, prompt := range []string{"find coworking", "cafes nearby", "restaurant"} {
+		for _, id := range keywordRoute(prompt) {
+			if id == domain {
+				t.Fatalf("keywordRoute(%q) returned removed agent", prompt)
+			}
+		}
+	}
+}
+
 func TestMarketsCapabilityIsNotRegistered(t *testing.T) {
 	if agent := Get("markets"); agent != nil {
 		t.Fatalf("removed Markets agent is still registered: %#v", agent)
@@ -12,6 +39,23 @@ func TestMarketsCapabilityIsNotRegistered(t *testing.T) {
 	for _, agent := range All() {
 		if agent.ID == "markets" {
 			t.Fatalf("All() exposed removed Markets agent: %#v", agent)
+		}
+	}
+}
+
+func TestBlogAgentRegistrationAndRouting(t *testing.T) {
+	a := Get("blog")
+	if a == nil {
+		t.Fatal("blog agent is not registered")
+	}
+	wantTools := []string{"blog_list", "blog_read", "blog_create", "blog_update"}
+	if !reflect.DeepEqual(a.Tools, wantTools) {
+		t.Fatalf("Tools = %v, want %v", a.Tools, wantTools)
+	}
+
+	for _, prompt := range []string{"show recent blog posts", "help me write a post"} {
+		if got := keywordRoute(prompt); !reflect.DeepEqual(got, []string{"blog"}) {
+			t.Fatalf("keywordRoute(%q) = %v, want [blog]", prompt, got)
 		}
 	}
 }

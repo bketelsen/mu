@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -38,6 +39,7 @@ import (
 	"mu/internal/cli"
 	"mu/internal/data"
 	"mu/internal/memory"
+	"mu/internal/migration"
 	"mu/internal/service"
 	"mu/internal/settings"
 	"mu/internal/setup"
@@ -45,11 +47,10 @@ import (
 	"mu/mail"
 	"mu/news"
 	"mu/news/digest"
-	"mu/places"
 	"mu/recall"
 	"mu/search"
-	"mu/social"
 	"mu/stream"
+	"mu/topics"
 	"mu/user"
 	"mu/video"
 	"mu/weather"
@@ -65,15 +66,34 @@ var runWalletPaymentsMigration = data.RemoveWalletPayments
 
 func requiresWritePermission(r *http.Request) bool {
 	return r.Method == http.MethodPost && (r.URL.Path == "/user/status" ||
-		r.URL.Path == "/social" || r.URL.Path == "/social/thread" ||
 		(r.URL.Path == "/blog" && r.URL.Query().Get("id") == "") ||
 		(strings.HasPrefix(r.URL.Path, "/blog/post/") && strings.HasSuffix(r.URL.Path, "/comment")) ||
 		r.URL.Path == "/apps/new" || r.URL.Path == "/apps/generate" || r.URL.Path == "/stream")
 }
 
+var loadTopics = topics.Load
+
+func loadTopicConfiguration() error {
+	return loadTopics()
+}
+
+const removeSocialMigrationVersion = 1
+
+var (
+	backupRemoveSocialData = func() (string, error) {
+		return backupSocialData(func() (string, error) { return data.Backup(time.Now()) })
+	}
+	loadRemoveSocialIndex       = data.Load
+	deleteRemoveSocialIndexType = data.DeleteIndexType
+	deleteRemoveSocialFile      = data.DeleteFile
+	removeSocialHomeCard        = auth.RemoveHomeCard
+	removeSocialPrefs           = func() error { return app.RemoveContentTypePrefs("social") }
+	loadRemoveSocialMarker      = func(marker *map[string]int) error { return data.LoadJSON("remove_social_migration.json", marker) }
+	saveRemoveSocialMarker      = func(marker map[string]int) error { return data.SaveJSON("remove_social_migration.json", marker) }
+)
+
 func registerAccountCleanup() {
 	auth.RegisterAccountDeleteHook("blog", blog.DeletePostsByAuthor)
-	auth.RegisterAccountDeleteHook("social", social.DeleteByAuthor)
 	auth.RegisterAccountDeleteHook("apps", apps.DeleteAppsByAuthor)
 	auth.RegisterAccountDeleteHook("stream", stream.ClearByAuthor)
 	auth.RegisterAccountDeleteHook("user", user.ClearStatusHistory)
@@ -99,6 +119,53 @@ func migrateSingleOwner() error {
 
 func migrateWalletPayments() error {
 	return runWalletPaymentsMigration()
+}
+
+// migrateRemoveSocial removes persisted social data after a backup. The index
+// still loads after completion so normal startup always has search state ready.
+func migrateRemoveSocial() error {
+	var marker map[string]int
+	err := loadRemoveSocialMarker(&marker)
+	completed := err == nil && marker["version"] == removeSocialMigrationVersion
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("load social removal marker: %w", err)
+	}
+	if !completed {
+		if _, err := backupRemoveSocialData(); err != nil {
+			return fmt.Errorf("backup data: %w", err)
+		}
+	}
+
+	loadRemoveSocialIndex()
+	if completed {
+		return nil
+	}
+	if err := deleteRemoveSocialIndexType("social"); err != nil {
+		return fmt.Errorf("delete social index: %w", err)
+	}
+	for _, key := range []string{"social.json", "social_posts.json"} {
+		if err := deleteRemoveSocialFile(key); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("delete %s: %w", key, err)
+		}
+	}
+	if err := removeSocialHomeCard("social"); err != nil {
+		return fmt.Errorf("remove social home card: %w", err)
+	}
+	if err := removeSocialPrefs(); err != nil {
+		return fmt.Errorf("remove social preferences: %w", err)
+	}
+	if err := saveRemoveSocialMarker(map[string]int{"version": removeSocialMigrationVersion}); err != nil {
+		return fmt.Errorf("save social removal marker: %w", err)
+	}
+	return nil
+}
+
+func backupSocialData(backup func() (string, error)) (string, error) {
+	path, err := backup()
+	if errors.Is(err, data.ErrBackupAlreadyExists) {
+		return "", nil
+	}
+	return path, err
 }
 
 // argFloat coerces a tool argument (JSON number or string) to a float64.
@@ -153,14 +220,24 @@ func main() {
 		app.Log("auth", "single-owner migration failed: %v", err)
 		os.Exit(1)
 	}
+	if err := migrateRemoveSocial(); err != nil {
+		app.Log("data", "social removal migration failed: %v", err)
+		os.Exit(1)
+	}
+	if err := migration.RemovePlaces(); err != nil {
+		app.Log("migration", "retired service migration failed: %v", err)
+		os.Exit(1)
+	}
 
 	// log the resolved AI provider up front so misconfiguration (missing
 	// token/key in this environment) is visible immediately, not as
 	// scattered per-request errors from background loops.
 	app.Log("ai", "AI provider: %s", ai.ProviderStatus())
 
-	// load the data index
-	data.Load()
+	if err := loadTopicConfiguration(); err != nil {
+		app.Log("topics", "topic configuration failed: %v", err)
+		os.Exit(1)
+	}
 	app.Load()
 	github.Load()
 	github.RegisterTools()
@@ -183,9 +260,6 @@ func main() {
 
 	// load the mail (also configures SMTP and DKIM)
 	mail.Load()
-
-	// load places
-	places.Load()
 
 	// load weather
 	weather.Load()
@@ -216,15 +290,6 @@ func main() {
 			return acc.Name
 		}
 		return accountID
-	}
-
-	// load social
-	social.Load()
-
-	// Wire social context into news article views
-	news.FetchSocialContext = func(articleURL, articleContent string) string {
-		ctx := social.FetchContext(articleURL, articleContent)
-		return social.RenderContextHTML(ctx)
 	}
 
 	// load the home cards
@@ -481,13 +546,13 @@ func main() {
 	})
 
 	// recall tool — unified search across everything mu knows for the caller:
-	// the public indexed corpus (news, blog, social, video) plus their own mail.
+	// the public indexed corpus (news, blog, video) plus their own mail.
 	if err := service.Register("recall", recall.Server{}); err != nil {
 		app.Log("main", "recall service register failed: %v", err)
 	}
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "recall",
-		Description: "Search across everything mu knows — indexed news, blog, social and video, plus the user's own mail — and return the most relevant items with ids. Use for 'do you remember', 'what did I get about X', 'search my stuff' and cross-source lookups.",
+		Description: "Search across everything mu knows — indexed news, blog and video, plus the user's own mail — and return the most relevant items with ids. Use for 'do you remember', 'what did I get about X', 'search my stuff' and cross-source lookups.",
 		Params: []api.ToolParam{
 			{Name: "query", Type: "string", Description: "What to look for", Required: true},
 			{Name: "limit", Type: "string", Description: "Optional max results (default 12)", Required: false},
@@ -691,21 +756,6 @@ func main() {
 		},
 	})
 
-	// social — latest social feed (AI-first).
-	api.RegisterTool(api.Tool{
-		Name:        "social_list",
-		Aliases:     []string{"social"},
-		Description: "Get the latest social posts from the network.",
-		Handle: func(args map[string]any) (string, error) {
-			var rsp social.FeedResponse
-			if err := service.Call(context.Background(), "social", "Server.Feed",
-				&social.FeedRequest{}, &rsp); err != nil {
-				return "", err
-			}
-			return rsp.Text, nil
-		},
-	})
-
 	// video — latest videos from curated channels (AI-first).
 	api.RegisterTool(api.Tool{
 		Name:        "video_list",
@@ -740,7 +790,6 @@ func main() {
 	// card the home screen shows. Cards render from each service's live data;
 	// wiring them here keeps internal/api free of service imports.
 	api.SetCard("news_list", "News", news.Headlines)
-	api.SetCard("social_list", "Social", social.CardHTML)
 	api.SetCard("video_list", "Videos", video.Latest)
 	api.SetCard("blog_list", "Blog", blog.Preview)
 
@@ -912,7 +961,7 @@ func main() {
 	// Register agent MCP tool (also exposed as POST /agent/run on the REST page).
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "agent",
-		Description: "Ask the AI agent a question. The agent can search GitHub, news, web, video, weather, places, and more to answer your question.",
+		Description: "Ask the AI agent a question. The agent can search GitHub, news, web, video, weather, and more to answer your question.",
 		Method:      "POST",
 		Path:        "/agent/run",
 		Params: []api.ToolParam{
@@ -999,6 +1048,7 @@ func main() {
 	// admin console
 	http.HandleFunc("/admin/console", admin.ConsoleHandler)
 	http.HandleFunc("/admin/diagnostics", admin.DiagnosticsHandler)
+	http.HandleFunc("/admin/topics", admin.TopicsHandler)
 
 	// serve whatsapp webhook
 	http.HandleFunc("/whatsapp/webhook", whatsapp.Handler)
@@ -1062,19 +1112,12 @@ func main() {
 	http.HandleFunc("/images", images.Handler)
 	http.HandleFunc("/images/file/", images.FileHandler)
 
-	// serve social page
-	http.HandleFunc("/social", social.Handler)
-	http.HandleFunc("/social/thread", social.ThreadHandler)
 	http.HandleFunc("/user/status", user.StatusHandler)
 	http.HandleFunc("/user/status/stream", user.StatusStreamHandler)
 
 	// Stream (console) routes
 	http.HandleFunc("/stream", stream.Handler)
 	http.HandleFunc("/stream/fragment", stream.FragmentHandler)
-
-	// serve places page
-	http.HandleFunc("/places", places.Handler)
-	http.HandleFunc("/places/", places.Handler)
 
 	// serve weather page
 	http.HandleFunc("/weather", weather.Handler)
@@ -1293,7 +1336,7 @@ func main() {
 // updatesHandler serves GET /updates?since=<unix> — a single lightweight
 // endpoint the client polls for change counts. Returns JSON:
 //
-//	{"mail":3,"status":2,"social":1,"ts":1713254400}
+//	{"mail":3,"status":2,"stream":1,"ts":1713254400}
 //
 // The client stores ts and sends it back on the next poll. If since is
 // omitted, returns current totals (unread mail, stream size, etc.).
@@ -1332,11 +1375,9 @@ func updatesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if since.IsZero() {
 		result["status"] = 0
-		result["social"] = 0
 		result["stream"] = 0
 	} else {
 		result["status"] = user.StatusCountSince(since)
-		result["social"] = social.CountSince(since)
 		result["stream"] = stream.CountSince(since)
 	}
 

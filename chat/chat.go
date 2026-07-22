@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -18,10 +17,8 @@ import (
 	"mu/internal/data"
 	"mu/internal/event"
 	"mu/internal/flag"
+	topicstore "mu/topics"
 )
-
-//go:embed *.json
-var f embed.FS
 
 var Template = `
 <div id="topic-selector">
@@ -55,6 +52,38 @@ func askLLM(prompt *ai.Prompt) (string, error) {
 var summaries = map[string]string{}
 var summaryMeta = SummaryMetadata{}
 
+var summaryWake = make(chan struct{}, 1)
+
+var summaryQueue = struct {
+	sync.Mutex
+	pending map[string]struct{}
+	dirty   bool
+}{pending: make(map[string]struct{})}
+
+var generateTopicSummary = func(topic, prompt string) (string, error) {
+	if !ai.Configured() {
+		return "", fmt.Errorf("no AI provider configured")
+	}
+	ragEntries := data.Search(topic, 3)
+	ragContext := make([]string, 0, len(ragEntries))
+	for _, entry := range ragEntries {
+		content := fmt.Sprintf("%s: %s", entry.Title, entry.Content)
+		if len(content) > 500 {
+			content = content[:500]
+		}
+		ragContext = append(ragContext, content)
+	}
+	return askLLM(&ai.Prompt{
+		Rag:      ragContext,
+		Question: prompt,
+		Priority: ai.PriorityMedium,
+		Model:    ai.BackgroundModel(),
+		Caller:   "topic-summary",
+	})
+}
+
+var summaryAIConfigured = ai.Configured
+
 // SummaryMetadata describes when and how the generated topic summaries were refreshed.
 type SummaryMetadata struct {
 	GeneratedAt time.Time `json:"generated_at,omitempty"`
@@ -71,7 +100,103 @@ func currentSummaryMeta() SummaryMetadata {
 
 var topics = []string{}
 
-var head string
+var unsubscribeTopics func()
+
+func applyTopicSnapshot(snapshot []topicstore.Topic) {
+	names := make([]string, 0, len(snapshot))
+	updatedPrompts := make(map[string]string, len(snapshot))
+	for _, topic := range snapshot {
+		names = append(names, topic.Name)
+		updatedPrompts[topic.Name] = topic.Prompt
+	}
+	sort.Strings(names)
+
+	mutex.Lock()
+	topics = names
+	prompts = updatedPrompts
+	mutex.Unlock()
+}
+
+func topicConfigSnapshot() ([]string, map[string]string) {
+	mutex.RLock()
+	names := append([]string(nil), topics...)
+	promptCopy := make(map[string]string, len(prompts))
+	for name, prompt := range prompts {
+		promptCopy[name] = prompt
+	}
+	mutex.RUnlock()
+	return names, promptCopy
+}
+
+func summaryTopics(change topicstore.Change) []string {
+	seen := make(map[string]struct{}, len(change.Added)+len(change.PromptChanged))
+	names := make([]string, 0, len(change.Added)+len(change.PromptChanged))
+	for _, changed := range append(change.Added, change.PromptChanged...) {
+		if _, exists := seen[changed.Name]; !exists {
+			seen[changed.Name] = struct{}{}
+			names = append(names, changed.Name)
+		}
+	}
+	return names
+}
+
+func applyTopicChange(snapshot []topicstore.Topic, change topicstore.Change) {
+	applyTopicSnapshot(snapshot)
+	if len(change.Deleted) > 0 {
+		mutex.Lock()
+		for _, deleted := range change.Deleted {
+			delete(summaries, deleted.Name)
+		}
+		mutex.Unlock()
+		summaryQueue.Lock()
+		summaryQueue.dirty = true
+		summaryQueue.Unlock()
+	}
+	enqueueSummaries(summaryTopics(change)...)
+}
+
+func enqueueSummaries(names ...string) {
+	summaryQueue.Lock()
+	for _, name := range names {
+		summaryQueue.pending[name] = struct{}{}
+	}
+	summaryQueue.Unlock()
+	select {
+	case summaryWake <- struct{}{}:
+	default:
+	}
+}
+
+func drainSummaryQueue() ([]string, bool) {
+	summaryQueue.Lock()
+	names := make([]string, 0, len(summaryQueue.pending))
+	for name := range summaryQueue.pending {
+		names = append(names, name)
+	}
+	summaryQueue.pending = make(map[string]struct{})
+	dirty := summaryQueue.dirty
+	summaryQueue.dirty = false
+	summaryQueue.Unlock()
+	sort.Strings(names)
+	return names, dirty
+}
+
+func summaryWorker() {
+	ticker := time.NewTicker(4 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-summaryWake:
+			names, dirty := drainSummaryQueue()
+			if dirty || len(names) > 0 {
+				generateSummaryBatch(names)
+			}
+		case <-ticker.C:
+			names, _ := topicConfigSnapshot()
+			enqueueSummaries(names...)
+		}
+	}
+}
 
 // WebSocket upgrader
 var upgrader = websocket.Upgrader{
@@ -884,20 +1009,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, room *Room) {
 }
 
 func Load() {
-	// load the feeds file
-	b, _ := f.ReadFile("prompts.json")
-	if err := json.Unmarshal(b, &prompts); err != nil {
-		app.Log("chat", "Error parsing topics.json: %v", err)
+	applyTopicSnapshot(topicstore.Snapshot())
+	if unsubscribeTopics == nil {
+		unsubscribeTopics = topicstore.Subscribe(applyTopicChange)
 	}
-
-	for topic, _ := range prompts {
-		topics = append(topics, topic)
-	}
-
-	sort.Strings(topics)
-
-	// Generate head with topics (rooms will be added dynamically)
-	head = app.Head("chat", topics)
 
 	// Register LLM analyzer for content moderation
 	flag.SetAnalyzer(&llmAnalyzer{})
@@ -980,17 +1095,14 @@ func Load() {
 				}
 				app.Log("chat", "Received tag generation request for post %s", postID)
 
-				var topics []string
-				for topic := range prompts {
-					topics = append(topics, topic)
-				}
-				if len(topics) == 0 {
+				topicNames, _ := topicConfigSnapshot()
+				if len(topicNames) == 0 {
 					app.Log("chat", "No topics available for tag generation")
 					continue
 				}
 
 				prompt := &ai.Prompt{
-					System:   fmt.Sprintf("You are a content categorization assistant. Your task is to categorize posts into ONE of these categories ONLY: %s. If the post does not clearly fit into any of these categories, respond with 'None'. Respond with ONLY the category name or 'None', nothing else.", strings.Join(topics, ", ")),
+					System:   fmt.Sprintf("You are a content categorization assistant. Your task is to categorize posts into ONE of these categories ONLY: %s. If the post does not clearly fit into any of these categories, respond with 'None'. Respond with ONLY the category name or 'None', nothing else.", strings.Join(topicNames, ", ")),
 					Question: fmt.Sprintf("Categorize this post:\n\nTitle: %s\n\nContent: %s\n\nWhich single category best fits this post?", title, content),
 					Priority: ai.PriorityLow,
 					Model:    ai.BackgroundModel(),
@@ -1009,7 +1121,7 @@ func Load() {
 				}
 
 				validTag := false
-				for topic := range prompts {
+				for _, topic := range topicNames {
 					if strings.EqualFold(tag, topic) {
 						tag = topic
 						validTag = true
@@ -1081,72 +1193,53 @@ func Load() {
 		}
 	}()
 
+	go summaryWorker()
 	go generateSummaries()
 	go cleanupIdleRooms()
 }
 
 func generateSummaries() {
-	// On a fresh instance with no AI provider yet, skip quietly instead of
-	// failing once per topic — the setup flow (/setup or `mu setup`) prompts
-	// for a provider, after which summaries resume on the next cycle.
-	if !ai.Configured() {
-		app.Log("chat", "Skipping topic summaries — no AI provider configured (run setup or set a provider key)")
-		return
-	}
+	names, _ := topicConfigSnapshot()
+	enqueueSummaries(names...)
+}
 
-	app.Log("chat", "Generating summaries at %s", time.Now().String())
-
-	newSummaries := map[string]string{}
-
-	for topic, prompt := range prompts {
-		// Search for relevant content for each topic
-		ragEntries := data.Search(topic, 3)
-		var ragContext []string
-		for _, entry := range ragEntries {
-			contentStr := fmt.Sprintf("%s: %s", entry.Title, entry.Content)
-			if len(contentStr) > 500 {
-				contentStr = contentStr[:500]
-			}
-			ragContext = append(ragContext, contentStr)
-		}
-
-		resp, err := askLLM(&ai.Prompt{
-			Rag:      ragContext,
-			Question: prompt,
-			Priority: ai.PriorityMedium,
-			Model:    ai.BackgroundModel(),
-			Caller:   "topic-summary",
-		})
-
-		if err != nil {
-			app.Log("chat", "Failed to generate summary for topic %s: %v", topic, err)
-			continue
-		}
-		newSummaries[topic] = resp
-
-		// Stagger requests to avoid rate limit spikes
-		time.Sleep(10 * time.Second)
-	}
-
-	mutex.Lock()
-	summaries = newSummaries
-	summaryMeta = SummaryMetadata{GeneratedAt: time.Now().UTC(), Source: "Mu indexed public content", Status: "fresh"}
-	mutex.Unlock()
-
-	// Save summaries to disk
-	if err := data.SaveJSON("chat_summaries.json", summaries); err != nil {
-		app.Log("chat", "Error saving summaries: %v", err)
+func generateSummaryBatch(names []string) {
+	_, activePrompts := topicConfigSnapshot()
+	if len(names) > 0 && !summaryAIConfigured() {
+		app.Log("chat", "Skipping summary batch: no AI provider configured")
 	} else {
-		app.Log("chat", "Saved %d summaries to disk", len(summaries))
+		for _, name := range names {
+			prompt, active := activePrompts[name]
+			if !active {
+				continue
+			}
+			resp, err := generateTopicSummary(name, prompt)
+			if err != nil {
+				app.Log("chat", "Failed to generate summary for topic %s: %v", name, err)
+				continue
+			}
+			mutex.Lock()
+			if _, active := prompts[name]; active {
+				summaries[name] = resp
+				summaryMeta = SummaryMetadata{GeneratedAt: time.Now().UTC(), Source: "Mu indexed public content", Status: "fresh"}
+			}
+			mutex.Unlock()
+		}
 	}
-	if err := data.SaveJSON("chat_summaries_meta.json", summaryMeta); err != nil {
+
+	mutex.RLock()
+	summaryCopy := make(map[string]string, len(summaries))
+	for name, summary := range summaries {
+		summaryCopy[name] = summary
+	}
+	metaCopy := summaryMeta
+	mutex.RUnlock()
+	if err := data.SaveJSON("chat_summaries.json", summaryCopy); err != nil {
+		app.Log("chat", "Error saving summaries: %v", err)
+	}
+	if err := data.SaveJSON("chat_summaries_meta.json", metaCopy); err != nil {
 		app.Log("chat", "Error saving summary metadata: %v", err)
 	}
-
-	// Generate topic summaries every 4 hours (not hourly) to reduce LLM calls
-	time.Sleep(4 * time.Hour)
-
-	go generateSummaries()
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
@@ -1240,9 +1333,12 @@ func handleGetChat(w http.ResponseWriter, r *http.Request, roomID string) {
 	}
 
 	// Now acquire mutex only for reading chat config
+	topicsData, _ := topicConfigSnapshot()
 	mutex.RLock()
-	topicsData := topics
-	summariesData := summaries
+	summariesData := make(map[string]string, len(summaries))
+	for topic, summary := range summaries {
+		summariesData[topic] = summary
+	}
 	summaryMetaData := currentSummaryMeta()
 	mutex.RUnlock()
 
@@ -1469,9 +1565,8 @@ func handlePostChat(w http.ResponseWriter, r *http.Request) {
 	messages := fmt.Sprintf(`<div class="message"><span class="you">you</span><p>%v</p></div>`, form["prompt"])
 	messages += fmt.Sprintf(`<div class="message"><span class="micro">micro</span><p>%v</p></div>`, form["answer"])
 
-	mutex.RLock()
-	topicTabs := app.Head("chat", topics)
-	mutex.RUnlock()
+	topicNames, _ := topicConfigSnapshot()
+	topicTabs := app.Head("chat", topicNames)
 
 	output := fmt.Sprintf(Template, topicTabs)
 	renderHTML := app.RenderHTMLForRequest("Chat", "Chat with AI", output, r)

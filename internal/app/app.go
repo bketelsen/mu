@@ -273,11 +273,9 @@ var Template = `
           <a href="/weather"><img src="/weather.svg?` + Version + `"><span class="label">Weather</span></a>
           <a href="/blog"><img src="/post.png?` + Version + `"><span class="label">Blog</span></a>
           <a id="nav-mail" href="/mail"><img src="/mail.png?` + Version + `"><span class="label">Mail</span><span id="nav-mail-badge"></span></a>
-          <a href="/social"><img src="/social.svg?` + Version + `"><span class="label">Social</span></a>
           <a href="/video"><img src="/video.png?` + Version + `"><span class="label">Video</span></a>
           <a href="/images"><img src="/images.svg?` + Version + `"><span class="label">Images</span></a>
           <a href="/search"><img src="/search.svg?` + Version + `"><span class="label">Search</span></a>
-          <a href="/places"><img src="/places.svg?` + Version + `"><span class="label">Places</span></a>
           <a href="/github"><img src="/github.svg?` + Version + `"><span class="label">GitHub</span></a>
           <a href="/app/saved"><img src="/saved.svg?` + Version + `"><span class="label">Saved</span></a>
           <a href="/apps"><img src="/apps.svg?` + Version + `"><span class="label">Apps</span></a>
@@ -317,7 +315,7 @@ var Template = `
 // introduced later can default to visible instead of being hidden by the
 // HomeCards allowlist. Keep in sync with the panels and home/cards.json.
 var homeCardUniverse = []string{
-	"blog", "news", "social", "video", "images", "mail", "web",
+	"blog", "news", "video", "images", "mail", "web",
 }
 
 var CardTemplate = `
@@ -663,7 +661,7 @@ func Account(w http.ResponseWriter, r *http.Request) {
 	// Home card preferences
 	allCards := []struct{ id, label string }{
 		{"blog", "Blog"}, {"news", "News"},
-		{"social", "Social"}, {"video", "Video"},
+		{"video", "Video"},
 		{"images", "Images"}, {"mail", "Mail"}, {"web", "Search"},
 	}
 	optInCards := map[string]bool{"mail": true, "web": true}

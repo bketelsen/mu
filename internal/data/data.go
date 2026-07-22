@@ -462,6 +462,22 @@ func GetByType(entryType string, limit int) []*IndexEntry {
 	return entries
 }
 
+// DeleteIndexType removes every indexed entry with the given type.
+func DeleteIndexType(entryType string) error {
+	if UseSQLite {
+		return DeleteIndexTypeSQLite(entryType)
+	}
+
+	indexMutex.Lock()
+	defer indexMutex.Unlock()
+	for id, entry := range index {
+		if entry.Type == entryType {
+			delete(index, id)
+		}
+	}
+	return SaveJSON("index.json", index)
+}
+
 // ClearIndex removes all entries from the index
 func ClearIndex() {
 	indexMutex.Lock()

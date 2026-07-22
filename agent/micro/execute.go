@@ -175,16 +175,12 @@ var guestAllowedTools = map[string]bool{
 	"video_search":     true,
 	"web_search":       true,
 	"web_fetch":        true,
-	"social":           true,
-	"social_search":    true,
 	"blog_list":        true,
 	"blog_read":        true,
 	"apps_search":      true,
 	"apps_read":        true,
 	"search":           true,
 	"stream":           true,
-	"places_search":    true,
-	"places_nearby":    true,
 }
 
 func isGuestAllowedTool(name string) bool {

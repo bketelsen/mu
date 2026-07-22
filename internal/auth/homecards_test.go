@@ -1,6 +1,10 @@
 package auth
 
-import "testing"
+import (
+	"testing"
+
+	"mu/internal/data"
+)
 
 func TestShowHomeCard(t *testing.T) {
 	cases := []struct {
@@ -38,5 +42,29 @@ func TestHomeCardActiveOptIn(t *testing.T) {
 	}
 	if !(&Account{HomeCards: []string{"mail"}}).HomeCardActive("mail") {
 		t.Error("mail in HomeCards should be active")
+	}
+}
+
+func TestRemoveHomeCardRemovesCardFromAllPreferencesAndPersists(t *testing.T) {
+	resetMigrationState(t, map[string]*Account{
+		"owner": {ID: "owner", HomeCards: []string{"news", "social", "social"}, HomeCardsSeen: []string{"social", "video"}},
+	})
+
+	if err := RemoveHomeCard("social"); err != nil {
+		t.Fatalf("RemoveHomeCard: %v", err)
+	}
+	if got := accounts["owner"].HomeCards; len(got) != 1 || got[0] != "news" {
+		t.Fatalf("HomeCards = %v, want [news]", got)
+	}
+	if got := accounts["owner"].HomeCardsSeen; len(got) != 1 || got[0] != "video" {
+		t.Fatalf("HomeCardsSeen = %v, want [video]", got)
+	}
+
+	var persisted map[string]*Account
+	if err := data.LoadJSON("accounts.json", &persisted); err != nil {
+		t.Fatalf("load persisted accounts: %v", err)
+	}
+	if got := persisted["owner"].HomeCards; len(got) != 1 || got[0] != "news" {
+		t.Fatalf("persisted HomeCards = %v, want [news]", got)
 	}
 }

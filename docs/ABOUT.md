@@ -17,7 +17,7 @@ storage and never represent separate local users.
 ## Services
 
 Mu's agent works across private services including RSS news, web search,
-GitHub, weather, video, places, mail, notes, apps, and the home dashboard.
+GitHub, weather, video, mail, notes, apps, and the home dashboard.
 The system is designed to serve its owner rather than advertising, engagement,
 or profile discovery.
 

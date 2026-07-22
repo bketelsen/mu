@@ -254,7 +254,7 @@ var tools = []Tool{
 			{Name: "query", Type: "string", Description: "News search query", Required: true},
 		},
 	},
-	// blog_list, social, video, and weather_forecast are registered in
+	// blog_list, video, and weather_forecast are registered in
 	// main.go as AI-first tools (clean Go handlers returning model-ready text),
 	// not as page-backed entries here.
 	{
@@ -294,15 +294,6 @@ var tools = []Tool{
 		Path:        "/blog/post",
 		Params: []ToolParam{
 			{Name: "id", Type: "string", Description: "The blog post ID to delete", Required: true},
-		},
-	},
-	{
-		Name:        "social_search",
-		Description: "Search social media posts",
-		Method:      "POST",
-		Path:        "/social",
-		Params: []ToolParam{
-			{Name: "query", Type: "string", Description: "Search query for social posts", Required: true},
 		},
 	},
 	{
@@ -395,31 +386,6 @@ var tools = []Tool{
 		Params: []ToolParam{
 			{Name: "type", Type: "string", Description: "Content type", Required: true},
 			{Name: "id", Type: "string", Description: "Content ID", Required: true},
-		},
-	},
-	{
-		Name:        "places_search",
-		Description: "Search for places by name or category, optionally near a location",
-		Method:      "POST",
-		Path:        "/places/search",
-		Params: []ToolParam{
-			{Name: "q", Type: "string", Description: "Search query (e.g. cafe, pharmacy, Boots)", Required: true},
-			{Name: "near", Type: "string", Description: "Location name or address to search near", Required: false},
-			{Name: "near_lat", Type: "number", Description: "Latitude of the search location", Required: false},
-			{Name: "near_lon", Type: "number", Description: "Longitude of the search location", Required: false},
-			{Name: "radius", Type: "number", Description: "Search radius in metres, 100–5000 (default 1000)", Required: false},
-		},
-	},
-	{
-		Name:        "places_nearby",
-		Description: "Find all places of interest near a given location",
-		Method:      "POST",
-		Path:        "/places/nearby",
-		Params: []ToolParam{
-			{Name: "address", Type: "string", Description: "Address or postcode to search near", Required: false},
-			{Name: "lat", Type: "number", Description: "Latitude of the search location", Required: false},
-			{Name: "lon", Type: "number", Description: "Longitude of the search location", Required: false},
-			{Name: "radius", Type: "number", Description: "Search radius in metres, 100–5000 (default 500)", Required: false},
 		},
 	},
 }

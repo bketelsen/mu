@@ -112,13 +112,12 @@ func ControlsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 var typeLabels = map[string]string{
-	"post":   "Blog post",
-	"work":   "Work",
-	"app":    "App",
-	"social": "Thread",
-	"video":  "Video",
-	"news":   "News",
-	"web":    "Web page",
+	"post":  "Blog post",
+	"work":  "Work",
+	"app":   "App",
+	"video": "Video",
+	"news":  "News",
+	"web":   "Web page",
 }
 
 // SavedEntry is one saved (bookmarked) item resolved to a link and a title.

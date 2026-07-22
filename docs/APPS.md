@@ -34,7 +34,7 @@ const notes = await mu.db.list('notes');
 ```
 
 Owner-only SDK calls include `mu.ai`, `mu.agent`, `mu.web.fetch`, weather, news,
-video, search, places, blog, and app helpers. The server binds every
+video, search, blog, and app helpers. The server binds every
 write to the owner.
 
 ## Security

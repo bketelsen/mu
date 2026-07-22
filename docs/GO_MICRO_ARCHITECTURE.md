@@ -98,11 +98,11 @@ things that are genuinely Mu-specific.
 2. ✅ **Replicate the snapshot read-model** to every display card. Done — the
    pattern was extracted into a shared helper, **`internal/snapshot`** (one tested
    `Snapshot` type: `New(name)` subscribes + primes from the store, `Publish`
-   writes store + broker, `Get` reads the mirror). All five cards use it:
-   **news, video, social, blog** — each serves `Get()` with a fallback
-   to its locally-cached HTML, each with round-trip + fallback tests. Publish is
-   hooked at every cache-rebuild site (video's two finalize points; social's
-   `updateCacheLocked`; blog's `updateCacheUnlocked`).
+   writes store + broker, `Get` reads the mirror). The remaining cards use it:
+   **news, video, blog** — each serves `Get()` with a fallback to its
+   locally-cached HTML, each with round-trip + fallback tests. Publish is hooked
+   at every cache-rebuild site (video's two finalize points; blog's
+   `updateCacheUnlocked`).
 3. ✅ **Unify events onto the broker.** Done — `internal/event` is now a thin
    wrapper over the go-micro broker: `Publish` JSON-encodes `Event.Data` onto the
    broker topic; `Subscribe` keeps the same buffered-channel API, fed by a

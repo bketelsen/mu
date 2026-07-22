@@ -1,5 +1,5 @@
 // Package recall is the cross-source recall service: it merges the public
-// indexed corpus (news, blog, social, video) with the caller's own mail into a
+// indexed corpus (news, blog, video) with the caller's own mail into a
 // compact, model-ready list. Public content is searched without an owner scope
 // (private entries excluded by default); mail is searched live and strictly
 // scoped to the account, so nothing leaks across users and mail bodies never
@@ -30,7 +30,7 @@ type Response struct {
 	Text string `json:"text" description:"Most relevant items with ids"`
 }
 
-// Search searches indexed news, blog, social and video, plus the account's own
+// Search searches indexed news, blog and video, plus the account's own
 // mail, and returns the most relevant items with ids.
 // @example {"query": "bitcoin"}
 func (Server) Search(_ context.Context, req *Request, rsp *Response) error {

@@ -11,8 +11,7 @@ import (
 func TestDomainServicesContainNoPaymentGates(t *testing.T) {
 	files := []string{
 		"chat/chat.go", "search/search.go", "search/read.go", "search/fetch.go",
-		"news/news.go", "video/video.go", "social/social.go", "mail/mail.go",
-		"places/places.go", "weather/weather.go", "images/images.go",
+		"news/news.go", "video/video.go", "mail/mail.go", "weather/weather.go", "images/images.go",
 	}
 	forbidden := []string{
 		`"mu/wallet"`, "wallet.CheckQuota(", "wallet.ConsumeQuota(",

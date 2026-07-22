@@ -152,10 +152,6 @@ var slashCommands = []SlashCommand{
 		},
 	},
 	{
-		Name:        "social",
-		Description: "View the social feed",
-	},
-	{
 		Name:        "video",
 		Description: "Search for videos",
 		Options: []SlashCommandOption{
@@ -282,7 +278,7 @@ func formatAsEmbed(prompt, answer string) Embed {
 		color = ColorRed
 	case strings.Contains(lower, "app"):
 		color = ColorPurple
-	case strings.Contains(lower, "social") || strings.Contains(lower, "blog"):
+	case strings.Contains(lower, "blog"):
 		color = ColorBlue
 	case strings.Contains(lower, "search"):
 		color = ColorGray

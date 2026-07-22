@@ -155,8 +155,8 @@ func TestRequiresWritePermission(t *testing.T) {
 		want   bool
 	}{
 		{name: "user status", method: http.MethodPost, path: "/user/status", want: true},
-		{name: "social post", method: http.MethodPost, path: "/social", want: true},
-		{name: "social thread", method: http.MethodPost, path: "/social/thread", want: true},
+		{name: "removed social post", method: http.MethodPost, path: "/social", want: false},
+		{name: "removed social thread", method: http.MethodPost, path: "/social/thread", want: false},
 		{name: "blog create", method: http.MethodPost, path: "/blog", want: true},
 		{name: "blog comment", method: http.MethodPost, path: "/blog/post/post-id/comment", want: true},
 		{name: "new app", method: http.MethodPost, path: "/apps/new", want: true},

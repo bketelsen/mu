@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -109,5 +110,25 @@ func ClearUserPrefs(userID string) error {
 	prefsMu.Lock()
 	defer prefsMu.Unlock()
 	delete(prefs, userID)
+	return savePrefs()
+}
+
+// RemoveContentTypePrefs removes saved and dismissed preferences for a content type.
+func RemoveContentTypePrefs(contentType string) error {
+	prefsMu.Lock()
+	defer prefsMu.Unlock()
+	prefix := contentType + ":"
+	for _, p := range prefs {
+		for key := range p.Saved {
+			if strings.HasPrefix(key, prefix) {
+				delete(p.Saved, key)
+			}
+		}
+		for key := range p.Dismissed {
+			if strings.HasPrefix(key, prefix) {
+				delete(p.Dismissed, key)
+			}
+		}
+	}
 	return savePrefs()
 }

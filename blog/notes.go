@@ -19,12 +19,12 @@ import (
 // It is produced the same way as the daily brief (news/digest) and the opinion
 // pieces (blog/opinion.go): the voice lives in a System prompt here in code, the
 // SET of things to produce lives in an embedded JSON (notes.json, a
-// name -> instruction map like chat/prompts.json), and each piece is generated
+// name -> instruction map), and each piece is generated
 // with ai.Ask (PriorityLow, BackgroundModel) and posted as the system account on
 // a cadence. Disable with the NOTES setting (off/false/0/no).
 
 // notesJSON is the set of angles: a map of title -> writing instruction, the
-// same shape as chat/prompts.json. Edit this file (data) to manage what gets
+// map of title -> instruction. Edit this file (data) to manage what gets
 // produced — no code change needed.
 //
 //go:embed notes.json
@@ -43,7 +43,7 @@ const notesCadence = 72 * time.Hour
 const notesVoice = `You are Micro, the voice of Mu, writing a short piece for Mu's own blog about Mu itself.
 
 Core facts you may rely on (claim nothing beyond these and the specific angle you are given):
-- Mu is a personal home server for the everyday internet: you ask it in plain language and it calls real services — news, mail, search, weather, video, blog, places and apps — and gives a single answer. It's yours — use it hosted or self-host it — and it remembers your preferences over time.
+- Mu is a personal home server for the everyday internet: you ask it in plain language and it calls real services — news, mail, search, weather, video, blog and apps — and gives a single answer. It's yours — use it hosted or self-host it — and it remembers your preferences over time.
 - Mu is open source (AGPL-3.0) and self-hostable as a single Go binary; running the whole stack yourself is a real, optional path.
 - Mu is built on Go Micro: every capability is a go-micro service, the assistant is a go-micro agent, and the MCP and A2A endpoints are its gateways.
 - Values: no ads, no tracking, no algorithmic feed, no infinite scroll. You pay for the tools, not with your attention. AI assists, it does not replace, and is honest when it does not know.

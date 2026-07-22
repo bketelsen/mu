@@ -165,13 +165,6 @@ func buildStatus() StatusResponse {
 		Status: youtubeConfigured,
 	})
 
-	// Check Google Places API
-	googleConfigured := settings.IsSet("GOOGLE_API_KEY")
-	services = append(services, StatusCheck{
-		Name:   "Google Places API",
-		Status: googleConfigured,
-	})
-
 	// Check Daily Digest
 	if DigestStatusFunc != nil {
 		ok, details := DigestStatusFunc()

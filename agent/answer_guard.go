@@ -560,10 +560,6 @@ func readableToolName(name string) string {
 		return "video"
 	case "blog":
 		return "blog"
-	case "social":
-		return "social"
-	case "places_search", "places_nearby":
-		return "places"
 	case "recall":
 		return "memory"
 	default:
@@ -1042,7 +1038,6 @@ func isUnavailableLine(line string) bool {
 		"no news headlines available",
 		"no news headlines found",
 		"no videos found",
-		"no places found",
 		"data unavailable",
 	}
 	for _, phrase := range unavailablePhrases {

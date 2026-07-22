@@ -165,7 +165,7 @@ func checkNews() healthCheck {
 			Name:   "News Feed",
 			Status: "warning",
 			Detail: "No articles in feed",
-			Fix:    "Check news/feeds.json for valid RSS feeds",
+			Fix:    "Manage RSS feeds in /admin/topics",
 		}
 	}
 
