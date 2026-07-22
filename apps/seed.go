@@ -134,7 +134,7 @@ func builtinApps() []*App {
 		{
 			Slug:        "bookmarks",
 			Name:        "Bookmarks",
-			Description: "Save links privately or publicly — an example app on mu.db and mu.web.fetch",
+			Description: "Save links — an example app on mu.db and mu.web.fetch",
 			Tags:        "productivity, bookmarks, example",
 			TemplateID:  "bookmarks",
 			Icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">

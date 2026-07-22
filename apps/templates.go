@@ -56,14 +56,14 @@ var Templates = []Template{
 	{
 		ID:          "notes",
 		Name:        "Notes",
-		Description: "Notes with private/public records via mu.db",
+		Description: "Notes stored via mu.db",
 		Category:    "Productivity",
 		HTML:        templateNotes,
 	},
 	{
 		ID:          "bookmarks",
 		Name:        "Bookmarks",
-		Description: "Save links privately or publicly — titles fetched via mu.web.fetch, stored in mu.db",
+		Description: "Save links — titles fetched via mu.web.fetch, stored in mu.db",
 		Category:    "Productivity",
 		HTML:        templateBookmarks,
 	},
@@ -410,49 +410,30 @@ button.ghost { background: #fff; color: #555; border: 1px solid #e0e0e0; }
 </head>
 <body>
 <h2>Notes</h2>
-<div class="tabs">
-  <button id="tab-mine" class="active" onclick="setTab('mine')">My notes</button>
-  <button id="tab-public" onclick="setTab('public')">Public</button>
-</div>
 <div class="layout">
   <div class="list" id="list"></div>
   <div class="editor">
     <input type="text" id="title" placeholder="Title">
     <textarea id="body" placeholder="Write a note..."></textarea>
     <div class="row">
-      <label><input type="checkbox" id="public"> Public</label>
       <button class="act" id="save" onclick="saveNote()">Save</button>
       <button class="ghost" onclick="newNote()">New</button>
       <button class="ghost" id="del" onclick="delNote()" style="display:none">Delete</button>
       <span class="status" id="status"></span>
     </div>
-    <div class="ro" id="ro" style="display:none">Read-only — this note belongs to another user.</div>
   </div>
 </div>
 <script>
-var tab = 'mine', current = null, me = null;
-
-// Records are owned server-side; knowing my account lets the UI show which
-// public notes I can edit (the server enforces it regardless).
-mu.user().then(function(u){ me = u && u.account; load(); });
-
-function setTab(t){
-  tab = t;
-  document.getElementById('tab-mine').className = t==='mine' ? 'active' : '';
-  document.getElementById('tab-public').className = t==='public' ? 'active' : '';
-  newNote(); load();
-}
+var current = null;
+load();
 
 function load(){
-  mu.db.list('notes', {scope: tab, sort: 'title', order: 'asc'}).then(function(recs){
+  mu.db.list('notes', {sort: 'title', order: 'asc'}).then(function(recs){
     var el = document.getElementById('list'); el.innerHTML = '';
     if(!recs.length){ el.innerHTML = '<div class="empty">No notes yet.</div>'; return; }
     recs.forEach(function(r){
       var d = document.createElement('div'); d.className = 'item';
-      var mine = r.owner === me;
-      d.innerHTML = (esc(r.data.title) || 'Untitled') +
-        (r.public ? ' <span class="pub">public</span>' : '') +
-        (tab==='public' && !mine ? ' <span class="by">by '+esc(r.owner)+'</span>' : '');
+      d.innerHTML = (esc(r.data.title) || 'Untitled');
       d.onclick = function(){ openNote(r); };
       el.appendChild(d);
     });
@@ -463,10 +444,7 @@ function openNote(r){
   current = r;
   document.getElementById('title').value = r.data.title || '';
   document.getElementById('body').value = r.data.body || '';
-  document.getElementById('public').checked = !!r.public;
-  var editable = r.owner === me;
-  setEditable(editable);
-  document.getElementById('del').style.display = editable ? '' : 'none';
+  document.getElementById('del').style.display = '';
   status('');
 }
 
@@ -474,26 +452,15 @@ function newNote(){
   current = null;
   document.getElementById('title').value = '';
   document.getElementById('body').value = '';
-  document.getElementById('public').checked = false;
-  setEditable(true);
   document.getElementById('del').style.display = 'none';
   status('');
 }
 
-function setEditable(on){
-  document.getElementById('title').readOnly = !on;
-  document.getElementById('body').readOnly = !on;
-  document.getElementById('public').disabled = !on;
-  document.getElementById('save').style.display = on ? '' : 'none';
-  document.getElementById('ro').style.display = on ? 'none' : '';
-}
-
 function saveNote(){
   var data = { title: document.getElementById('title').value, body: document.getElementById('body').value };
-  var pub = document.getElementById('public').checked;
   status('Saving...');
-  var p = current ? mu.db.update('notes', current.id, data, {public: pub})
-                  : mu.db.create('notes', data, {public: pub});
+  var p = current ? mu.db.update('notes', current.id, data)
+                  : mu.db.create('notes', data);
   p.then(function(rec){ current = rec; status('Saved'); document.getElementById('del').style.display=''; load(); })
    .catch(function(){ status('Error saving'); });
 }
@@ -510,8 +477,7 @@ function esc(s){ var d=document.createElement('div'); d.textContent = s==null?''
 </html>`
 
 // templateBookmarks is a reference app for the SDK: it saves links as mu.db
-// records (private by default, or public to share), fetches each page's title
-// server-side with mu.web.fetch, and lists "mine" vs "public".
+// records and fetches each page's title server-side with mu.web.fetch.
 const templateBookmarks = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -541,27 +507,14 @@ h2 { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
 </head>
 <body>
 <h2>Bookmarks</h2>
-<div class="tabs">
-  <button id="tab-mine" class="active" onclick="setTab('mine')">Mine</button>
-  <button id="tab-public" onclick="setTab('public')">Public</button>
-</div>
 <div class="add">
   <input type="url" id="url" placeholder="https://...">
   <button onclick="add()">Add</button>
 </div>
-<label class="opt"><input type="checkbox" id="public"> Share publicly</label>
 <div class="status" id="status"></div>
 <div id="list"></div>
 <script>
-var tab = 'mine', me = null;
-mu.user().then(function(u){ me = u && u.account; load(); });
-
-function setTab(t){
-  tab = t;
-  document.getElementById('tab-mine').className = t==='mine' ? 'active' : '';
-  document.getElementById('tab-public').className = t==='public' ? 'active' : '';
-  load();
-}
+load();
 
 function hostOf(u){ try { return new URL(u).host.replace(/^www\./,''); } catch(e){ return ''; } }
 
@@ -569,13 +522,12 @@ function add(){
   var url = document.getElementById('url').value.trim();
   if(!url) return;
   if(!/^https?:\/\//.test(url)) url = 'https://' + url;
-  var pub = document.getElementById('public').checked;
   status('Fetching title…');
   // Server-side fetch (no CORS, SSRF-guarded) to read the page <title>.
   mu.web.fetch(url).then(function(res){
     var m = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(res.body || '');
     var title = m ? m[1].trim() : hostOf(url);
-    return mu.db.create('bookmarks', { url: url, title: title }, { public: pub });
+    return mu.db.create('bookmarks', { url: url, title: title });
   }).then(function(){
     document.getElementById('url').value = '';
     status(''); load();
@@ -583,21 +535,17 @@ function add(){
 }
 
 function load(){
-  mu.db.list('bookmarks', { scope: tab, sort: 'title', order: 'asc' }).then(function(recs){
+  mu.db.list('bookmarks', { sort: 'title', order: 'asc' }).then(function(recs){
     var el = document.getElementById('list'); el.innerHTML = '';
     if(!recs.length){ el.innerHTML = '<div class="empty">No bookmarks yet.</div>'; return; }
     recs.forEach(function(r){
-      var mine = r.owner === me;
       var row = document.createElement('div'); row.className = 'item';
       row.innerHTML =
         '<a href="' + attr(r.data.url) + '" target="_blank" rel="noopener">' + esc(r.data.title || r.data.url) + '</a>' +
-        '<span class="host">' + esc(hostOf(r.data.url)) + '</span>' +
-        (r.public ? '<span class="pub">public</span>' : '');
-      if(mine){
-        var del = document.createElement('button'); del.className = 'del'; del.textContent = 'delete';
-        del.onclick = function(){ mu.db.del('bookmarks', r.id).then(load); };
-        row.appendChild(del);
-      }
+        '<span class="host">' + esc(hostOf(r.data.url)) + '</span>';
+      var del = document.createElement('button'); del.className = 'del'; del.textContent = 'delete';
+      del.onclick = function(){ mu.db.del('bookmarks', r.id).then(load); };
+      row.appendChild(del);
       el.appendChild(row);
     });
   });

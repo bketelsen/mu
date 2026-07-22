@@ -547,31 +547,29 @@ func main() {
 		return rsp.Text, nil
 	})
 
-	// db_* — a personal database over MCP/REST: the same collections + owner /
-	// private-public model as the app SDK's mu.db, scoped to the caller's account
-	// under the shared "api" namespace. Owner is bound from the session.
+	// db_* — a personal database over MCP/REST: the same collections model as
+	// the app SDK's mu.db, under the shared "api" namespace. Owner is bound
+	// from the session.
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "db_set",
-		Description: "Store a record in your database (a named collection). Private by default; set public=true to share it. Pass an id to update a record you own.",
+		Description: "Store a record in your database (a named collection). Pass an id to update an existing record.",
 		Method:      "POST",
 		Path:        "/db",
 		Params: []api.ToolParam{
 			{Name: "collection", Type: "string", Description: "Collection name (e.g. notes, tasks)", Required: true},
 			{Name: "data", Type: "object", Description: "The record's fields as a JSON object", Required: true},
-			{Name: "public", Type: "boolean", Description: "Share the record publicly (default false)", Required: false},
 			{Name: "id", Type: "string", Description: "Existing record id to update (optional)", Required: false},
 		},
 	}, func(args map[string]any, accountID string) (string, error) {
 		coll, _ := args["collection"].(string)
 		dataObj, _ := args["data"].(map[string]any)
-		public, _ := args["public"].(bool)
 		id, _ := args["id"].(string)
 		var rec *userdb.Record
 		var err error
 		if strings.TrimSpace(id) != "" {
-			rec, err = userdb.Update("api", accountID, coll, id, dataObj, public)
+			rec, err = userdb.Update("api", accountID, coll, id, dataObj)
 		} else {
-			rec, err = userdb.Create("api", accountID, coll, dataObj, public)
+			rec, err = userdb.Create("api", accountID, coll, dataObj)
 		}
 		if err != nil {
 			return "", err
@@ -581,7 +579,7 @@ func main() {
 	})
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "db_get",
-		Description: "Get one record by id from a collection (must be yours, or public).",
+		Description: "Get one record by id from a collection.",
 		Params: []api.ToolParam{
 			{Name: "collection", Type: "string", Description: "Collection name", Required: true},
 			{Name: "id", Type: "string", Description: "Record id", Required: true},
@@ -598,10 +596,9 @@ func main() {
 	})
 	api.RegisterToolWithAuth(api.Tool{
 		Name:        "db_list",
-		Description: "List records in a collection. scope: 'mine' (default), 'public', or 'all' (mine + public). Optional where filter, sort field and limit.",
+		Description: "List records in a collection. Optional where filter, sort field and limit.",
 		Params: []api.ToolParam{
 			{Name: "collection", Type: "string", Description: "Collection name", Required: true},
-			{Name: "scope", Type: "string", Description: "mine | public | all (default mine)", Required: false},
 			{Name: "where", Type: "object", Description: "Filter on data fields, e.g. {\"done\":false,\"priority\":{\"gte\":2}}", Required: false},
 			{Name: "sort", Type: "string", Description: "Data field to sort by", Required: false},
 			{Name: "order", Type: "string", Description: "asc | desc (default desc)", Required: false},
@@ -609,12 +606,11 @@ func main() {
 		},
 	}, func(args map[string]any, accountID string) (string, error) {
 		coll, _ := args["collection"].(string)
-		scope, _ := args["scope"].(string)
 		where, _ := args["where"].(map[string]any)
 		sortField, _ := args["sort"].(string)
 		order, _ := args["order"].(string)
 		limit := int(argFloat(args["limit"]))
-		recs, err := userdb.List("api", accountID, coll, scope, where, sortField, order, limit)
+		recs, err := userdb.List("api", accountID, coll, where, sortField, order, limit)
 		if err != nil {
 			return "", err
 		}

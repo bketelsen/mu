@@ -2,15 +2,6 @@ package userdb
 
 import "testing"
 
-func sample() []Record {
-	return []Record{
-		{ID: "1", Owner: "alice", Public: false, Data: map[string]interface{}{"title": "a-priv"}},
-		{ID: "2", Owner: "alice", Public: true, Data: map[string]interface{}{"title": "a-pub"}},
-		{ID: "3", Owner: "bob", Public: false, Data: map[string]interface{}{"title": "b-priv"}},
-		{ID: "4", Owner: "bob", Public: true, Data: map[string]interface{}{"title": "b-pub"}},
-	}
-}
-
 func ids(rs []Record) map[string]bool {
 	m := map[string]bool{}
 	for _, r := range rs {
@@ -19,36 +10,24 @@ func ids(rs []Record) map[string]bool {
 	return m
 }
 
-func TestFilterScopeMine(t *testing.T) {
-	got := ids(filter(sample(), "mine", "alice", nil))
-	if !got["1"] || !got["2"] || got["3"] || got["4"] {
-		t.Fatalf("mine scope wrong: %v", got)
+func TestFilterAppliesWhere(t *testing.T) {
+	recs := []Record{
+		{ID: "1", Data: map[string]interface{}{"title": "keep"}},
+		{ID: "2", Data: map[string]interface{}{"title": "drop"}},
+	}
+	got := ids(filter(recs, map[string]interface{}{"title": "keep"}))
+	if !got["1"] || got["2"] {
+		t.Fatalf("where filter wrong: %v", got)
 	}
 }
 
-func TestFilterScopePublicHidesOthersPrivate(t *testing.T) {
-	got := ids(filter(sample(), "public", "alice", nil))
-	if !got["2"] || !got["4"] || got["1"] || got["3"] {
-		t.Fatalf("public scope wrong: %v", got)
+func TestFilterNoWhereReturnsAll(t *testing.T) {
+	recs := []Record{
+		{ID: "1", Data: map[string]interface{}{"title": "a"}},
+		{ID: "2", Data: map[string]interface{}{"title": "b"}},
 	}
-}
-
-func TestFilterScopeAll(t *testing.T) {
-	got := ids(filter(sample(), "all", "alice", nil))
-	if !got["1"] || !got["2"] || !got["4"] || got["3"] {
-		t.Fatalf("all scope wrong: %v", got)
-	}
-}
-
-func TestFilterGuestSeesNoPrivate(t *testing.T) {
-	got := filter(sample(), "public", "", nil)
-	for _, r := range got {
-		if !r.Public {
-			t.Fatalf("guest saw private record %s", r.ID)
-		}
-	}
-	if len(got) != 2 {
-		t.Fatalf("guest public count = %d, want 2", len(got))
+	if got := filter(recs, nil); len(got) != 2 {
+		t.Fatalf("filter(nil) returned %d records, want 2", len(got))
 	}
 }
 
@@ -88,6 +67,25 @@ func TestSortRecordsByField(t *testing.T) {
 	sortRecords(rs, "n", "asc")
 	if rs[0].ID != "2" || rs[2].ID != "1" {
 		t.Fatalf("asc sort wrong: %v", ids(rs))
+	}
+}
+
+// TestGuestsRejected ensures every operation requires an authenticated caller.
+func TestGuestsRejected(t *testing.T) {
+	if _, err := Create("api", "", "notes", map[string]interface{}{"a": "b"}); err != ErrAuth {
+		t.Errorf("Create as guest = %v, want ErrAuth", err)
+	}
+	if _, err := Get("api", "", "notes", "id"); err != ErrAuth {
+		t.Errorf("Get as guest = %v, want ErrAuth", err)
+	}
+	if _, err := List("api", "", "notes", nil, "", "", 0); err != ErrAuth {
+		t.Errorf("List as guest = %v, want ErrAuth", err)
+	}
+	if _, err := Update("api", "", "notes", "id", nil); err != ErrAuth {
+		t.Errorf("Update as guest = %v, want ErrAuth", err)
+	}
+	if err := Delete("api", "", "notes", "id"); err != ErrAuth {
+		t.Errorf("Delete as guest = %v, want ErrAuth", err)
 	}
 }
 
