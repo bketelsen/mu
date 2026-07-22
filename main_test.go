@@ -1,13 +1,12 @@
 package main
 
 import (
-	"net/http/httptest"
+	"errors"
 	"os"
 	"strings"
 	"testing"
 
 	"mu/internal/auth"
-	"mu/wallet"
 )
 
 func TestIsServerMode(t *testing.T) {
@@ -96,34 +95,6 @@ func TestVersionInfoDoesNotExposeServiceTopology(t *testing.T) {
 	}
 }
 
-func TestChargedWriteOp(t *testing.T) {
-	tests := []struct {
-		name   string
-		method string
-		path   string
-		want   string
-	}{
-		{name: "reads are free", method: "GET", path: "/social", want: ""},
-		{name: "status post", method: "POST", path: "/user/status", want: wallet.OpSocialPost},
-		{name: "social thread", method: "POST", path: "/social", want: wallet.OpSocialPost},
-		{name: "social reply", method: "POST", path: "/social/thread", want: wallet.OpSocialReply},
-		{name: "new blog post", method: "POST", path: "/blog", want: wallet.OpBlogCreate},
-		{name: "blog update free", method: "POST", path: "/blog?id=post-1", want: ""},
-		{name: "blog comment", method: "POST", path: "/blog/post/post-1/comment", want: wallet.OpBlogComment},
-		{name: "app generation", method: "POST", path: "/apps/generate", want: wallet.OpAppBuild},
-		{name: "uncharged post", method: "POST", path: "/mail", want: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest(tt.method, tt.path, nil)
-			if got := chargedWriteOp(r); got != tt.want {
-				t.Fatalf("chargedWriteOp(%s %s) = %q, want %q", tt.method, tt.path, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestArgFloat(t *testing.T) {
 	tests := []struct {
 		name string
@@ -143,6 +114,16 @@ func TestArgFloat(t *testing.T) {
 				t.Fatalf("argFloat(%v) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMigrateWalletPaymentsPropagatesFailure(t *testing.T) {
+	original := runWalletPaymentsMigration
+	defer func() { runWalletPaymentsMigration = original }()
+	want := errors.New("cannot delete seed")
+	runWalletPaymentsMigration = func() error { return want }
+	if err := migrateWalletPayments(); !errors.Is(err, want) {
+		t.Fatalf("error = %v, want %v", err, want)
 	}
 }
 

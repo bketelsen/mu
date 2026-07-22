@@ -1,11 +1,11 @@
 // Package env loads a dotenv file into the process environment at startup so
-// that both `mu --serve` and one-off CLI commands (e.g. `mu x402`) see the same
+// that both `mu --serve` and one-off CLI commands see the same
 // configuration — without relying on the shell, or on systemd's EnvironmentFile
 // being applied. Values already present in the environment always win; the file
 // only fills in what is unset.
 //
 // It is imported for its side effect by packages that read configuration at
-// init time (e.g. wallet), guaranteeing the file is loaded before those reads.
+// init time, guaranteeing the file is loaded before those reads.
 package env
 
 import (

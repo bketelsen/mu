@@ -163,9 +163,6 @@ func (c *Client) call(method string, params any, out any) error {
 		return err
 	}
 
-	if resp.StatusCode == http.StatusPaymentRequired {
-		return fmt.Errorf("payment required (HTTP 402): insufficient credits. Top up at %s/wallet", c.URL)
-	}
 	if resp.StatusCode >= 400 && len(respBody) == 0 {
 		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, endpoint)
 	}

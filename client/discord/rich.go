@@ -145,10 +145,6 @@ var slashCommands = []SlashCommand{
 		Description: "Check your inbox",
 	},
 	{
-		Name:        "balance",
-		Description: "Check your Base wallet USDC balance",
-	},
-	{
 		Name:        "apps",
 		Description: "Search or browse apps",
 		Options: []SlashCommandOption{
