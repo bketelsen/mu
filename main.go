@@ -63,6 +63,14 @@ var backupData = func() (string, error) { return data.Backup(time.Now()) }
 var runOwnerMigration = auth.MigrateSingleOwner
 var runWalletPaymentsMigration = data.RemoveWalletPayments
 
+func requiresWritePermission(r *http.Request) bool {
+	return r.Method == http.MethodPost && (r.URL.Path == "/user/status" ||
+		r.URL.Path == "/social" || r.URL.Path == "/social/thread" ||
+		(r.URL.Path == "/blog" && r.URL.Query().Get("id") == "") ||
+		(strings.HasPrefix(r.URL.Path, "/blog/post/") && strings.HasSuffix(r.URL.Path, "/comment")) ||
+		r.URL.Path == "/apps/new" || r.URL.Path == "/apps/generate" || r.URL.Path == "/stream")
+}
+
 func registerAccountCleanup() {
 	auth.RegisterAccountDeleteHook("blog", blog.DeletePostsByAuthor)
 	auth.RegisterAccountDeleteHook("social", social.DeleteByAuthor)
@@ -1203,11 +1211,7 @@ func main() {
 				}
 			}
 
-			if r.Method == http.MethodPost && (r.URL.Path == "/user/status" ||
-				r.URL.Path == "/social" || r.URL.Path == "/social/thread" ||
-				(r.URL.Path == "/blog" && r.URL.Query().Get("id") == "") ||
-				(strings.HasPrefix(r.URL.Path, "/blog/post/") && strings.HasSuffix(r.URL.Path, "/comment")) ||
-				r.URL.Path == "/apps/new" || r.URL.Path == "/apps/generate" || r.URL.Path == "/stream") {
+			if requiresWritePermission(r) {
 				sess, err := auth.GetSession(r)
 				if err != nil {
 					http.Error(w, "authentication required", http.StatusUnauthorized)

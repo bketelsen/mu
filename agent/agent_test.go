@@ -3,7 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -389,10 +389,12 @@ func TestFormatToolResult_Dispatch(t *testing.T) {
 }
 
 func TestModelsHaveNoPaymentMetadata(t *testing.T) {
+	if _, ok := reflect.TypeFor[Model]().FieldByName("WalletOp"); ok {
+		t.Fatal("Model retains WalletOp payment metadata")
+	}
 	for _, model := range Models {
-		metadata := strings.ToLower(fmt.Sprintf("%+v", model))
-		if strings.Contains(metadata, "agent_query") || strings.Contains(metadata, "wallet") {
-			t.Fatalf("model %q exposes payment metadata: %s", model.Name, metadata)
+		if model.ID == "" || model.Name == "" {
+			t.Fatalf("model has incomplete metadata: %#v", model)
 		}
 	}
 }

@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -142,5 +144,37 @@ func TestMigrateSingleOwnerUsesDataBackup(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("startup migration did not invoke data backup")
+	}
+}
+
+func TestRequiresWritePermission(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		want   bool
+	}{
+		{name: "user status", method: http.MethodPost, path: "/user/status", want: true},
+		{name: "social post", method: http.MethodPost, path: "/social", want: true},
+		{name: "social thread", method: http.MethodPost, path: "/social/thread", want: true},
+		{name: "blog create", method: http.MethodPost, path: "/blog", want: true},
+		{name: "blog comment", method: http.MethodPost, path: "/blog/post/post-id/comment", want: true},
+		{name: "new app", method: http.MethodPost, path: "/apps/new", want: true},
+		{name: "generate app", method: http.MethodPost, path: "/apps/generate", want: true},
+		{name: "stream post", method: http.MethodPost, path: "/stream", want: true},
+		{name: "blog update", method: http.MethodPost, path: "/blog?id=post-id", want: false},
+		{name: "status read", method: http.MethodGet, path: "/user/status", want: false},
+		{name: "social read", method: http.MethodGet, path: "/social", want: false},
+		{name: "unrelated post", method: http.MethodPost, path: "/news", want: false},
+		{name: "comment-like path", method: http.MethodPost, path: "/blog/post/post-id/comments", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(tt.method, tt.path, nil)
+			if got := requiresWritePermission(r); got != tt.want {
+				t.Fatalf("requiresWritePermission(%s %s) = %v, want %v", tt.method, tt.path, got, tt.want)
+			}
+		})
 	}
 }
