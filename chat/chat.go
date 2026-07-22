@@ -24,7 +24,6 @@ var Template = `
   <div class="topic-tabs">%s</div>
 </div>
 <div id="messages"></div>
-%s
 <form id="chat-form" onsubmit="event.preventDefault(); askLLM(this);">
 <input id="context" name="context" type="hidden">
 <input id="topic" name="topic" type="hidden">
@@ -573,32 +572,6 @@ func getOrCreateRoom(id string) *Room {
 	return room
 }
 
-// broadcastUserList sends the current list of usernames to all clients
-func (room *Room) broadcastUserList() {
-	room.mutex.RLock()
-	usernames := make([]string, 0, len(room.Clients)+1)
-	for _, client := range room.Clients {
-		usernames = append(usernames, client.UserID)
-	}
-	room.mutex.RUnlock()
-
-	// Always include micro in topic chat rooms
-	if strings.HasPrefix(room.ID, "chat_") {
-		usernames = append(usernames, "micro")
-	}
-
-	userListMsg := map[string]interface{}{
-		"type":  "user_list",
-		"users": usernames,
-	}
-
-	room.mutex.RLock()
-	for conn := range room.Clients {
-		conn.WriteJSON(userListMsg)
-	}
-	room.mutex.RUnlock()
-}
-
 // run handles the chat room message broadcasting
 func (room *Room) run() {
 	for {
@@ -620,9 +593,6 @@ func (room *Room) run() {
 			room.LastActivity = time.Now()
 			room.mutex.Unlock()
 
-			// Broadcast updated user list
-			room.broadcastUserList()
-
 		case client := <-room.Unregister:
 			room.mutex.Lock()
 			if _, ok := room.Clients[client.Conn]; ok {
@@ -631,9 +601,6 @@ func (room *Room) run() {
 			}
 			room.LastActivity = time.Now()
 			room.mutex.Unlock()
-
-			// Broadcast updated user list
-			room.broadcastUserList()
 
 		case message := <-room.Broadcast:
 			// Add message to history (keep last 20)
@@ -804,9 +771,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, room *Room) {
 				}
 				room.Broadcast <- userMsg
 
-				// Check if micro should respond:
-				// For item-specific rooms (news_, video_, post_), ALWAYS respond - these are AI discussions
-				// For topic chat rooms (chat_), respond when mentioned or alone (public room behavior)
+				// Every room is a conversation between the owner and micro,
+				// so micro always responds.
 				contentLower := strings.ToLower(content)
 				mentionedMicro := strings.Contains(contentLower, "@micro")
 
@@ -815,20 +781,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, room *Room) {
 					strings.HasPrefix(room.ID, "video_") ||
 					strings.HasPrefix(room.ID, "post_")
 
-				// Check if user is alone in a topic chat room
-				room.mutex.RLock()
-				isAlone := strings.HasPrefix(room.ID, "chat_") && len(room.Clients) == 1
-				room.mutex.RUnlock()
+				isTopicRoom := strings.HasPrefix(room.ID, "chat_")
 
-				// inActiveConvo only applies when the user is alone
-				// When multiple users are present, micro only responds to explicit @micro mentions
-				inActiveConvo := isAlone && client.InMicroConvo && time.Since(client.LastMicroReply) < 2*time.Minute
+				inActiveConvo := client.InMicroConvo && time.Since(client.LastMicroReply) < 2*time.Minute
 
-				if mentionedMicro || isAlone || isItemRoom {
+				if mentionedMicro || isTopicRoom || isItemRoom {
 					client.InMicroConvo = true
 				}
 
-				if mentionedMicro || inActiveConvo || isAlone || isItemRoom {
+				if mentionedMicro || inActiveConvo || isTopicRoom || isItemRoom {
 					go func() {
 						// Pattern matching for predictable queries - skip LLM for direct lookups
 						if response := handlePatternMatch(content, room); response != "" {
@@ -1358,24 +1319,11 @@ func handleGetChat(w http.ResponseWriter, r *http.Request, roomID string) {
 	summaryMetaJSON, _ := json.Marshal(summaryMetaData)
 	roomJSON, _ := json.Marshal(roomData)
 
-	guestNotice := ""
-	if _, acc := auth.TrySession(r); acc == nil {
-		guestNotice = guestChatAuthNotice()
-	}
-
-	tmpl := app.RenderHTMLForRequest("Chat", "Chat with AI", fmt.Sprintf(Template, topicTabs, guestNotice), r)
+	tmpl := app.RenderHTMLForRequest("Chat", "Chat with AI", fmt.Sprintf(Template, topicTabs), r)
 
 	tmpl = strings.Replace(tmpl, "</body>", fmt.Sprintf(`<script>var summaries = %s; var summaryMeta = %s; var roomData = %s;</script></body>`, summariesJSON, summaryMetaJSON, roomJSON), 1)
 
 	w.Write([]byte(tmpl))
-}
-
-func guestChatAuthNotice() string {
-	return `<div id="chat-auth-notice" class="notice">
-  <strong>Sign in to use your chat.</strong>
-  <p>Chat is private to the server owner.</p>
-  <p><a class="link" href="/login?redirect=/chat">Log in</a></p>
-</div>`
 }
 
 // handlePostChat handles POST /chat - send a chat message

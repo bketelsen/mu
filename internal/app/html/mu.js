@@ -1087,13 +1087,8 @@ function connectRoomWebSocket(roomId) {
   
   roomWs.onmessage = function(event) {
     const msg = JSON.parse(event.data);
-    
-    if (msg.type === 'user_list') {
-      updateUserList(msg.users);
-    } else {
-      saveMessageToStorage(roomId, msg);
-      displayRoomMessage(msg, true);
-    }
+    saveMessageToStorage(roomId, msg);
+    displayRoomMessage(msg, true);
   };
   
   roomWs.onclose = function() {
@@ -1160,26 +1155,6 @@ function renderMarkdown(text) {
     .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank">$1</a>')
     // Line breaks
     .replace(/\n/g, '<br>');
-}
-
-function updateUserList(users) {
-  var container = document.getElementById('chat-users');
-  if (!container) {
-    // Create the user list container inside messages div (at the top)
-    var messagesDiv = document.getElementById('messages');
-    if (!messagesDiv) return;
-    container = document.createElement('div');
-    container.id = 'chat-users';
-    messagesDiv.insertBefore(container, messagesDiv.firstChild);
-  }
-  if (!users || users.length === 0) {
-    container.innerHTML = '';
-    return;
-  }
-  var parts = users.map(function(u) {
-    return '<a href="/@' + encodeURIComponent(u) + '" title="View profile" style="color:#555;text-decoration:none;font-weight:600;">@' + u + '</a>';
-  });
-  container.innerHTML = '<span style="color:#999;">In room: </span>' + parts.join(' &nbsp;');
 }
 
 function sendRoomMessage(form) {
@@ -1310,77 +1285,11 @@ document.addEventListener('DOMContentLoaded', function() {
   updateCharCount();
 });
 
-// PRESENCE WEBSOCKET (HOME PAGE)
+// HOME PAGE SETUP
 // ============================================
 
-let presenceWs;
-let presenceReconnectTimer;
-
-function connectPresence() {
-  if (presenceWs && presenceWs.readyState === WebSocket.OPEN) {
-    return;
-  }
-  
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  presenceWs = new WebSocket(protocol + '//' + window.location.host + '/presence');
-  
-  presenceWs.onopen = function() {
-    console.log('Connected to presence');
-    // Send heartbeat every 30s to stay marked as online
-    setInterval(() => {
-      if (presenceWs && presenceWs.readyState === WebSocket.OPEN) {
-        presenceWs.send(JSON.stringify({type: 'ping'}));
-      }
-    }, 30000);
-  };
-  
-  presenceWs.onmessage = function(event) {
-    const msg = JSON.parse(event.data);
-    if (msg.type === 'presence') {
-      updatePresenceDisplay(msg.users, msg.count);
-    }
-  };
-  
-  presenceWs.onclose = function() {
-    console.log('Presence disconnected');
-    // Reconnect after 5s
-    if (presenceReconnectTimer) clearTimeout(presenceReconnectTimer);
-    presenceReconnectTimer = setTimeout(connectPresence, 5000);
-  };
-  
-  presenceWs.onerror = function(error) {
-    console.error('Presence WebSocket error:', error);
-  };
-}
-
-function updatePresenceDisplay(users, count) {
-  const presenceContent = document.getElementById('presence-content');
-  if (!presenceContent) return;
-  
-  function makeUserLink(u) {
-    return '<a href="/@' + u + '" title="View profile" style="color: inherit;">@' + u + '</a>';
-  }
-
-  if (count === 0) {
-    presenceContent.innerHTML = '<span class="info">No one else is here right now</span>';
-  } else if (count === 1) {
-    presenceContent.innerHTML = makeUserLink(users[0]) + ' is here';
-  } else if (count <= 5) {
-    const userLinks = users.map(makeUserLink).join(', ');
-    presenceContent.innerHTML = userLinks + ' are here';
-  } else {
-    // Show first 3 users and count of others
-    const firstThree = users.slice(0, 3).map(makeUserLink).join(', ');
-    presenceContent.innerHTML = firstThree + ' and ' + (count - 3) + ' others are here';
-  }
-}
-
-// Connect to presence on home page
 if (window.location.pathname === '/home' || window.location.pathname === '/') {
   document.addEventListener('DOMContentLoaded', function() {
-    // Small delay to let session check complete first
-    setTimeout(connectPresence, 500);
-    
     // Apply hidden cards immediately (from localStorage)
     applyHiddenCards();
   });
