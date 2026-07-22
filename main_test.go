@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -9,6 +10,17 @@ import (
 	"mu/internal/auth"
 	"mu/wallet"
 )
+
+func TestLoadTopicConfigurationReturnsError(t *testing.T) {
+	want := errors.New("invalid topic configuration")
+	oldLoadTopics := loadTopics
+	loadTopics = func() error { return want }
+	t.Cleanup(func() { loadTopics = oldLoadTopics })
+
+	if err := loadTopicConfiguration(); err != want {
+		t.Fatalf("loadTopicConfiguration() error = %v, want %v", err, want)
+	}
+}
 
 func TestIsServerMode(t *testing.T) {
 	tests := []struct {
