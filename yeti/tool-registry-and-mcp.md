@@ -17,9 +17,11 @@ Defined at `internal/api/mcp.go:103-116`:
 - `Name`, `Aliases` — canonical + alternate invocation names.
 - `Description`, `Params []ToolParam` — used to build both the MCP
   JSON schema and the planner's tool catalog prompt.
-- `Method`/`Path` — optional: if set (and no `Handle`), the tool
-  dispatches as an internal authenticated HTTP request to that route
-  via `http.DefaultServeMux` instead of calling a Go function directly.
+- `Method`/`Path` — optional: dispatches as an internal authenticated
+  HTTP request to that route via `http.DefaultServeMux`. Only used as
+  a *fallback* when the tool has neither `HandleAuth` nor `Handle` set
+  — a tool can define both a direct handler and `Method`/`Path`
+  (e.g. `apps_read`), in which case the handler always wins.
 - `Handle func(args map[string]any) (string, error)` — direct handler,
   no account context.
 - via `RegisterToolWithAuth`, a second handler form receives
@@ -39,17 +41,22 @@ Defined at `internal/api/mcp.go:103-116`:
   structured data — tools are designed to be "AI-first": the RPC
   response is already synthesized into text a model can quote/act on.
 - `api.SetCard(toolName, title, renderFunc)` (`internal/api/card.go:19`)
-  attaches a visual dashboard card renderer to a tool so both the home
-  screen and an agent answer can show the same rich card
-  (`main.go:757-759`).
+  attaches a visual dashboard card renderer to a tool so an agent
+  answer can render a rich card for it. Note: the home dashboard does
+  *not* consume this registry — `home/home.go` independently maps
+  `home/cards.json` entries straight to domain renderers, so a card
+  registered only via `api.SetCard` shows up in agent answers but not
+  automatically on the home screen.
 
 ### Invocation
 
 - `ExecuteToolAs` (`mcp.go:393-404`) creates a temporary account
   session for non-HTTP/background callers (e.g. the agent planner).
 - `ExecuteTool` (`:406-480`) resolves aliases, requires a session, and
-  either calls `HandleAuth`/`Handle` directly or dispatches the
-  registered `Method`+`Path` as an internal authenticated HTTP request.
+  dispatches in strict precedence order: `HandleAuth` first (if set),
+  else `Handle` (if set), else the registered `Method`+`Path` as an
+  internal authenticated HTTP request. A tool with both a direct
+  handler and `Method`/`Path` always runs the handler.
 - Every tool call — whether from MCP, the planner, or the CLI — goes
   through this same authorization boundary. There is no path that
   lets a model or client argument choose which account a tool acts as;
@@ -90,8 +97,10 @@ JSON-RPC façade on top of `agent/micro`:
 - Types: `AgentCard`, `Task`, `Message`, `Artifact`
   (`internal/a2a/a2a.go:29-130`).
 - `AgentCardHandler` (`:161`) serves `/.well-known/agent.json`; its
-  advertised skills come straight from `micro.All` (the built-in +
-  custom agent registry).
+  advertised skills come from `micro.All()`, which is only the
+  built-in agent registry (`agent/micro/micro.go:50-58`) — it excludes
+  both the `micro` catch-all fallback and any per-owner custom agents
+  stored via `agent/micro/userstore.go`.
 - `Handler` (`:169`) serves `/a2a` JSON-RPC. `SendMessage` routes the
   prompt through `micro.Route` then synchronously calls
   `micro.Orchestrate` (`:208-304`) — A2A shares the exact same routing/

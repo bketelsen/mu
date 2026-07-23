@@ -1,10 +1,14 @@
 # Domain Services
 
-Each package below follows a common shape: `Load()` registers a
-go-micro service and starts any background loops; an HTTP `Handler`
-serves the package's page(s); a `Server` type (if present) exposes RPC
-methods called via `service.Call`. Read `main.go`'s linear `Load()`
-sequence to see exact startup order and cross-package wiring.
+Each package below generally follows a common shape: `Load()`
+registers a go-micro service and/or starts background loops; an HTTP
+`Handler` serves the package's page(s); a `Server` type (if present)
+exposes RPC methods called via `service.Call`. Not every package has
+all three — e.g. `images.Load` runs a scheduler but registers no
+go-micro service, `stream.Load` only logs restored state, `home.Load`
+registers no service, and `agent.Load` is a no-op. Read `main.go`'s
+linear `Load()` sequence to see exact startup order and cross-package
+wiring.
 
 ## news
 RSS aggregation, article summaries/sentiment, indexed search, home

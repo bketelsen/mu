@@ -29,9 +29,12 @@ are confined to this directory to prevent traversal (`:54-72`).
   all `Load()` calls) so the priority queue processes newly loaded
   content first.
 - Backups: `Backup` (`internal/data/backup.go:19`) does an atomic,
-  timestamped, fsync+rename sibling-directory copy. Called before
-  every startup migration (`main.go`'s `backupData`/
-  `backupRemoveSocialData`) and available to admin operators.
+  timestamped, fsync+rename sibling-directory copy, and is available
+  to admin operators. It is **not** called before every startup
+  migration — `migrateRemoveSocial` backs up first, but
+  `migrateWalletPayments` and `migration.RemovePlaces` do not
+  (`main.go:200-229`, `internal/data/remove_wallet_payments.go:20-91`,
+  `internal/migration/places.go:16-42`).
 
 ## `internal/userdb`: owner-scoped collections
 
