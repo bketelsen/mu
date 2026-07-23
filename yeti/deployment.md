@@ -4,19 +4,31 @@ Covers Docker, `install.sh`, systemd socket activation, and CI/CD.
 
 ## Single binary
 
-`main.go` dispatches on the first flag: `mu --serve` (or `-serve`, or
-`--serve=true/false`) runs the full server; any other invocation is
-handed to `internal/cli`, which authenticates and talks to `/mcp` over
-HTTP and never touches server state (`isServerMode`,
-`main.go:1374-1385`). This means the exact same compiled binary is the
-server, the CLI, and (via MCP) effectively an API client.
+`main.go` dispatches on the first flag: any argument matching `--serve`,
+`-serve`, `--serve=...`, or `-serve=...` is treated as server mode
+(`isServerMode`, `main.go:1374-1385`); everything else is handed to
+`internal/cli`, which authenticates and talks to `/mcp` over HTTP and
+never touches server state. This means the exact same compiled binary
+is the server, the CLI, and (via MCP) effectively an API client.
+**Caveat:** only `--serve`/`-serve` (or `--serve=true`) actually starts
+the server — `--serve=false` is still detected as server mode by
+`isServerMode`, but the subsequent `if !*ServeFlag` check
+(`main.go:198-201`) then prints `--serve not set` and returns without
+running the server *or* falling back to the CLI.
 
 ## Docker
 
 - `Dockerfile` — multi-stage Go 1.25 Alpine build producing one
-  `/usr/local/bin/mu` executable. Runtime image includes CA certs,
-  defaults `DATA_DIR=/data`, exposes `8080` (web), `8081`, and `2525`
-  (SMTP), mounts `/data`, runs `mu --serve`.
+  `/usr/local/bin/mu` executable. Runtime image sets `DATA_DIR=/data`,
+  exposes `8080` (web), `8081`, and `2525` (SMTP), mounts `/data`, runs
+  `mu --serve`. **`DATA_DIR` is currently not read by the app** —
+  `internal/data.Dir()` (`internal/data/data.go:75-78`) always resolves
+  to `$HOME/.mu/data` regardless of `DATA_DIR`, so unless the
+  container's `$HOME` is also `/data` (it isn't by default — root's
+  home in the Alpine image), data is actually written to
+  `/root/.mu/data`, not the declared `/data` volume. This is a known
+  drift between the Docker packaging and the code; treat `DATA_DIR` as
+  aspirational/no-op until `internal/data` is updated to honor it.
 - `docker-compose.yml` — builds the local Dockerfile, publishes host
   `8080`, uses a named persistent volume `mu-data` at `/data`.
   Documents optional env-based admin/AI-provider configuration and
@@ -63,11 +75,14 @@ is specific to the systemd-managed production deployment described in
 
 ## Data directory and backups
 
-All persistent state lives under one directory (`~/.mu/data` locally,
-`/data` in the container via `DATA_DIR`). `internal/data.Backup`
-produces atomic, timestamped sibling-directory backups; startup
-migrations always back up before mutating anything. Operators should
-back up this entire directory before upgrading — see
-`docs/INSTALLATION.md` for the full migration/backup story (legacy
-migration retains the backup, uses the oldest admin as owner, or resets
-an instance with no admin).
+All persistent state lives under one directory: `~/.mu/data`, resolved
+by `internal/data.Dir()` (`internal/data/data.go:75-78`) as
+`$HOME/.mu/data` — this is hardcoded and does **not** honor `DATA_DIR`
+(see the Docker caveat above). `internal/data.Backup` produces atomic,
+timestamped sibling-directory backups; some but not all startup
+migrations back up before mutating (`migrateRemoveSocial` does;
+`migrateWalletPayments` and `migration.RemovePlaces` do not — see
+`main.go:200-229`). Operators should back up this entire directory
+before upgrading — see `docs/INSTALLATION.md` for the full
+migration/backup story (legacy migration retains the backup, uses the
+oldest admin as owner, or resets an instance with no admin).

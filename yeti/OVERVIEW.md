@@ -148,15 +148,21 @@ See dedicated docs for depth:
 
 - **Idempotent, versioned migrations run before services load.**
   `internal/migration` and ad hoc migration functions in `main.go`
-  (`migrateSingleOwner`, `migrateRemoveSocial`, `migration.RemovePlaces`)
-  write a version marker file and re-check it on every startup; they
-  back up data first and abort startup (`os.Exit(1)`) on failure.
+  (`migrateWalletPayments`, `migrateSingleOwner`, `migrateRemoveSocial`,
+  `migration.RemovePlaces`) write a version marker file and re-check it
+  on every startup, aborting startup (`os.Exit(1)`) on failure. Backup
+  behavior is inconsistent between them: `migrateRemoveSocial` backs up
+  data first; `migrateWalletPayments` and `migration.RemovePlaces` do
+  not (`main.go:200-229`).
 
 - **CLI and server share one binary, split at the first flag.**
   `mu --serve` (or `-serve`) runs the full server; any other
   invocation is handed to `internal/cli`, which never touches server
   state directly — it authenticates and calls `/mcp` over HTTP just
-  like any other MCP client.
+  like any other MCP client. Edge case: `--serve=false` is still
+  detected as server mode (`isServerMode`, `main.go:1374-1385`) but
+  then exits immediately without starting the server or falling back
+  to the CLI — see `deployment.md`.
 
 ## Configuration
 
@@ -168,17 +174,33 @@ Environment variables always take priority over the persisted
 |----------|---------|
 | `ADMIN` | Bootstrap value for the first owner account |
 | `MU_DOMAIN` | Public domain, used for A2A base URL and email `Onion-Location`-style routing |
+| `PUBLIC_URL` | Overrides the externally-visible base URL when it differs from `MU_DOMAIN` |
 | `MAIL_DOMAIN` | Enables outbound verification email via Mu's own SMTP relay when set to a real domain |
 | `MCP_GATEWAY_ADDR` | Optional separate go-micro MCP gateway port, additive to `/mcp` |
 | `AGENT_NATIVE` / `AGENT_NATIVE_STREAM` | Toggle the native go-micro agent path and its streaming |
 | `COPILOT_GITHUB_TOKEN` | GitHub Copilot as LLM provider (see `internal/ai/copilot`) |
 | Anthropic / Atlas Cloud / Ollama vars | Alternate/fallback LLM providers — see `internal/ai/providers.go` and `docs/ENVIRONMENT_VARIABLES.md` |
+| `ANTHROPIC_MODEL` / `ANTHROPIC_PREMIUM_MODEL` / `COPILOT_CHAT_MODEL` / `COPILOT_BACKGROUND_MODEL` / `COPILOT_PREMIUM_MODEL` | Per-provider model overrides for chat vs. background vs. premium tasks |
+| `IMAGE_MODEL` / `IMAGE_BASE_URL` / `IMAGE_API_KEY` / `IMAGE_SIZE` | Image-generation provider config (`internal/ai/image.go`) |
+| `BRAVE_API_KEY` | Brave Search API key for `search/` |
+| `YOUTUBE_API_KEY` / `GOOGLE_API_KEY` | Google/YouTube API keys for `video/` and Google sign-in |
 | `DISCORD_BOT_TOKEN` | Enables the Discord channel bot |
 | `TELEGRAM_BOT_TOKEN` | Enables the Telegram channel bot (long polling) |
 | `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_ID` / `WHATSAPP_VERIFY_TOKEN` / `WHATSAPP_APP_SECRET` | Enable the WhatsApp Business Cloud webhook |
+| `MU_ENCRYPTION_KEY` / `GPG_KEYRING` / `GPG_HOME` (or `GNUPGHOME`) | Mail-at-rest encryption key and GPG keyring location (`mail/encrypt.go`) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Outbound relay SMTP credentials, when not using Mu's own SMTP server |
+| `MU_URL` / `MU_TOKEN` | CLI target server URL and PAT, so `internal/cli` can reach a remote `/mcp` (`internal/cli/config.go`) |
+| `MU_NO_COLOR` / `NO_COLOR` | Disable ANSI color in CLI output |
 | `MU_USE_SQLITE` | Switch `internal/data` indexing to a SQLite/FTS5 backend |
 | `NOTES` | Set to `off` to disable Mu's own low-cadence "notes" blog loop |
+| `TOR_ONION` | Advertise a Tor onion address alongside the clearnet domain |
 | `LISTEN_PID` / `LISTEN_FDS` | Set by systemd socket activation; adopted automatically for zero-downtime restarts |
+
+Note: `internal/env` implements a dotenv loader (`MU_ENV_FILE`, else
+`~/.env`, else `~/.mu/.env`, without overriding already-set env vars)
+but as of this writing has no import sites in the repo, so it is
+currently dormant/unwired — don't rely on `.env` file loading until
+something calls it.
 
 Development commands (from `CLAUDE.md`):
 
